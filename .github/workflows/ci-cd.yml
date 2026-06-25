@@ -68,12 +68,20 @@ jobs:
         id: check
         env:
           FTP_SERVER: ${{ secrets.FTP_SERVER }}
+          FTP_USERNAME: ${{ secrets.FTP_USERNAME }}
+          FTP_PASSWORD: ${{ secrets.FTP_PASSWORD }}
           DEPLOY_TOKEN: ${{ secrets.DEPLOY_TOKEN }}
         run: |
-          if [ -z "$FTP_SERVER" ] || [ -z "$DEPLOY_TOKEN" ]; then
-            echo "::warning::Set FTP_SERVER / FTP_USERNAME / FTP_PASSWORD and DEPLOY_TOKEN to enable deploy."
+          missing=""
+          [ -z "$FTP_SERVER" ]   && missing="$missing FTP_SERVER"
+          [ -z "$FTP_USERNAME" ] && missing="$missing FTP_USERNAME"
+          [ -z "$FTP_PASSWORD" ] && missing="$missing FTP_PASSWORD"
+          [ -z "$DEPLOY_TOKEN" ] && missing="$missing DEPLOY_TOKEN"
+          if [ -n "$missing" ]; then
+            echo "::warning::Deploy skipped — missing secret(s):$missing"
             echo "configured=false" >> "$GITHUB_OUTPUT"
           else
+            echo "All deploy secrets present."
             echo "configured=true" >> "$GITHUB_OUTPUT"
           fi
 
