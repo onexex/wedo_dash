@@ -45,12 +45,15 @@ jobs:
           echo "OK — no credential override file is tracked."
 
   # ---------------------------------------------------------------------------
-  # CD — deploy to the devdashboard cPanel directory over FTPS, but only after
-  # lint passes, only on main / manual run, and only once FTP secrets are set.
-  # The server's untracked config.local.php is excluded so it is never touched.
+  # CD — rsync over SSH to the devdashboard cPanel directory. Runs only after
+  # lint passes, only on main / manual, and only once SSH secrets are set.
+  #   * -c  : compare by CHECKSUM (CI resets mtimes, so size/time would resend all)
+  #   * -z  : compress in transit
+  #   * NO --delete : never removes server files missing from the repo (protects
+  #                   user uploads); config.local.php is excluded so it's untouched.
   # ---------------------------------------------------------------------------
   deploy:
-    name: Deploy to devdashboard
+    name: Deploy to devdashboard (rsync/SSH)
     needs: lint
     if: github.event_name == 'push' && github.ref == 'refs/heads/main' || github.event_name == 'workflow_dispatch'
     runs-on: ubuntu-latest
@@ -58,13 +61,13 @@ jobs:
       group: deploy-devdashboard
       cancel-in-progress: true
     steps:
-      - name: Check FTP secrets are configured
+      - name: Check SSH secrets are configured
         id: check
         env:
-          FTP_SERVER: ${{ secrets.FTP_SERVER }}
+          SSH_HOST: ${{ secrets.SSH_HOST }}
         run: |
-          if [ -z "$FTP_SERVER" ]; then
-            echo "::warning::FTP secrets not set — skipping deploy. Add FTP_SERVER / FTP_USERNAME / FTP_PASSWORD in Settings → Secrets and variables → Actions."
+          if [ -z "$SSH_HOST" ]; then
+            echo "::warning::SSH secrets not set — skipping deploy. Add SSH_HOST / SSH_USER / SSH_PORT / SSH_KEY in Settings → Secrets and variables → Actions."
             echo "configured=false" >> "$GITHUB_OUTPUT"
           else
             echo "configured=true" >> "$GITHUB_OUTPUT"
@@ -73,28 +76,28 @@ jobs:
       - uses: actions/checkout@v4
         if: steps.check.outputs.configured == 'true'
 
-      - name: Deploy via FTPS
+      - name: Load deploy SSH key into agent
         if: steps.check.outputs.configured == 'true'
-        uses: SamKirkland/FTP-Deploy-Action@v4.3.5
+        uses: webfactory/ssh-agent@v0.9.0
         with:
-          server: ${{ secrets.FTP_SERVER }}
-          username: ${{ secrets.FTP_USERNAME }}
-          password: ${{ secrets.FTP_PASSWORD }}
-          protocol: ftps
-          port: 21
-          # Path is relative to the FTP login's home dir. For a cPanel main
-          # account that home is /home/bi474wqgzz3g, so this lands files in
-          # /home/bi474wqgzz3g/public_html/devdashboard.wedoinc.ph/.
-          # If your FTP account is scoped to public_html, change this to
-          # "devdashboard.wedoinc.ph/".
-          server-dir: public_html/devdashboard.wedoinc.ph/
-          # Never upload OR delete these on the server:
-          exclude: |
-            **/.git*
-            **/.git*/**
-            **/node_modules/**
-            **/.github/**
-            **/*.bak
-            **/error_log
-            **/*.log
-            config.local.php
+          ssh-private-key: ${{ secrets.SSH_KEY }}
+
+      - name: Deploy with rsync (changed files only, compressed)
+        if: steps.check.outputs.configured == 'true'
+        env:
+          SSH_HOST: ${{ secrets.SSH_HOST }}
+          SSH_USER: ${{ secrets.SSH_USER }}
+          SSH_PORT: ${{ secrets.SSH_PORT }}
+        run: |
+          rsync -rlzc \
+            -e "ssh -p ${SSH_PORT:-22} -o StrictHostKeyChecking=accept-new" \
+            --exclude='.git/' \
+            --exclude='.github/' \
+            --exclude='config.local.php' \
+            --exclude='*.bak' \
+            --exclude='error_log' \
+            --exclude='*.log' \
+            --exclude='.ftp-deploy-sync-state.json' \
+            ./ \
+            "${SSH_USER}@${SSH_HOST}:public_html/devdashboard.wedoinc.ph/"
+          echo "Deploy complete."
