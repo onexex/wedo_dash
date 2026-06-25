@@ -83,7 +83,8 @@ jobs:
         if: steps.check.outputs.configured == 'true'
         run: |
           zip -r -q deploy.zip . \
-            -x '.git/*' '.github/*' 'config.local.php' '*.bak' '*.log' 'error_log' 'deploy.zip'
+            -x '.git/*' '.github/*' 'config.local.php' '*.bak' '*.log' 'error_log' 'deploy.zip' \
+               'w_conn.php' '*/w_conn.php'
           ls -lh deploy.zip | awk '{print "zip size: " $5}'
 
       - name: Ensure remote directory exists
