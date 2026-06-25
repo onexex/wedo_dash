@@ -192,7 +192,6 @@ function wd_can($ar, $k) { return isset($ar[$k]) && $ar[$k] == 2; }
       <a href="notifications.php" class="wd-iconbtn" title="<?php echo (int)$nrow; ?> notification(s)" aria-label="Notifications"><i class="fa-solid fa-bell"></i><?php if($nrow>0): ?><span class="wd-iconbtn__dot"></span><?php endif; ?></a>
       <div class="wd-user" onclick="this.classList.toggle('is-open');event.stopPropagation();">
         <div class="wd-avatar"><?php echo htmlspecialchars($wdInitials); ?></div>
-        <div><div class="wd-user__name"><?php echo htmlspecialchars($wdName); ?></div><div class="wd-user__role"><?php echo htmlspecialchars($wdPosition); ?></div></div>
         <i class="fa-solid fa-chevron-down wd-user__caret"></i>
         <div class="wd-usermenu" onclick="event.stopPropagation();">
           <div class="wd-usermenu__head"><div class="n"><?php echo htmlspecialchars($wdName); ?></div><div class="r"><?php echo htmlspecialchars($wdPosition); ?></div></div>
