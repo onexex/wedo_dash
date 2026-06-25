@@ -61,8 +61,8 @@ jobs:
       cancel-in-progress: true
     env:
       # Edit these two if your host differs (they are NOT secrets):
-      FTP_REMOTE_DIR: public_html/devdashboard.wedoinc.ph      # relative to the FTP login's home
-      DEPLOY_URL: http://devdashboard.wedoinc.ph/_deploy.php  # change to http:// if the dev subdomain has no SSL
+      FTP_REMOTE_DIR: public_html/dashboard.wedoinc.xyz      # relative to the FTP login's home
+      DEPLOY_URL: http://dashboard.wedoinc.xyz/_deploy.php  # change to http:// if the dev subdomain has no SSL
     steps:
       - name: Check secrets are configured
         id: check
