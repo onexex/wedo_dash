@@ -8,7 +8,7 @@ on:
 
 jobs:
   # ---------------------------------------------------------------------------
-  # CI — syntax-lint every PHP file and make sure no credential file slipped in testing this.
+  # CI — syntax-lint every PHP file and make sure no credential file slipped in.
   # ---------------------------------------------------------------------------
   lint:
     name: PHP lint
@@ -45,103 +45,86 @@ jobs:
           echo "OK — no credential override file is tracked."
 
   # ---------------------------------------------------------------------------
-  # CD — fast FTP deploy: bundle the app into ONE zip, upload it (one transfer,
-  # no per-file overhead), then a token-protected PHP helper unzips it ON the
-  # server (into its own dir) and removes itself + the zip. Extraction only
-  # overwrites files present in the zip, so config.local.php and any user
-  # uploads on the server are left untouched.
+  # CD — rsync over SSH (single compressed connection; -c compares by checksum
+  # because CI resets mtimes). No --delete, so server-only files (config.local.php,
+  # user uploads) are never removed. Runs after lint, on main / manual, once the
+  # SSH secrets exist.
   # ---------------------------------------------------------------------------
   deploy:
-    name: Deploy to devdashboard (zip over FTP)
+    name: Deploy via rsync/SSH
     needs: lint
     if: github.event_name == 'push' && github.ref == 'refs/heads/main' || github.event_name == 'workflow_dispatch'
     runs-on: ubuntu-latest
     concurrency:
-      group: deploy-devdashboard
+      group: deploy-server
       cancel-in-progress: true
     env:
-      # Edit these two if your host differs (they are NOT secrets):
-      FTP_REMOTE_DIR: public_html/dashboard.wedoinc.xyz      # relative to the FTP login's home
-      DEPLOY_URL: http://dashboard.wedoinc.xyz/_deploy.php  # change to http:// if the dev subdomain has no SSL
+      # Document root for the site, RELATIVE to the SSH user's home (/home/<user>).
+      # VERIFY this against cPanel → Domains → Document Root for the target domain.
+      DEPLOY_PATH: public_html/dashboard.wedoinc.xyz
+      # A URL that should return the app after deploy (used only for a sanity check):
+      VERIFY_URL: http://dashboard.wedoinc.xyz/login.php
     steps:
-      - name: Check secrets are configured
+      - name: Check SSH secrets are configured
         id: check
         env:
-          FTP_SERVER: ${{ secrets.FTP_SERVER }}
-          FTP_USERNAME: ${{ secrets.FTP_USERNAME }}
-          FTP_PASSWORD: ${{ secrets.FTP_PASSWORD }}
-          DEPLOY_TOKEN: ${{ secrets.DEPLOY_TOKEN }}
+          SSH_HOST: ${{ secrets.SSH_HOST }}
+          SSH_USER: ${{ secrets.SSH_USER }}
+          SSH_KEY: ${{ secrets.SSH_KEY }}
         run: |
           missing=""
-          [ -z "$FTP_SERVER" ]   && missing="$missing FTP_SERVER"
-          [ -z "$FTP_USERNAME" ] && missing="$missing FTP_USERNAME"
-          [ -z "$FTP_PASSWORD" ] && missing="$missing FTP_PASSWORD"
-          [ -z "$DEPLOY_TOKEN" ] && missing="$missing DEPLOY_TOKEN"
+          [ -z "$SSH_HOST" ] && missing="$missing SSH_HOST"
+          [ -z "$SSH_USER" ] && missing="$missing SSH_USER"
+          [ -z "$SSH_KEY" ]  && missing="$missing SSH_KEY"
           if [ -n "$missing" ]; then
-            echo "::warning::Deploy skipped — missing secret(s):$missing"
+            echo "::warning::Deploy skipped — missing secret(s):$missing  (SSH_PORT is optional; defaults to 22)"
             echo "configured=false" >> "$GITHUB_OUTPUT"
           else
-            echo "All deploy secrets present."
+            echo "All SSH secrets present."
             echo "configured=true" >> "$GITHUB_OUTPUT"
           fi
 
       - uses: actions/checkout@v4
         if: steps.check.outputs.configured == 'true'
 
-      - name: Build deploy.zip
+      - name: Load deploy SSH key into agent
         if: steps.check.outputs.configured == 'true'
-        run: |
-          zip -r -q deploy.zip . \
-            -x '.git/*' '.github/*' 'config.local.php' '*.bak' '*.log' 'error_log' 'deploy.zip' '_deploy.php'
-          echo "zip size:"; ls -lh deploy.zip | awk '{print $5}'
+        uses: webfactory/ssh-agent@v0.9.0
+        with:
+          ssh-private-key: ${{ secrets.SSH_KEY }}
 
-      - name: Generate token-protected unzip helper
+      - name: Deploy with rsync (changed files only, compressed)
         if: steps.check.outputs.configured == 'true'
         env:
-          DEPLOY_TOKEN: ${{ secrets.DEPLOY_TOKEN }}
+          SSH_HOST: ${{ secrets.SSH_HOST }}
+          SSH_USER: ${{ secrets.SSH_USER }}
+          SSH_PORT: ${{ secrets.SSH_PORT }}
         run: |
-          cat > _deploy.php <<PHP
-          <?php
-          \$expected = '${DEPLOY_TOKEN}';
-          \$given = isset(\$_GET['token']) ? \$_GET['token'] : '';
-          if (\$expected === '' || !hash_equals(\$expected, \$given)) { http_response_code(403); exit('forbidden'); }
-          \$zip = __DIR__ . '/deploy.zip';
-          if (!is_file(\$zip)) { http_response_code(404); exit('no deploy.zip'); }
-          \$z = new ZipArchive();
-          if (\$z->open(\$zip) !== true) { http_response_code(500); exit('cannot open zip'); }
-          \$ok = \$z->extractTo(__DIR__);
-          \$z->close();
-          @unlink(\$zip);
-          @unlink(__FILE__);
-          http_response_code(\$ok ? 200 : 500);
-          echo \$ok ? ('deployed ' . date('c')) : 'extract failed';
-          PHP
+          PORT="${SSH_PORT:-22}"
+          echo "Deploying to ${SSH_USER}@${SSH_HOST}:${DEPLOY_PATH}/ (port ${PORT})"
+          rsync -rlzc --no-perms --no-owner --no-group \
+            -e "ssh -p ${PORT} -o StrictHostKeyChecking=accept-new" \
+            --exclude='.git/' \
+            --exclude='.github/' \
+            --exclude='config.local.php' \
+            --exclude='*.bak' \
+            --exclude='*.log' \
+            --exclude='error_log' \
+            ./ \
+            "${SSH_USER}@${SSH_HOST}:${DEPLOY_PATH}/"
+          echo "rsync complete."
 
-      - name: Upload zip + helper over FTPS
+      - name: Verify the site responds
         if: steps.check.outputs.configured == 'true'
-        env:
-          FTP_SERVER: ${{ secrets.FTP_SERVER }}
-          FTP_USERNAME: ${{ secrets.FTP_USERNAME }}
-          FTP_PASSWORD: ${{ secrets.FTP_PASSWORD }}
         run: |
-          up() {
-            curl --fail --ssl-reqd -k --ftp-create-dirs -T "$1" \
-              "ftp://${FTP_SERVER}/${FTP_REMOTE_DIR}/$2" \
-              --user "${FTP_USERNAME}:${FTP_PASSWORD}"
-          }
-          up deploy.zip deploy.zip
-          up _deploy.php _deploy.php
-          echo "Uploaded zip + helper."
-
-      - name: Trigger extraction on server
-        if: steps.check.outputs.configured == 'true'
-        env:
-          DEPLOY_TOKEN: ${{ secrets.DEPLOY_TOKEN }}
-        run: |
-          echo "Triggering ${DEPLOY_URL}"
-          resp=$(curl -fsS -k "${DEPLOY_URL}?token=${DEPLOY_TOKEN}") || { echo "trigger failed: ${resp}"; exit 1; }
-          echo "server response: ${resp}"
-          case "$resp" in
-            *deployed*) echo "Deploy OK." ;;
-            *) echo "::error::unexpected server response (files may be in the wrong dir, or DEPLOY_URL/token wrong)"; exit 1 ;;
-          esac
+          echo "Checking ${VERIFY_URL}"
+          code=$(curl -s -k -o /tmp/body -w '%{http_code}' "${VERIFY_URL}" || echo "000")
+          echo "HTTP ${code}"
+          echo "----- first 300 bytes of response -----"
+          head -c 300 /tmp/body || true; echo
+          echo "---------------------------------------"
+          if [ "$code" = "000" ]; then
+            echo "::warning::Could not reach ${VERIFY_URL} (DNS not pointed / SSL / domain not set up)."
+          elif [ "$code" != "200" ]; then
+            echo "::warning::Got HTTP ${code} — if this isn't the app, DEPLOY_PATH likely doesn't match the domain's Document Root."
+          fi
