@@ -8,7 +8,7 @@ on:
 
 jobs:
   # ---------------------------------------------------------------------------
-  # CI — syntax-lint every PHP file and make sure no credential file slipped in.
+  # CI — syntax-lint every PHP file and make sure no credential file slipped in testing this.
   # ---------------------------------------------------------------------------
   lint:
     name: PHP lint
