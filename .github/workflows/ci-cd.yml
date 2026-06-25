@@ -1,0 +1,100 @@
+name: CI/CD
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+jobs:
+  # ---------------------------------------------------------------------------
+  # CI — syntax-lint every PHP file and make sure no credential file slipped in.
+  # ---------------------------------------------------------------------------
+  lint:
+    name: PHP lint
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up PHP 8.2
+        uses: shivammathur/setup-php@v2
+        with:
+          php-version: '8.2'
+          coverage: none
+
+      - name: Lint all PHP files (php -l)
+        run: |
+          status=0; count=0
+          while IFS= read -r f; do
+            count=$((count+1))
+            if ! php -l "$f" > /dev/null 2>&1; then
+              echo "::error file=$f::PHP syntax error"
+              php -l "$f" || true
+              status=1
+            fi
+          done < <(git ls-files '*.php')
+          echo "Linted $count PHP files."
+          exit $status
+
+      - name: Guard against committed credentials
+        run: |
+          if git ls-files | grep -E '(^|/)config\.local\.php$' ; then
+            echo "::error::config.local.php must never be committed (it holds DB credentials)."
+            exit 1
+          fi
+          echo "OK — no credential override file is tracked."
+
+  # ---------------------------------------------------------------------------
+  # CD — deploy to the devdashboard cPanel directory over FTPS, but only after
+  # lint passes, only on main / manual run, and only once FTP secrets are set.
+  # The server's untracked config.local.php is excluded so it is never touched.
+  # ---------------------------------------------------------------------------
+  deploy:
+    name: Deploy to devdashboard
+    needs: lint
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main' || github.event_name == 'workflow_dispatch'
+    runs-on: ubuntu-latest
+    concurrency:
+      group: deploy-devdashboard
+      cancel-in-progress: true
+    steps:
+      - name: Check FTP secrets are configured
+        id: check
+        env:
+          FTP_SERVER: ${{ secrets.FTP_SERVER }}
+        run: |
+          if [ -z "$FTP_SERVER" ]; then
+            echo "::warning::FTP secrets not set — skipping deploy. Add FTP_SERVER / FTP_USERNAME / FTP_PASSWORD in Settings → Secrets and variables → Actions."
+            echo "configured=false" >> "$GITHUB_OUTPUT"
+          else
+            echo "configured=true" >> "$GITHUB_OUTPUT"
+          fi
+
+      - uses: actions/checkout@v4
+        if: steps.check.outputs.configured == 'true'
+
+      - name: Deploy via FTPS
+        if: steps.check.outputs.configured == 'true'
+        uses: SamKirkland/FTP-Deploy-Action@v4.3.5
+        with:
+          server: ${{ secrets.FTP_SERVER }}
+          username: ${{ secrets.FTP_USERNAME }}
+          password: ${{ secrets.FTP_PASSWORD }}
+          protocol: ftps
+          port: 21
+          # Path is relative to the FTP login's home dir. For a cPanel main
+          # account that home is /home/bi474wqgzz3g, so this lands files in
+          # /home/bi474wqgzz3g/public_html/devdashboard.wedoinc.ph/.
+          # If your FTP account is scoped to public_html, change this to
+          # "devdashboard.wedoinc.ph/".
+          server-dir: public_html/devdashboard.wedoinc.ph/
+          # Never upload OR delete these on the server:
+          exclude: |
+            **/.git*
+            **/.git*/**
+            **/node_modules/**
+            **/.github/**
+            **/*.bak
+            **/error_log
+            **/*.log
+            config.local.php
