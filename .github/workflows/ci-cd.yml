@@ -15,43 +15,36 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-
       - name: Set up PHP 8.2
         uses: shivammathur/setup-php@v2
         with:
           php-version: '8.2'
           coverage: none
-
       - name: Lint all PHP files (php -l)
         run: |
           status=0; count=0
           while IFS= read -r f; do
             count=$((count+1))
             if ! php -l "$f" > /dev/null 2>&1; then
-              echo "::error file=$f::PHP syntax error"
-              php -l "$f" || true
-              status=1
+              echo "::error file=$f::PHP syntax error"; php -l "$f" || true; status=1
             fi
           done < <(git ls-files '*.php')
           echo "Linted $count PHP files."
           exit $status
-
       - name: Guard against committed credentials
         run: |
           if git ls-files | grep -E '(^|/)config\.local\.php$' ; then
-            echo "::error::config.local.php must never be committed (it holds DB credentials)."
-            exit 1
+            echo "::error::config.local.php must never be committed."; exit 1
           fi
-          echo "OK — no credential override file is tracked."
+          echo "OK — no credential file tracked."
 
   # ---------------------------------------------------------------------------
-  # CD — rsync over SSH (single compressed connection; -c compares by checksum
-  # because CI resets mtimes). No --delete, so server-only files (config.local.php,
-  # user uploads) are never removed. Runs after lint, on main / manual, once the
-  # SSH secrets exist.
+  # CD — package into one zip, SFTP it over SSH (port 22, password auth), then
+  # unzip + fix permissions on the server. Reuses the FTP_* secrets you already
+  # set. unzip -o overwrites app files but leaves config.local.php / uploads.
   # ---------------------------------------------------------------------------
   deploy:
-    name: Deploy via rsync/SSH
+    name: Package & deploy via SFTP + SSH
     needs: lint
     if: github.event_name == 'push' && github.ref == 'refs/heads/main' || github.event_name == 'workflow_dispatch'
     runs-on: ubuntu-latest
@@ -59,72 +52,84 @@ jobs:
       group: deploy-server
       cancel-in-progress: true
     env:
-      # Document root for the site, RELATIVE to the SSH user's home (/home/<user>).
-      # VERIFY this against cPanel → Domains → Document Root for the target domain.
-      DEPLOY_PATH: public_html/dashboard.wedoinc.xyz
-      # A URL that should return the app after deploy (used only for a sanity check):
+      # EDIT THIS to the domain's absolute Document Root (cPanel → Domains → Document Root):
+      REMOTE_DIR: /home/bi474wqgzz3g/public_html/dashboard.wedoinc.xyz
+      SSH_PORT: 22
       VERIFY_URL: http://dashboard.wedoinc.xyz/login.php
     steps:
-      - name: Check SSH secrets are configured
+      - name: Check secrets are configured
         id: check
         env:
-          SSH_HOST: ${{ secrets.SSH_HOST }}
-          SSH_USER: ${{ secrets.SSH_USER }}
-          SSH_KEY: ${{ secrets.SSH_KEY }}
+          FTP_SERVER: ${{ secrets.FTP_SERVER }}
+          FTP_USERNAME: ${{ secrets.FTP_USERNAME }}
+          FTP_PASSWORD: ${{ secrets.FTP_PASSWORD }}
         run: |
           missing=""
-          [ -z "$SSH_HOST" ] && missing="$missing SSH_HOST"
-          [ -z "$SSH_USER" ] && missing="$missing SSH_USER"
-          [ -z "$SSH_KEY" ]  && missing="$missing SSH_KEY"
+          [ -z "$FTP_SERVER" ]   && missing="$missing FTP_SERVER"
+          [ -z "$FTP_USERNAME" ] && missing="$missing FTP_USERNAME"
+          [ -z "$FTP_PASSWORD" ] && missing="$missing FTP_PASSWORD"
           if [ -n "$missing" ]; then
-            echo "::warning::Deploy skipped — missing secret(s):$missing  (SSH_PORT is optional; defaults to 22)"
+            echo "::warning::Deploy skipped — missing secret(s):$missing"
             echo "configured=false" >> "$GITHUB_OUTPUT"
           else
-            echo "All SSH secrets present."
+            echo "All secrets present."
             echo "configured=true" >> "$GITHUB_OUTPUT"
           fi
 
       - uses: actions/checkout@v4
         if: steps.check.outputs.configured == 'true'
 
-      - name: Load deploy SSH key into agent
+      - name: Package app into one zip
         if: steps.check.outputs.configured == 'true'
-        uses: webfactory/ssh-agent@v0.9.0
-        with:
-          ssh-private-key: ${{ secrets.SSH_KEY }}
-
-      - name: Deploy with rsync (changed files only, compressed)
-        if: steps.check.outputs.configured == 'true'
-        env:
-          SSH_HOST: ${{ secrets.SSH_HOST }}
-          SSH_USER: ${{ secrets.SSH_USER }}
-          SSH_PORT: ${{ secrets.SSH_PORT }}
         run: |
-          PORT="${SSH_PORT:-22}"
-          echo "Deploying to ${SSH_USER}@${SSH_HOST}:${DEPLOY_PATH}/ (port ${PORT})"
-          rsync -rlzc --no-perms --no-owner --no-group \
-            -e "ssh -p ${PORT} -o StrictHostKeyChecking=accept-new" \
-            --exclude='.git/' \
-            --exclude='.github/' \
-            --exclude='config.local.php' \
-            --exclude='*.bak' \
-            --exclude='*.log' \
-            --exclude='error_log' \
-            ./ \
-            "${SSH_USER}@${SSH_HOST}:${DEPLOY_PATH}/"
-          echo "rsync complete."
+          zip -r -q deploy.zip . \
+            -x '.git/*' '.github/*' 'config.local.php' '*.bak' '*.log' 'error_log' 'deploy.zip'
+          ls -lh deploy.zip | awk '{print "zip size: " $5}'
+
+      - name: Ensure remote directory exists
+        if: steps.check.outputs.configured == 'true'
+        uses: appleboy/ssh-action@v1.2.0
+        with:
+          host: ${{ secrets.FTP_SERVER }}
+          username: ${{ secrets.FTP_USERNAME }}
+          password: ${{ secrets.FTP_PASSWORD }}
+          port: ${{ env.SSH_PORT }}
+          script: mkdir -p ${{ env.REMOTE_DIR }}
+
+      - name: Upload deploy.zip via SFTP
+        if: steps.check.outputs.configured == 'true'
+        uses: wlixcc/SFTP-Deploy-Action@v1.2.4
+        with:
+          server: ${{ secrets.FTP_SERVER }}
+          username: ${{ secrets.FTP_USERNAME }}
+          password: ${{ secrets.FTP_PASSWORD }}
+          port: ${{ env.SSH_PORT }}
+          local_path: './deploy.zip'
+          remote_path: '${{ env.REMOTE_DIR }}/'
+
+      - name: Unzip + fix permissions on server
+        if: steps.check.outputs.configured == 'true'
+        uses: appleboy/ssh-action@v1.2.0
+        with:
+          host: ${{ secrets.FTP_SERVER }}
+          username: ${{ secrets.FTP_USERNAME }}
+          password: ${{ secrets.FTP_PASSWORD }}
+          port: ${{ env.SSH_PORT }}
+          script: |
+            cd ${{ env.REMOTE_DIR }} || { echo "REMOTE_DIR not found"; exit 1; }
+            if [ -f deploy.zip ]; then
+              unzip -o -q deploy.zip && rm -f deploy.zip
+            else
+              echo "deploy.zip not found on server!"; exit 1
+            fi
+            find . -type d -exec chmod 755 {} \;
+            find . -type f -exec chmod 644 {} \;
+            echo "Unzipped + permissions set in $(pwd)"
 
       - name: Verify the site responds
         if: steps.check.outputs.configured == 'true'
         run: |
-          echo "Checking ${VERIFY_URL}"
           code=$(curl -s -k -o /tmp/body -w '%{http_code}' "${VERIFY_URL}" || echo "000")
-          echo "HTTP ${code}"
-          echo "----- first 300 bytes of response -----"
-          head -c 300 /tmp/body || true; echo
-          echo "---------------------------------------"
-          if [ "$code" = "000" ]; then
-            echo "::warning::Could not reach ${VERIFY_URL} (DNS not pointed / SSL / domain not set up)."
-          elif [ "$code" != "200" ]; then
-            echo "::warning::Got HTTP ${code} — if this isn't the app, DEPLOY_PATH likely doesn't match the domain's Document Root."
-          fi
+          echo "GET ${VERIFY_URL} -> HTTP ${code}"
+          echo "----- first 300 bytes -----"; head -c 300 /tmp/body || true; echo
+          [ "$code" = "200" ] || echo "::warning::Non-200 — if not the app, check REMOTE_DIR vs the domain's Document Root."
