@@ -91,12 +91,12 @@ jobs:
         if: steps.check.outputs.configured == 'true'
         uses: webfactory/ssh-agent@v0.9.0
         with:
-          ssh-private-key: ${{ secrets.SSH_KEY }}
+          ssh-private-key: ${{ secrets.DEPLOY_TOKEN }}
 
       - name: Deploy with rsync (changed files only, compressed)
         if: steps.check.outputs.configured == 'true'
         env:
-          SSH_HOST: ${{ secrets.SSH_HOST }}
+          SSH_HOST: ${{ secrets.FTP_SERVER }}
           SSH_USER: ${{ secrets.SSH_USER }}
           SSH_PORT: ${{ secrets.SSH_PORT }}
         run: |
