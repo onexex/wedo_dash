@@ -1,0 +1,7 @@
+@media only screen and (max-width: 991px) {
+	.w-sidebarmenu{
+		z-index: 0;
+		position: relative;
+		display: none;
+	}
+} 

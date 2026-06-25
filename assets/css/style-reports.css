@@ -1,0 +1,84 @@
+body {
+    font-size: 0.95em;
+    font-family: tahoma;
+    color: #212121;
+}
+
+th {
+    background: #E6E6E6;
+    border-bottom: 1px solid #000000;
+}
+
+#table-container {
+    width: 1066px;
+    margin: 50px auto;
+    font-size: 15px;
+}
+.container-format{
+  font-size: 15px;
+}
+table#tab {
+    border-collapse: collapse;
+    width: 100%;
+    white-space: nowrap;
+    display: block;
+    height: 450px;
+    overflow-y: scroll;
+    font-size: 15px;
+}
+table#tab tr th{text-align: center;}
+
+table#tab th, table#tab td {
+        border-bottom: 1px solid #E0E0E0;
+    padding: 8px 15px;
+    text-align: left;
+    font-size: 0.95em;
+}
+.lg-hide-logo{
+  display: none;
+
+}
+.lg-hide-logo img{
+/*    width: 150px;
+  height: 100px;*/
+}
+
+#btnExport {
+    padding: 10px 40px;
+    background: #499a49;
+    border: #499249 1px solid;
+    color: #ffffff;
+    font-size: 0.9em;
+    cursor: pointer;
+}
+.dtpar{
+  display: inline-block;
+  float: right;
+}
+.dtpar p{
+  display: block;
+  font-size: 13px;
+}
+.dtpar label{
+  font-size: 13px;;
+}
+.dtpar input{
+  font-size: 13px;
+  width:140px;
+}
+.dtpar label {
+  display: inline-block;
+  padding: 0px 5px 0px 5px;
+}
+.dtpar input {
+  display: inline-block;
+}
+.dataTables_filter label{
+  font-size: 15px;
+}
+.dataTables_filter input{
+  font-size: 15px;
+  padding: 5px;
+  border-radius: 3px;
+  outline: none;
+}

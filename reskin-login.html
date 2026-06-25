@@ -1,0 +1,51 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>WeDo · Sign in (reskin preview)</title>
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
+  <link rel="stylesheet" href="assets/css/wedo-theme.css">
+</head>
+<body>
+  <div class="wd-login">
+    <div class="wd-login__card">
+      <img src="assets/images/logos/wedo-logo.png" alt="WeDo BPO Inc." style="height:62px;width:auto;margin:0 auto 18px;display:block">
+      <h2>Sign in</h2>
+      <p class="wd-login__sub">Secure access for WeDo personnel</p>
+
+      <div class="wd-field" style="text-align:left">
+        <input class="wd-input" type="text" placeholder="Username" autocomplete="off">
+      </div>
+      <div class="wd-field" style="text-align:left;margin-bottom:8px">
+        <input class="wd-input" id="pw" type="password" placeholder="Password">
+      </div>
+      <label class="wd-login__chk"><input type="checkbox" onclick="var p=document.getElementById('pw');p.type=p.type==='password'?'text':'password'"> Show password</label>
+
+      <div style="border:1px dashed rgba(255,255,255,.2);border-radius:12px;height:62px;display:flex;align-items:center;justify-content:center;gap:8px;color:rgba(255,255,255,.4);font-size:12px;margin-bottom:18px">
+        <i class="fa-solid fa-shield-halved"></i> Verifying you're human…
+      </div>
+
+      <button class="wd-btn wd-btn--primary"><i class="fa-solid fa-right-to-bracket"></i> Authenticate</button>
+    </div>
+
+    <div class="wd-clock">
+      <div class="wd-clock__date" id="d">—</div>
+      <div class="wd-clock__time" id="t">00:00</div>
+      <div class="wd-clock__sec" id="s">:00 AM</div>
+    </div>
+  </div>
+
+  <script>
+    function tick(){
+      var n=new Date(),h=n.getHours(),m=n.getMinutes(),s=n.getSeconds(),ap=h>=12?'PM':'AM';
+      h=h%12||12; m=m<10?'0'+m:m; s=s<10?'0'+s:s;
+      document.getElementById('t').textContent=h+':'+m;
+      document.getElementById('s').textContent=':'+s+' '+ap;
+      document.getElementById('d').textContent=n.toLocaleDateString('en-US',{month:'short',day:'numeric',year:'numeric'});
+      setTimeout(tick,1000);
+    }
+    tick();
+  </script>
+</body>
+</html>

@@ -1,0 +1,171 @@
+@media only screen and (max-width: 1119px) {
+    	.s-menu{
+		z-index: 0;
+		position: relative;
+	/*	display: none;*/
+	}
+	.w-sidebarmenu{
+		display: none;
+	}
+	.navbar-toggle{
+	    position: relative;
+        float: right;
+        display: block;
+	}
+}
+@media only screen and (max-width: 991px) {
+	.s-menu{
+		z-index: 0;
+		position: relative;
+	/*	display: none;*/
+	}
+	.w-sidebarmenu{
+		display: none;
+	}
+	.prof-img{
+		width: 100%; 
+        height: 300px;
+        background-size: contain;
+        background-position: center;
+        background-repeat: no-repeat;
+	}
+	#cdc-hide .emp-details{
+		display: none;
+	}
+	.emp-name{
+		text-align: center;
+	}
+	.emp-pos{
+		text-align: center;
+	}
+	.emp-company{
+		text-align: center;
+	}
+	.wd-search{
+		top: 10px;
+		right: 235px;
+	}
+	.wd-search input{
+		position: absolute;
+	    top: 90px;
+	    right: -165px;
+    /*width: 163px !important;*/
+	}
+	.wd-search input:focus{
+
+	}
+	.dv-livesearch{
+		position: absolute;
+	    top: 90px;
+	    right: -165px;
+	}
+	.employee-b-info {
+		z-index: 2;
+	}
+	#e201{
+	}
+
+} 
+@media screen and (max-width: 768px) {
+	.res-day{
+		display: none !important;
+	}
+	.lg-form-1{
+		flex: auto;
+		max-width: 100%;
+		border:0px;
+		padding: 80px 45px;
+	}
+	.s-menu{
+		background-color: #fff;
+	}
+	.wc{
+		font-size: 40px;
+	}
+	.lg-wrp,.lg-form{
+		padding: 10px 0px !important;
+	}
+	.lg-form .form-control{
+		font-size: 22px;
+		border-radius: 22px !important;
+		padding: 15px;
+	}
+	.btnsubmit{
+		font-size: 22px;
+	}
+	.body-half-screen{
+		max-height: 15vh !important;
+	}
+	.hm-dtpar{
+		width: 100%;
+		margin-top: 15px;
+		margin-bottom: 10px;
+		    text-align: center;
+	}
+	.hm-dtpar label{
+		display: block !important;
+	}
+	.hm-dtpar p{
+		display: block !important;
+	}
+	.hm-dtpar input{
+		width: 200px !important;
+	}
+	.lg-dv img{
+		display: none !important;
+	}
+	.att-lilo{
+		margin-top: 40px;
+	}
+	.w-navbar .lg-sm-dv{
+		text-align: center;
+	}
+	.w-navbar .lg-sm-dv img{
+		display: inline-block;
+		height: 42px;
+	}
+	.dv-nav {
+		margin-top: 93px;
+	}
+	.btn-group-lg{
+		width: 100%;
+	}
+	.btn-group-lg .btn-danger{
+		width: 100%;
+		display: block;
+		border-radius: 0px;
+		font-size: 15px !important;
+	}
+	.wd-login button{
+		width: 100%;
+		display: block;
+		margin-bottom: 5px;
+	}
+	#table-container{
+		width: auto !important;
+	}
+	.e201Hide{
+		display: block!important;
+	}
+	.dtpar h5{
+		display: block !important;
+	}
+	th{
+	white-space: nowrap !important;
+}
+}
+@media only screen and (max-width: 1190px) {
+	.s-menu{
+		z-index: 0;
+		position: relative;
+	/*	display: none;*/
+	}
+	.w-sidebarmenu{
+		display: none;
+	}
+	.navbar-toggle{
+	    position: relative;
+        float: right;
+        display: block;
+	}
+}

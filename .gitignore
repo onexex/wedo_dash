@@ -1,0 +1,9 @@
+# PHP / server runtime logs (must never be committed — can grow to hundreds of MB)
+error_log
+**/error_log
+*.log
+
+# local/prod DB credential override (never commit)
+config.local.php
+*.bak
+.claude/

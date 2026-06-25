@@ -1,0 +1,67 @@
+# # ✅ Redirect HTTPS to HTTP
+# RewriteEngine On
+# RewriteCond %{HTTPS} on
+# RewriteRule ^(.*)$ http://%{HTTP_HOST}%{REQUEST_URI} [L,R=301]
+
+# # ✅ Bypass for file authentication (keep this at the top too)
+# RewriteCond %{REQUEST_URI} ^/fileauth\.txt$ [NC]
+# RewriteRule ^ - [L]
+
+# ErrorDocument 404 /404.php
+
+# <IfModule mod_suphp.c> 
+#     suPHP_ConfigPath /public_html/dashboard.wedoinc.ph
+#     <Files php.ini>
+#         order allow,deny
+#         deny from all
+#     </Files>
+# </IfModule>
+
+# <IfModule mod_speling.c>
+#     CheckCaseOnly on
+#     CheckSpelling on
+# </IfModule>
+
+# # ✅ Extension removal/clean URLs
+# RewriteCond %{REQUEST_FILENAME} !-d 
+# RewriteCond %{REQUEST_FILENAME}.php -f 
+# RewriteRule ^(.*)$ $1.php [L]
+
+# RewriteCond %{REQUEST_FILENAME} !-d 
+# RewriteCond %{REQUEST_FILENAME}.html -f 
+# RewriteRule ^(.*)$ $1.html [L]
+
+RewriteEngine On
+
+# 1. ✅ Bypass para sa file authentication (Dapat laging nasa pinakataas)
+RewriteCond %{REQUEST_URI} ^/fileauth\.txt$ [NC]
+RewriteRule ^ - [L]
+
+# 2. ✅ TAMA NA REDIRECT: I-force ang HTTP papuntang HTTPS
+RewriteCond %{HTTPS} off
+RewriteRule ^(.*)$ https://%{HTTP_HOST}%{REQUEST_URI} [L,R=301]
+
+# 3. ✅ Extension removal / Clean URLs
+RewriteCond %{REQUEST_FILENAME} !-d 
+RewriteCond %{REQUEST_FILENAME}.php -f 
+RewriteRule ^(.*)$ $1.php [L]
+
+RewriteCond %{REQUEST_FILENAME} !-d 
+RewriteCond %{REQUEST_FILENAME}.html -f 
+RewriteRule ^(.*)$ $1.html [L]
+
+# 4. ✅ Iba pang configurations (Error pages at server modules)
+ErrorDocument 404 /404.php
+
+<IfModule mod_suphp.c> 
+    suPHP_ConfigPath /public_html/dashboard.wedoinc.ph
+    <Files php.ini>
+        order allow,deny
+        deny from all
+    </Files>
+</IfModule>
+
+<IfModule mod_speling.c>
+    CheckCaseOnly on
+    CheckSpelling on
+</IfModule>

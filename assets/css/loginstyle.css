@@ -1,0 +1,166 @@
+html, body {
+  height: 100%;
+}
+/*login design*/
+.bn-logo{
+	width: 120px;
+}
+.lg-form h4{
+	text-align: center;
+	color: #fff;
+	font-size: 35px;
+}
+.lg-form{
+	position: absolute;
+    right: 0px;
+    left: 0px;
+    top: 0px;
+    bottom: 0px;
+    margin: auto;
+    height: 300px;
+    padding: 25px;
+}
+.lg-form form input{
+	padding: 23px;
+	border-radius: 20px;
+	font-style: italic;
+}
+.lg-form form button{
+	border-radius: 10px;
+	font-size: 20px;
+	padding: 8px;
+	text-transform: uppercase;
+	margin-top: 30px;
+}
+.lg-form form input::placeholder{
+	color: red;
+}
+.wtrmrk{
+	bottom: 0;
+	position: absolute;
+	right: 0;
+	padding: 5px;
+	color: #fff;
+}
+.banner-login{
+	background-image: url('../../assets/images/sidelogin.jpg');
+	background-size: cover;
+	background-repeat: no-repeat;
+	background-position: center;
+}
+.l-side-login{
+	background-image: url('../../assets/images/bg-login.jpg');
+	background-size: cover;
+	background-repeat: no-repeat;
+	padding: 10px;
+	padding-bottom: 60px;
+}
+.main-login{
+	height: 100%;
+	max-width: 100%;
+}
+.main-login>.row{
+	height: 100%
+}
+.tmdate-display{
+	position: absolute;
+	bottom: 0;
+	left: 0;
+	padding: 10px;
+	color: red;	
+	font-family: "Multicolore", cursive, sans-serif;
+	font-weight: bold;
+	line-height: 0;
+}
+.tmdate-display h1{
+	font-size: 65px;
+	display: inline-block;
+	font-weight: 500;
+}
+.tmdate-display h5{
+	padding-left: 5px;
+	font-size: 28px;font-weight: 500;	
+	line-height: 0;
+}
+.tmdate-display h6{
+	display: inline-block;
+	font-size: 25px;
+	font-weight: 500;
+}
+
+/*end of login*/
+/*home style*/
+
+.dtdar{
+	display: inline-block;
+	margin-left: 10px;
+	border-left: 2px solid #ddd;
+	padding-left: 10px;
+}
+.emp-dar{
+	display: inline-block;
+}
+.img-prof{
+	border-radius: 30px;
+	border: 1px solid #000;
+}
+.rw-mess{
+	margin-top: 10px;
+	padding-left: 5px;
+    border-left: 3px solid #04820c;
+    border-radius: 3px;
+}
+@media only screen and (max-width: 600px) {
+	.lg-form{
+		position: relative;
+		margin-bottom: 10px;
+	}
+	.lg-form h4{
+		font-size: 24px;
+		margin: 0px;
+	}
+	.tmdate-display{
+		position: relative;
+		text-shadow: 3px 3px 0 #fff, -1px -1px 0 #fff, 1px -1px 0 #fff, -1px 1px 0 #fff, 1px 1px 0 #fff;
+	}
+	.bn-logo{
+	width: 65px;
+	}
+	.tmdate-display h1{
+		font-size: 50px;
+		display: inline-block;
+		font-weight: 500;
+	}
+	.tmdate-display h5{
+		padding-left: 5px;
+		font-size: 20px;font-weight: 500;	
+		line-height: 0;
+	}
+	.tmdate-display h6{
+		display: inline-block;
+		font-size: 20px;
+		font-weight: 500;
+	}
+	.lg-warning{
+		margin:0px;
+	}
+	hr{
+		margin: 5px !important;
+	}
+	.lg-form form button{
+		margin-top: 12px;
+	}
+	.l-side-login,.banner-login{
+		position: inherit;
+	}
+	.wtrmrk{
+		position: fixed;
+		color: #000;
+	  	text-shadow: 3px 3px 0 #fff, -1px -1px 0 #fff, 1px -1px 0 #fff, -1px 1px 0 #fff, 1px 1px 0 #fff;
+	}
+	.banner-login{
+	    display:none;
+	}
+}
+
+/*end of home*/

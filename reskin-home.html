@@ -1,0 +1,95 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>WeDo · Shift monitor (reskin preview)</title>
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
+  <link rel="stylesheet" href="assets/css/wedo-theme.css">
+</head>
+<body>
+  <div class="wd-app">
+    <!-- Sidebar -->
+    <aside class="wd-sidebar" id="sidebar">
+      <div class="wd-brand">
+        <img src="assets/images/logos/wedo-logo.png" alt="WeDo BPO Inc." style="height:48px;width:auto">
+      </div>
+      <div class="wd-brand__tag">Do what you do best.</div>
+
+      <div class="wd-nav is-active"><i class="fa-solid fa-gauge"></i> Home</div>
+
+      <div class="wd-navgroup">Modules</div>
+      <div class="wd-nav"><i class="fa-solid fa-calendar-check"></i> Leave (ALAS)</div>
+      <div class="wd-nav"><i class="fa-solid fa-briefcase"></i> Official business</div>
+      <div class="wd-nav"><i class="fa-solid fa-business-time"></i> Overtime</div>
+      <div class="wd-nav"><i class="fa-solid fa-calendar-minus"></i> Early out</div>
+      <div class="wd-nav"><i class="fa-solid fa-money-bill-wave"></i> Payroll</div>
+
+      <div class="wd-navgroup">Reports</div>
+      <div class="wd-nav"><i class="fa-solid fa-chart-column"></i> Attendance</div>
+      <div class="wd-nav"><i class="fa-solid fa-wallet"></i> Leave credits</div>
+
+      <div class="wd-navgroup">Account</div>
+      <div class="wd-nav"><i class="fa-solid fa-gear"></i> Settings</div>
+      <div class="wd-nav"><i class="fa-solid fa-right-from-bracket"></i> Sign out</div>
+    </aside>
+
+    <!-- Main -->
+    <div class="wd-main">
+      <header class="wd-topbar">
+        <button class="wd-iconbtn wd-menu-toggle" onclick="document.getElementById('sidebar').classList.toggle('is-open')" aria-label="Menu"><i class="fa-solid fa-bars"></i></button>
+        <div class="wd-search"><i class="fa-solid fa-magnifying-glass"></i><input placeholder="Search modules, employees…"></div>
+        <div style="flex:1"></div>
+        <div class="wd-iconbtn"><i class="fa-solid fa-bell"></i><span class="wd-iconbtn__dot"></span></div>
+        <div class="wd-user">
+          <div class="wd-avatar">RG</div>
+          <div><div class="wd-user__name">Ramon Gemana</div><div class="wd-user__role">SysAd · WeDo BPO</div></div>
+        </div>
+      </header>
+
+      <main class="wd-content">
+        <div class="wd-pagehead">
+          <div>
+            <h1>Shift monitor</h1>
+            <p>Welcome back, Ramon — Thursday, June 25 2026</p>
+          </div>
+          <button class="wd-btn wd-btn--primary"><i class="fa-solid fa-plus"></i> Update DAR</button>
+        </div>
+
+        <section class="wd-stats">
+          <div class="wd-stat"><div class="wd-stat__label"><i class="fa-solid fa-right-to-bracket"></i> Today</div><div class="wd-stat__value">Logged in</div></div>
+          <div class="wd-stat"><div class="wd-stat__label"><i class="fa-solid fa-clock"></i> This week</div><div class="wd-stat__value">38.0 h</div></div>
+          <div class="wd-stat"><div class="wd-stat__label"><i class="fa-solid fa-inbox"></i> Pending approvals</div><div class="wd-stat__value">2</div></div>
+          <div class="wd-stat"><div class="wd-stat__label"><i class="fa-solid fa-wallet"></i> Leave credits</div><div class="wd-stat__value">11.0</div></div>
+        </section>
+
+        <section class="wd-card">
+          <div class="wd-card__head"><h3>Daily activity report</h3><a href="#">View all</a></div>
+          <table class="wd-table">
+            <thead><tr><th>Date</th><th>Day</th><th>Time</th><th>Activity</th></tr></thead>
+            <tbody>
+              <tr><td><b>Jun 25, 2026</b></td><td>Thursday</td><td>09:30 AM</td><td>Applied overtime</td></tr>
+              <tr><td><b>Jun 24, 2026</b></td><td>Wednesday</td><td>06:02 PM</td><td>Timed out</td></tr>
+              <tr><td><b>Jun 24, 2026</b></td><td>Wednesday</td><td>07:00 AM</td><td>Timed in</td></tr>
+              <tr><td><b>Jun 23, 2026</b></td><td>Tuesday</td><td>05:58 PM</td><td>Filed leave (SIL Medical)</td></tr>
+            </tbody>
+          </table>
+        </section>
+
+        <section class="wd-card">
+          <div class="wd-card__head"><h3>Attendance log</h3><a href="#">View all</a></div>
+          <table class="wd-table">
+            <thead><tr><th>Date</th><th>Schedule</th><th>Time in</th><th>Time out</th><th>Duration</th><th>Status</th></tr></thead>
+            <tbody>
+              <tr><td><b>Jun 25</b></td><td>07:00 – 19:00</td><td>06:58 AM</td><td>—</td><td>—</td><td><span class="wd-pill wd-pill--ok"><i class="fa-solid fa-circle" style="font-size:7px"></i> On shift</span></td></tr>
+              <tr><td><b>Jun 24</b></td><td>07:00 – 19:00</td><td>07:00 AM</td><td>06:02 PM</td><td>10h 02m</td><td><span class="wd-pill wd-pill--ok">Complete</span></td></tr>
+              <tr><td><b>Jun 23</b></td><td>07:00 – 19:00</td><td>07:14 AM</td><td>06:00 PM</td><td>09h 46m</td><td><span class="wd-pill wd-pill--warn">Late 14m</span></td></tr>
+              <tr><td><b>Jun 20</b></td><td>Rest day</td><td>—</td><td>—</td><td>—</td><td><span class="wd-pill wd-pill--info">Rest day</span></td></tr>
+            </tbody>
+          </table>
+        </section>
+      </main>
+    </div>
+  </div>
+</body>
+</html>
