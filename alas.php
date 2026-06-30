@@ -273,11 +273,13 @@
                     $row = $statement->fetch();
 
                     // Direct reports of the logged-in user (for filing leave on their behalf)
+                    // Active status is determined by em.EmpStatusID = 1. EmpDateResigned is
+                    // NOT a reliable resignation flag in this data (active staff carry real
+                    // dates there), so it must not be used to filter the direct-reports list.
                     $reportsStmt = $pdo->prepare("SELECT em.EmpID, em.EmpLN, em.EmpFN, em.EmpMN
                         FROM empdetails e
                         INNER JOIN employees em ON e.EmpID = em.EmpID
                         WHERE e.EmpISID = :sid AND e.EmpCompID = :cid AND em.EmpStatusID = 1
-                          AND (e.EmpDateResigned IS NULL OR e.EmpDateResigned = '' OR e.EmpDateResigned = '0000-00-00')
                         ORDER BY em.EmpLN ASC");
                     $reportsStmt->execute([':sid' => $id, ':cid' => $_SESSION['CompID']]);
                     $reports = $reportsStmt->fetchAll();
