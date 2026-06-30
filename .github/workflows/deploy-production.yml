@@ -1,9 +1,10 @@
-name: Deploy Staging
+name: Deploy Production
 
+# Production deployment. Runs ONLY when you push to the `production` branch.
+# Staging (.xyz) is handled separately by ci-cd.yml on the `main` branch.
 on:
   push:
-    branches: [main]
-  pull_request:
+    branches: [production]
   workflow_dispatch:
 
 jobs:
@@ -39,23 +40,25 @@ jobs:
           echo "OK — no credential file tracked."
 
   # ---------------------------------------------------------------------------
-  # CD — package into one zip, SFTP it over SSH (port 22, password auth), then
-  # unzip + fix permissions on the server. Reuses the FTP_* secrets you already
-  # set. unzip -o overwrites app files but leaves config.local.php / uploads.
+  # CD (PRODUCTION) — package into one zip, SFTP it over SSH (port 22, password
+  # auth), then unzip + fix permissions on the server. Reuses the same FTP_*
+  # secrets as staging (same cPanel/SSH login, different Document Root). If
+  # production ever moves to a separate server, swap these to PROD_FTP_* secrets.
+  # unzip -o overwrites app files but leaves config.local.php / uploads.
   # ---------------------------------------------------------------------------
   deploy:
-    name: Package & deploy to STAGING (.xyz)
+    name: Package & deploy to PRODUCTION (.ph)
     needs: lint
-    if: github.event_name == 'push' && github.ref == 'refs/heads/main' || github.event_name == 'workflow_dispatch'
+    if: github.event_name == 'workflow_dispatch' || (github.event_name == 'push' && github.ref == 'refs/heads/production')
     runs-on: ubuntu-latest
     concurrency:
-      group: deploy-server
+      group: deploy-production
       cancel-in-progress: true
     env:
-      # EDIT THIS to the domain's absolute Document Root (cPanel → Domains → Document Root):
-      REMOTE_DIR: /home/bi474wqgzz3g/public_html/dashboard.wedoinc.xyz
+      # EDIT THIS to the PRODUCTION domain's absolute Document Root (cPanel → Domains → Document Root):
+      REMOTE_DIR: /home/bi474wqgzz3g/public_html/dashboard.wedoinc.ph
       SSH_PORT: 22
-      VERIFY_URL: http://dashboard.wedoinc.xyz/login.php
+      VERIFY_URL: http://dashboard.wedoinc.ph/login.php
     steps:
       - name: Check secrets are configured
         id: check
