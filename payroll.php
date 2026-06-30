@@ -153,9 +153,9 @@ if (session_status() === PHP_SESSION_NONE) { session_start(); }
             +   '.subtitle{text-align:right}'
             +   '.pyrlfilt{color:var(--brand);font-family:var(--font-head)}'
             +   '.pr-sign,.sign{display:flex;justify-content:space-between;gap:24px;margin-top:14px}'
-            + '</style>';
+            + '<\/style>';
           w = window.open(null, 'Print_Page', 'scrollbars=no');
-          w.document.write('<!DOCTYPE html><html><head>' + head + '</head><body>' + jQuery('#toprint').html() + '</body></html>');
+          w.document.write('<!DOCTYPE html><html><head>' + head + '<\/head><body>' + jQuery('#toprint').html() + '<\/body><\/html>');
           w.document.close();
           // let the stylesheet/fonts load before printing
           setTimeout(function(){ w.print(); }, 350);
@@ -179,7 +179,7 @@ if (session_status() === PHP_SESSION_NONE) { session_start(); }
             var emp = '';
                     emp+=("<option value=></option>");
                     $(resultData).each(function (index, item) {
-                      emp+=("<option value="+item.EmpID+">" +item.EmpLN + " "+item.EmpFN+ "</option>");
+                      emp+=("<option value="+item.EmpID+">" +item.EmpLN + " "+item.EmpFN+ "<\/option>");
                    })              
               $("#employeedata").empty();
               $("#employeedata").append(emp);
