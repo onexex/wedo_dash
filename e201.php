@@ -6,19 +6,19 @@
   <html>
   <head>
     <meta name="viewport" content="width=device-width,initial-scale=1.0">
-    <link rel="icon" href="assets/images/logos/WeDo.png" type="image/x-icon"> 
-    <link rel="stylesheet" href="https://stackpath.bootstrapcdn.com/bootstrap/4.3.1/css/bootstrap.min.css" integrity="sha384-ggOyR0iXCbMQv3Xipma34MD+dH/1fQ784/j6cY/iJTQUOhcWr7x9JvoRxT2MZw1T" crossorigin="anonymous">
-    <!--  <link rel="stylesheet" href="https://use.fontawesome.com/releases/v5.8.2/css/all.css" integrity="sha384-oS3vJWv+0UjzBfQzYUhtDYW+Pj2yciDJxpsK1OYPAYjqT085Qq/1cq5FLXAZQ7Ay" crossorigin="anonymous"> -->
-    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/4.7.0/css/font-awesome.min.css">
-    <!--  <script src="https://code.jquery.com/jquery-3.3.1.slim.min.js" integrity="sha384-q8i/X+965DzO0rT7abK41JStQIAqVgRVzpbzo5smXKp4YfRvH+8abtTE1Pi6jizo" crossorigin="anonymous"></script> -->
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/popper.js/1.14.7/umd/popper.min.js" integrity="sha384-UO2eT0CpHqdSJQ6hJty5KVphtPhzWj9WO1clHTMGa3JDZwrnQq4sF86dIHNDz0W1" crossorigin="anonymous"></script>
+    <link rel="icon" href="assets/images/logos/WeDo.png" type="image/x-icon">
+
+    <!-- Functional libs (modals + existing module JS) -->
     <script src="https://ajax.googleapis.com/ajax/libs/jquery/3.2.1/jquery.min.js"></script>
+    <link rel="stylesheet" href="https://maxcdn.bootstrapcdn.com/bootstrap/3.3.7/css/bootstrap.min.css">
     <script src="https://maxcdn.bootstrapcdn.com/bootstrap/3.3.7/js/bootstrap.min.js"></script>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
+
+    <!-- WeDo design system (loaded AFTER bootstrap so it wins) -->
+    <link rel="stylesheet" href="assets/css/wedo-theme.css">
+
     <script src="assets/js/script.js"></script>
     <script src="assets/js/script-e201.js"></script>
-    <link rel="stylesheet" href="https://maxcdn.bootstrapcdn.com/bootstrap/3.3.7/css/bootstrap.min.css">
-    <link rel="stylesheet" type="text/css" href="assets/css/style.css">
-    <link rel="stylesheet" type="text/css" href="assets/css/responsive.css">
     <script src="assets/js/getlocationcoors.js" deffer></script>
     <title><?php  if ($_SESSION['CompanyName']==""){ echo "Dashboard"; } else{ echo $_SESSION['CompanyName']; } ?></title>
     <script type="text/javascript"> 
@@ -29,114 +29,36 @@
         $('[data-toggle="popover"]').popover();   
       });
     </script>
-    <style type="text/css">
-      html body{
-        font-family: Tahoma !important;
-      }
-      .EmpListJD a{
-        display: block;
-        text-align: left;
-        cursor: auto;
-      }
-      .EmpListJD a i{
-        float: right;
-        color: red;
-        cursor: pointer;
-      }
-      .ListJD a i{
-        float: right;
-        color: green;
-        cursor: pointer;
-      }
-      .ListJD a{
-        display: block;
-        text-align: left;
-        cursor: auto;
-      }
-      .wd-search{
-        width: 200px;
-        -webkit-transition: width 1s; /* For Safari 3.1 to 6.0 */
-        transition: width 1s;
-      }
-      .wd-search:hover{
-        width: 400px;
-      }
-      .wd-search:active{
-        width: 400px;
-      }
-      .wd-search:focus{
-        width: 400px;
-      }
-      .wd-search:visited{
-        width: 400px;
-      }
-      .search-box{
-        border-radius: 4px !important;
-        width: 100% !important;
-        -webkit-transition: width 1s; /* For Safari 3.1 to 6.0 */
-        transition: width 1s;
-      }
-      /*  .search-box:hover{
-      width: 400px !important;
-      }*/
-      .dv-livesearch{
-        -webkit-transition: width 1s; /* For Safari 3.1 to 6.0 */
-        transition: width 1s;
-      }
-
-      .e201Hide{
-        display: none;
-      }
-      @media screen and (max-width: 479px) {
-        .wd-search{
-          right: 225px;
-          top: 12px;
-        }
-        .dv-livesearch{
-          width: 100%;
-        }
-        .wd-search:hover{
-          width: 300px;
-        }
-        .wd-search:active{
-          width: 300px;
-        }
-        .wd-search:focus{
-          width: 300px;
-        }
-        .wd-search:visited{
-          width: 300px;
-        }
-      }
-    </style>
+    <link rel="stylesheet" type="text/css" href="assets/css/e201.css">
   </head>
 
-  <body style="background-image: none">
+  <body>
 
-  <?php 
-    include 'includes/header.php';
+  <?php $wd_active = 'e201'; include 'includes/wd-header.php'; ?>
 
+  <?php
     $pdo = new PDO("mysql:host=$servername;dbname=$db", $username,$password);
-    $pdo->setAttribute(PDO::ATTR_ERRMODE, PDO::ERRMODE_EXCEPTION);    
+    $pdo->setAttribute(PDO::ATTR_ERRMODE, PDO::ERRMODE_EXCEPTION);
     $statement = $pdo->prepare("select * from accessrights where EmpID = :id");
     $statement->bindParam(':id' , $_SESSION['id']);
-    $statement->execute(); 
+    $statement->execute();
     $rowbtn=$statement->fetch();
+  ?>
 
-    if ($rowbtn['srch']==2) { ?>
-      <div class="wd-search">
-        <form action="">  
-          <div class="input-group mb-3">
-            <input  type="text"  class="form-control search-box" placeholder="Search">
-          </div>
-        </form>
-
-        <div class="dv-livesearch">
-        </div>
+  <div class="wd-pagehead">
+    <div>
+      <h1>Electronic 201 File</h1>
+      <p>Employee profile, compliance documents and 201 records.</p>
+    </div>
+    <?php if ($rowbtn['srch']==2) { ?>
+      <div class="e201-search">
+        <input type="text" class="search-box" placeholder="Search employee&hellip;">
+        <div class="dv-livesearch"></div>
       </div>
     <?php } ?>
+  </div>
 
-  <div id="e201" class="w-container" >
+  <div id="e201" class="w-container e201-scope" >
     <?php include_once ("w_conn.php");
 
     $q = $_SESSION['id'];
@@ -188,10 +110,8 @@
     <?php }
     else{ ?>
     <div class="row">
-        <div class="col-lg-3"></div>
         <!-- website content -->
-        
-        <div class="col-lg-9" id="divtop">
+        <div class="col-lg-12" id="divtop">
             <div class="row">
                 <!--<button class="btn btn-danger bb">test</button>-->
                 <?php
@@ -233,12 +153,12 @@
                             ?>;">
                         </div>
                             <div class="emp-details" id="emp-detailscdc">
-                                <h4 class="title dropdwn-title" >Compliance Document Data<i class="fa fa-angle-down toggle-btn"></i></h4>
+                                <h4 class="title dropdwn-title" >Compliance Document Data<i class="fa-solid fa-angle-down toggle-btn"></i></h4>
                                 <hr>
                                 <div class="aaaa">
                                 <table class="table">
                                   <thead>
-                                    <tr class="cdd-tr"><th class="det-f">Passport Number <i style="outline: none;" class="fa fa-question-circle" href="#" role="button" data-trigger="focus" tabindex="0" data-toggle="popover" data-html="true" title="Details"  data-content="Expiry Date:  <?php echo $res['EmpPPED'];  echo " <br/> Issuing Authority : " . $res['EmpPPIA']; ?>  " ></i> </th><th class="com_number"><?php echo $res['EmpPPNo']; ?></th></tr>
+                                    <tr class="cdd-tr"><th class="det-f">Passport Number <i style="outline: none;" class="fa-solid fa-question-circle" href="#" role="button" data-trigger="focus" tabindex="0" data-toggle="popover" data-html="true" title="Details"  data-content="Expiry Date:  <?php echo $res['EmpPPED'];  echo " <br/> Issuing Authority : " . $res['EmpPPIA']; ?>  " ></i> </th><th class="com_number"><?php echo $res['EmpPPNo']; ?></th></tr>
                                     <tr class="cdd-tr"><th class="det-f">PAG-IBIG:</th><th class="com_number"><?php echo $res['EmpPINo']; ?></th></tr>
                                     <tr class="cdd-tr"><th class="det-f">PHILHEALTH:</th><th class="com_number"><?php echo $res['EmpPHNo']; ?></th></tr>
                                     <tr class="cdd-tr"><th class="det-f">SSS Number:</th><th class="com_number"><?php echo $res['EmpSSS']; ?></th></tr>
@@ -249,7 +169,7 @@
                             </div>
                             </div>
             <div class="emp-details">
-              <h4 class="title dropdwn-title" >Job Description<i class="fa fa-angle-down toggle-btn"></i></h4>
+              <h4 class="title dropdwn-title" >Job Description<i class="fa-solid fa-angle-down toggle-btn"></i></h4>
               <hr>
               <div class="aaaa">
                 <table class="table">
@@ -267,17 +187,17 @@
               </div>
             </div>
             <div id="ed-to-hide" class="emp-details ed-st">
-              <h4 class="title dropdwn-title">Employment Details<i class="fa fa-angle-down toggle-btn"></i></h4>
+              <h4 class="title dropdwn-title">Employment Details<i class="fa-solid fa-angle-down toggle-btn"></i></h4>
               <hr>
               <div class="aaaa">
                 <table class="table">
                   <thead>
-                    <tr class="pos"><th><i class="fa fa-briefcase"></i> <?php echo $res['PositionDesc']; ?>/<i class="current-prev">Current</i></th></tr>
+                    <tr class="pos"><th><i class="fa-solid fa-briefcase"></i> <?php echo $res['PositionDesc']; ?>/<i class="current-prev">Current</i></th></tr>
                     <tr class="info-t"><th><?php  echo $res['DepartmentDesc']; ?></th></tr>
                     <tr class="info-t"><th><?php echo $res['EmpDateHired']; ?></th></tr>
                   </thead>
                   <thead>
-                    <tr class="pos"><th><i class="fa fa-briefcase"></i> <?php echo $res['EmpPP']; ?>/<i class="current-prev">Previous</i></th></tr>
+                    <tr class="pos"><th><i class="fa-solid fa-briefcase"></i> <?php echo $res['EmpPP']; ?>/<i class="current-prev">Previous</i></th></tr>
                     <tr class="info-t"><th><?php echo $res['EmpPPPos']; ?></th></tr>
                     <tr class="info-t"><th><?php echo $res['EmpPPDept']; ?></th></tr>
                     <tr class="info-t"><th><?php echo $res['EmpPPSD']; ?></th></tr>
@@ -287,7 +207,7 @@
             </div>
             <div class="col-md-12 pd-none">
               <div class="emp-details">
-                <h4 class="title dropdwn-title " >Electronic 201 Files<i class="fa fa-angle-down toggle-btn"></i></h4>
+                <h4 class="title dropdwn-title " >Electronic 201 Files<i class="fa-solid fa-angle-down toggle-btn"></i></h4>
                 <hr>
                 <div class="row tbl-hide">
                   <div class="col-lg-12 pd-none ">
@@ -301,7 +221,7 @@
                         while($r=mysqli_fetch_array($query)){
                           ?>
                           <div class="col-lg-2">
-                            <a href="#" id="pdf-filename" data-toggle="modal" data-target="#myModaldd<?php echo $r[0]; ?>"><i class="fa fa-file-pdf-o "></i><?php $rest = substr( $r['EmpfileN'], 0, +5); echo $rest; ?></a>
+                            <a href="#" id="pdf-filename" data-toggle="modal" data-target="#myModaldd<?php echo $r[0]; ?>"><i class="fa-solid fa-file-pdf"></i><?php $rest = substr( $r['EmpfileN'], 0, +5); echo $rest; ?></a>
                           </div>
 
                           <!-- The Modal -->
@@ -348,15 +268,15 @@
   }
   }?>
   <img id="prof-img" style="display: none;" src="<?php echo $fp; ?>">
-  <h3 class="emp-name" id="emp-name"> <?php echo $profile; ?>  <a style="color: red;" id="sndmessage" ><i data-toggle="tooltip" data-placement="right" title="Send Message to Immediate" style="outline: none; font-size: 15px; vertical-align: middle; cursor: pointer;"  class="fa fa-comment-o" href="#"></i></a>  
+  <h3 class="emp-name" id="emp-name"> <?php echo $profile; ?>  <a style="color: red;" id="sndmessage" ><i data-toggle="tooltip" data-placement="right" title="Send Message to Immediate" style="outline: none; font-size: 15px; vertical-align: middle; cursor: pointer;"  class="fa-regular fa-comment" href="#"></i></a>  
   <?php if ($rowbtn['updte']==2){ ?>
-  <button class="btn btn-info   btnprint" id="btnprint" onclick='printDiv();'><i class="fa fa-print" aria-hidden="true"></i></button>
+  <button class="btn btn-info   btnprint" id="btnprint" onclick='printDiv();'><i class="fa-solid fa-print" aria-hidden="true"></i></button>
   <?php } ?>
   <?php if ($rowbtn['updte']==2){ ?>
-  <a id="Updateinfo" href="UpdateEmployeeInfo?sid=<?php echo $res['EmpID']; ?>" class="btn btn-danger btnupdate" title="Update Contact Information" data-dismiss="modal"><i class="fa fa-pencil-square" aria-hidden="true"></i></a>
+  <a id="Updateinfo" href="UpdateEmployeeInfo?sid=<?php echo $res['EmpID']; ?>" class="btn btn-danger btnupdate" title="Update Contact Information" data-dismiss="modal"><i class="fa-solid fa-pen-to-square" aria-hidden="true"></i></a>
   <?php }
   if ($_SESSION['UserType']!=3){ ?>
-  <a  href="#" id="changepasskey" data-toggle="modal" data-target="#myModaldd<?php echo $res['EmpID']; ?>" style="color:white;" class="btn btn-success btnresetpass" title="Reset Password" data-dismiss="modal"><i class="fa fa-key" aria-hidden="true"></i></a>
+  <a  href="#" id="changepasskey" data-toggle="modal" data-target="#myModaldd<?php echo $res['EmpID']; ?>" style="color:white;" class="btn btn-success btnresetpass" title="Reset Password" data-dismiss="modal"><i class="fa-solid fa-key" aria-hidden="true"></i></a>
   <?php  } ?>
 
 
@@ -419,7 +339,7 @@
   <div class="row">
   <div class="col-md-12 pd-none" id="pd-none">
   <div class="emp-details" id="pd-none2">
-  <h4 class="title dropdwn-title " style="color:<?php echo  $_SESSION['CompanyColor']; ?>;" >Employment Status<i class="fa fa-angle-down toggle-btn"></i></h4>
+  <h4 class="title dropdwn-title " style="color:<?php echo  $_SESSION['CompanyColor']; ?>;" >Employment Status<i class="fa-solid fa-angle-down toggle-btn"></i></h4>
   <hr>
   <div class="row tbl-hide">
   <div class="col-lg-8 pd-none">
@@ -436,7 +356,7 @@
   <tr class="ci-det"><th class="info-t">Immediate:</th><th><?php echo $ISname;?></th></tr>
   <tr class="ci-det"><th class="info-t">Date Hired:</th><th><?php echo $res['EmpDateHired']; ?></th></tr>
   <tr class="ci-det"><th class="info-t">Date Resigned:</th><th><?php echo $res['EmpDateResigned']; ?></th></tr>
-  <tr class="ci-det"><th class="info-t">Salary Details:</th><th> <i class="fa fa-angle-down bsc-show" aria-hidden="true"></i></th></tr>
+  <tr class="ci-det"><th class="info-t">Salary Details:</th><th> <i class="fa-solid fa-angle-down bsc-show" aria-hidden="true"></i></th></tr>
   <tr class="ci-det bsc-hide" ><th class="info-t">Basic:</th><th><?php echo number_format($res['EmpBasic']); ?>.00</th></tr>
   <tr class="ci-det bsc-hide"><th class="info-t">Allowance:</th><th><?php echo number_format($res['EmpAllowance']); ?>.00</th></tr>
   <tr class="ci-det bsc-hide"><th class="info-t">Hourly Rate:</th><th><?php echo number_format($res['EmphRate']); ?>.00</th></tr>
@@ -554,117 +474,9 @@
   <div class="col-lg-4"></div>
   </div> 
 
-  <h6 class="cinfo-title d-none" style="color:<?php echo  $_SESSION['CompanyColor']; ?>;">Work Schedules</h6>
-  <hr class="cinfohr">
-  <div class="row d-none">
 
-  <div class="col-lg-12 p-info">
-  <table class="table table-responsive">
-  <thead>
-  <tr>
-  <th>Monday</th>
-  <th>Tuesday</th>
-  <th>Wednesday</th>
-  <th>Thusday</th>
-  <th>Friday</th>
-  <th>Saturday</th>
-  <th>Sunday</th>
-  </tr>
-  </thead>
-  <tbody>
-  <tr>
-
-  <?php
-  $sqlsc="select * from workdays left join workschedule on workdays.SchedTime=workschedule.WorkSchedID where  empid='$q'";
-  $scqry=mysqli_query($con,$sqlsc);
-  $scnrow=mysqli_num_rows($scqry);
-  while ( $scres=mysqli_fetch_array($scqry)) {
-  ?>
-  <td>
-  <?php echo $scres['TimeFrom'] . "-" . $scres['TimeTo']; ?>  
-  </td>
-  <?php
-  }
-  ?>
-
-
-  <?php  
-
-
-  ?>
-
-  </tr>
-  </tbody>
-  </table>
-  </div>
-  </div>
-
-
-  <div class="emp-details e201Hide" id="e201Hide1">
-  <h4 class="title dropdwn-title" style="color:<?php echo  $_SESSION['CompanyColor']; ?>;">Compliance Document Data<i class="fa fa-angle-down toggle-btn"></i></h4>
-  <hr>
-  <div class="aaaa">
-  <table class="table">
-  <thead>
-  <tr class="cdd-tr"><th class="det-f">Passport Number <i style="outline: none;" class="fa fa-question-circle" href="#" role="button" data-trigger="focus" tabindex="0" data-toggle="popover" data-html="true" title="Details"  data-content="Expiry Date: <br/> " <?php echo $res['EmpPPNo']; ?> "Issuing Authority:" <?php echo $res['EmpPPNo']; ?>></i> </th><th class="com_number"><?php echo $res['EmpPPNo']; ?></th></tr>
-  <tr class="cdd-tr"><th class="det-f">PAG-IBIG:</th><th class="com_number"><?php echo $res['EmpPINo']; ?></th></tr>
-  <tr class="cdd-tr"><th class="det-f">PHILHEALTH:</th><th class="com_number"><?php echo $res['EmpPHNo']; ?></th></tr>
-  <tr class="cdd-tr"><th class="det-f">SSS Number:</th><th class="com_number"><?php echo $res['EmpSSS']; ?></th></tr>
-  <tr class="cdd-tr"><th class="det-f">TIN:</th><th class="com_number"><?php echo $res['EmpTIN']; ?></th></tr>                                       
-  <tr class="cdd-tr"><th class="det-f">UMID:</th><th class="com_number"><?php echo $res['EmpUMIDNo']; ?></th></tr>
-
-  </thead>
-  </table>
-  </div>
-  </div>
-  <!-- end  -->
-  <div class="emp-details e201Hide">
-  <h4 class="title dropdwn-title" style="color:<?php echo  $_SESSION['CompanyColor']; ?>;">Job Description<i class="fa fa-angle-down toggle-btn"></i></h4>
-  <hr>
-  <div class="aaaa">
-  <table class="table">
-  <thead id="jdview">
-  <?php
-  $res12=mysqli_query($con,"select * from jobdescription inner join empjobdesc on jobdescription.JD_ID=empjobdesc.JID where empjobdesc.EmpID='" . $res['EmpID'] . "'");
-  while ($row3=mysqli_fetch_array($res12)) {
-  ?>
-
-  <tr class="cdd-tr"><th class="det-f"><?php echo $row3["JDescription"]; ?></th></tr>
-  <?php
-  }
-  ?>
-
-  </thead>
-
-
-  </table>
-  </div>
-  </div>
-
-  <!-- end  -->
-  <div id="ed-to-hide" class="emp-details ed-st e201Hide">
-  <h4 class="title dropdwn-title" style="color:<?php echo  $_SESSION['CompanyColor']; ?>;">Employment Details<i class="fa fa-angle-down toggle-btn"></i></h4>
-  <hr>
-  <div class="aaaa">
-  <table class="table">
-  <thead>
-  <tr class="pos"><th><i class="fa fa-briefcase"></i> <?php echo $res['PositionDesc']; ?>/<i class="current-prev">Current</i></th></tr>
-
-  <tr class="info-t"><th><?php  echo $res['DepartmentDesc']; ?></th></tr>
-  <tr class="info-t"><th><?php echo $res['EmpDateHired']; ?></th></tr>
-
-  </thead>
-  <thead>
-  <tr class="pos"><th><i class="fa fa-briefcase"></i> <?php echo $res['EmpPP']; ?>/<i class="current-prev">Previous</i></th></tr>
-  <tr class="info-t"><th><?php echo $res['EmpPPPos']; ?></th></tr>
-  <tr class="info-t"><th><?php echo $res['EmpPPDept']; ?></th></tr>
-  <tr class="info-t"><th><?php echo $res['EmpPPSD']; ?></th></tr>
-
-  </thead>
-  </table>
-  </div>
-  </div>
-  <!-- end  -->
+  <!-- (removed duplicate hidden e201Hide blocks — they re-declared id="ed-to-hide"
+       and id="jdview" already present in the visible column) -->
   </div>
   </div>
 
@@ -683,7 +495,7 @@
   <div class="com-container">
   <div class="com-header" style="<?php echo "background-color: " . $_SESSION['CompanyColor']; ?>">
   <h5><?php echo $ISname;?></h5>
-  <i class="fa fa-window-close" id="sndm" aria-hidden="true"></i>
+  <i class="fa-solid fa-xmark" id="sndm" aria-hidden="true"></i>
   </div>
   <div class="com-messages" id="com-messages">
 
@@ -812,7 +624,7 @@
   </div>
   <div class="com-send-m">
   <input type="text" name="mssg" id="mssg" class="form-control">
-  <button class="btn" id="btnsend"><i class="fa fa-paper-plane" aria-hidden="true"></i></button>
+  <button class="btn" id="btnsend"><i class="fa-solid fa-paper-plane" aria-hidden="true"></i></button>
   </div>
   </div>
 
@@ -836,7 +648,7 @@
   $res12=mysqli_query($con,"select * from jobdescription inner join empjobdesc on jobdescription.JD_ID=empjobdesc.JID where empjobdesc.EmpID='" . $eid . "'");
   while ($row3=mysqli_fetch_array($res12)) {
   ?>
-  <a  class="btn"><?php echo $row3["JDescription"]; ?> <i class="fa fa-times" id="<?php echo $row3['EJID']; ?>" aria-hidden="true"></i></a>
+  <a  class="btn"><?php echo $row3["JDescription"]; ?> <i class="fa-solid fa-times" id="<?php echo $row3['EJID']; ?>" aria-hidden="true"></i></a>
   <?php
   }
   ?>
@@ -851,7 +663,7 @@
   $res13=mysqli_query($con,"select * from jobdescription order by JDescription asc");
   while ($row=mysqli_fetch_array($res13)) {
   ?>
-  <a  class="btn"><?php echo $row[1]; ?> <i class="fa fa-check-circle" id="<?php echo $row[0]; ?>" aria-hidden="true"></i></a>
+  <a  class="btn"><?php echo $row[1]; ?> <i class="fa-solid fa-check-circle" id="<?php echo $row[0]; ?>" aria-hidden="true"></i></a>
   <?php
   }
   ?>
@@ -900,7 +712,8 @@
   </div>
   </div>
   </div>
-  <!-- modal end -->  
+  <!-- modal end -->
 
+  <?php include 'includes/wd-footer.php'; ?>
   </body>
 </html>

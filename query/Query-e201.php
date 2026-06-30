@@ -53,9 +53,8 @@ $sql = "SELECT empdetails.Seq_ID,hmo.HMO_PROVIDER,agency.AgencyName,empdetails.E
     if ($cnt == 0){
     ?>
     <div class="row">
-      <div class="col-lg-3"></div>
         <!-- website content -->
-          <div class="col-lg-9">
+          <div class="col-lg-12">
           <center><h1 >No Result Found !</h1></center>
           </div>
       </div>
@@ -73,9 +72,8 @@ $sql = "SELECT empdetails.Seq_ID,hmo.HMO_PROVIDER,agency.AgencyName,empdetails.E
 else{
   ?>
   <div class="row">
-         <div class="col-lg-3"></div>
           <!-- website content -->
-           <div class="col-lg-9">
+           <div class="col-lg-12">
              <div class="row">
                   <div class="msg" id="msg"><a href="">Messages <i>0</i></a></div>
                   <div class="col-lg-4" id="cdc-hide">
@@ -97,12 +95,12 @@ else{
                    </div>
 
                    <div class="emp-details" id="emp-detailscdc">
-                      <h4 class="title dropdwn-title" >Compliance Document Data<i class="fa fa-angle-down toggle-btn"></i></h4>
+                      <h4 class="title dropdwn-title" >Compliance Document Data<i class="fa-solid fa-angle-down toggle-btn"></i></h4>
                       <hr>
                       <div class="aaaa">
                         <table class="table">
                            <thead>
-                             <tr class="cdd-tr"><th class="det-f">Passport Number <i style="outline: none;" class="fa fa-question-circle" href="#" role="button" data-trigger="focus" tabindex="0" data-toggle="popover" data-html="true" title="Details"  data-content="Expiry Date: <br/> " <?php echo $res['EmpPPNo']; ?> "Issuing Authority:"<?php echo $res['EmpPPNo']; ?>></i> </th><th class="com_number"><?php echo $res['EmpPPNo']; ?></th></tr>
+                             <tr class="cdd-tr"><th class="det-f">Passport Number <i style="outline: none;" class="fa-solid fa-question-circle" href="#" role="button" data-trigger="focus" tabindex="0" data-toggle="popover" data-html="true" title="Details"  data-content="Expiry Date: <br/> " <?php echo $res['EmpPPNo']; ?> "Issuing Authority:"<?php echo $res['EmpPPNo']; ?>></i> </th><th class="com_number"><?php echo $res['EmpPPNo']; ?></th></tr>
                              <tr class="cdd-tr"><th class="det-f">PAG-IBIG:</th><th class="com_number"><?php echo $res['EmpPINo']; ?></th></tr>
                              <tr class="cdd-tr"><th class="det-f">PHILHEALTH:</th><th class="com_number"><?php echo $res['EmpPHNo']; ?></th></tr>
                              <tr class="cdd-tr"><th class="det-f">SSS Number:</th><th class="com_number"><?php echo $res['EmpSSS']; ?></th></tr>
@@ -114,7 +112,7 @@ else{
 
                    </div>
                       <div class="emp-details">
-                       <h4 class="title dropdwn-title" >Job Description<i class="fa fa-angle-down toggle-btn"></i></h4>
+                       <h4 class="title dropdwn-title" >Job Description<i class="fa-solid fa-angle-down toggle-btn"></i></h4>
                         <hr>
                        <div class="aaaa">
                         <table class="table">
@@ -127,7 +125,7 @@ else{
                               <?php } ?>
                            </thead>
 
-                            <!--  <tr class="cdd-tr"><th class="det-f"><button class="btn btn-success" data-toggle="modal" data-target="#newjobd"><i class="fa fa-plus" aria-hidden="true"></i> Add Job Description</button></th></tr> -->
+                            <!--  <tr class="cdd-tr"><th class="det-f"><button class="btn btn-success" data-toggle="modal" data-target="#newjobd"><i class="fa-solid fa-plus" aria-hidden="true"></i> Add Job Description</button></th></tr> -->
 
                          </table>
 
@@ -137,7 +135,7 @@ else{
 
                     <div id="ed-to-hide" class="emp-details ed-st">
 
-                       <h4 class="title dropdwn-title">Employment Details<i class="fa fa-angle-down toggle-btn"></i></h4>
+                       <h4 class="title dropdwn-title">Employment Details<i class="fa-solid fa-angle-down toggle-btn"></i></h4>
 
                         <hr>
 
@@ -147,7 +145,7 @@ else{
 
                            <thead>
 
-                             <tr class="pos"><th><i class="fa fa-briefcase"></i> <?php echo $res['PositionDesc']; ?>/<i class="current-prev">Current</i></th></tr>
+                             <tr class="pos"><th><i class="fa-solid fa-briefcase"></i> <?php echo $res['PositionDesc']; ?>/<i class="current-prev">Current</i></th></tr>
 
                           
 
@@ -161,7 +159,7 @@ else{
 
                            <thead>
 
-                             <tr class="pos"><th><i class="fa fa-briefcase"></i> <?php echo $res['EmpPP']; ?>/<i class="current-prev">Previous</i></th></tr>
+                             <tr class="pos"><th><i class="fa-solid fa-briefcase"></i> <?php echo $res['EmpPP']; ?>/<i class="current-prev">Previous</i></th></tr>
 
                              <tr class="info-t"><th><?php echo $res['EmpPPPos']; ?></th></tr>
 
@@ -183,7 +181,7 @@ else{
 
                               <div class="emp-details">
 
-                               <h4 class="title dropdwn-title " >Electronic 201 Files<i class="fa fa-angle-down toggle-btn"></i></h4>
+                               <h4 class="title dropdwn-title " >Electronic 201 Files<i class="fa-solid fa-angle-down toggle-btn"></i></h4>
 
                                <hr>
 
@@ -211,7 +209,7 @@ else{
 
                                       ?>
 
-                                         <div class="col-lg-2"><a href="#" id="pdf-filename" data-toggle="modal" data-target="#myModaldd<?php echo $r[0]; ?>"><i class="fa fa-file-pdf-o "></i><?php  $rest = substr( $r['EmpfileN'], 0, +5);
+                                         <div class="col-lg-2"><a href="#" id="pdf-filename" data-toggle="modal" data-target="#myModaldd<?php echo $r[0]; ?>"><i class="fa-solid fa-file-pdf"></i><?php  $rest = substr( $r['EmpfileN'], 0, +5);
 
                                        echo $rest;  ?></a></div>
 
@@ -337,15 +335,15 @@ else{
 
                     <img id="prof-img" style="display: none;" src="<?php echo $fp; ?>">
 
-                     <h3 class="emp-name" id="emp-name"> <?php echo $profile; ?>  <a style="color: red;" data-toggle="modal" data-target="#myModal" href="#" ><!-- <i data-toggle="tooltip" data-placement="right" title="Send Message" style="outline: none; font-size: 15px; vertical-align: middle; cursor: pointer;"  class="fa fa-comment-o" href="#"></i> --></a>
+                     <h3 class="emp-name" id="emp-name"> <?php echo $profile; ?>  <a style="color: red;" data-toggle="modal" data-target="#myModal" href="#" ><!-- <i data-toggle="tooltip" data-placement="right" title="Send Message" style="outline: none; font-size: 15px; vertical-align: middle; cursor: pointer;"  class="fa-solid fa-comment-o" href="#"></i> --></a>
 
                     
 
-                      <button class="btn btn-info thisprint btnprint" id="btnprint" onclick='printthisDiv();'><i class="fa fa-print" aria-hidden="true"></i></button>
+                      <button class="btn btn-info thisprint btnprint" id="btnprint" onclick='printthisDiv();'><i class="fa-solid fa-print" aria-hidden="true"></i></button>
 
                  
 
-                       <a id="Updateinfo" href="UpdateEmployeeInfo?sid=<?php echo $res['EmpID']; ?>" class="btn btn-danger btnupdate" title="Update Contact Information" data-dismiss="modal"><i class="fa fa-pencil-square" aria-hidden="true"></i></a>
+                       <a id="Updateinfo" href="UpdateEmployeeInfo?sid=<?php echo $res['EmpID']; ?>" class="btn btn-danger btnupdate" title="Update Contact Information" data-dismiss="modal"><i class="fa-solid fa-pen-to-square" aria-hidden="true"></i></a>
 
                     <?php
 
@@ -353,7 +351,7 @@ else{
 
                       ?>
 
-                         <a  href="#" id="pdf-filename" data-toggle="modal" data-target="#myModaldd<?php echo $res['EmpID']; ?>" style="color:white;" class="btn btn-success btnresetpass" title="Reset Password" data-dismiss="modal"><i class="fa fa-key" aria-hidden="true"></i></a>
+                         <a  href="#" id="pdf-filename" data-toggle="modal" data-target="#myModaldd<?php echo $res['EmpID']; ?>" style="color:white;" class="btn btn-success btnresetpass" title="Reset Password" data-dismiss="modal"><i class="fa-solid fa-key" aria-hidden="true"></i></a>
 
                       <?php
 
@@ -501,7 +499,7 @@ else{
 
                               <div class="emp-details">
 
-                               <h4 class="title dropdwn-title " >Employment Status<i class="fa fa-angle-down toggle-btn"></i></h4>
+                               <h4 class="title dropdwn-title " >Employment Status<i class="fa-solid fa-angle-down toggle-btn"></i></h4>
 
                                <hr>
 
@@ -541,7 +539,7 @@ else{
 
                                    
 
-                                            <tr class="ci-det"><th class="info-t">Salary Details:</th><th>  <i onclick="fnctshow()" id="bsc-show" class="fa fa-angle-down bsc-show" aria-hidden="true"></i></th></tr>
+                                            <tr class="ci-det"><th class="info-t">Salary Details:</th><th>  <i onclick="fnctshow()" id="bsc-show" class="fa-solid fa-angle-down bsc-show" aria-hidden="true"></i></th></tr>
 
                                             <tr class="ci-det bsc-hide" ><th class="info-t">Basic:</th><th><?php echo number_format($res['EmpBasic']); ?>.00</th></tr>
 
@@ -894,7 +892,7 @@ else{
 
                             <div class="emp-details e201Hide" id="e201Hide1">
 
-                       <h4 class="title dropdwn-title" >Compliance Document Data<i class="fa fa-angle-down toggle-btn"></i></h4>
+                       <h4 class="title dropdwn-title" >Compliance Document Data<i class="fa-solid fa-angle-down toggle-btn"></i></h4>
 
                         <hr>
 
@@ -904,7 +902,7 @@ else{
 
                            <thead>
 
-                             <tr class="cdd-tr"><th class="det-f">Passport Number <i style="outline: none;" class="fa fa-question-circle" href="#" role="button" data-trigger="focus" tabindex="0" data-toggle="popover" data-html="true" title="Details"  data-content="Expiry Date: <br/> " <?php echo $res['EmpPPNo']; ?> "Issuing Authority:" <?php echo $res['EmpPPNo']; ?>></i> </th><th class="com_number"><?php echo $res['EmpPPNo']; ?></th></tr>
+                             <tr class="cdd-tr"><th class="det-f">Passport Number <i style="outline: none;" class="fa-solid fa-question-circle" href="#" role="button" data-trigger="focus" tabindex="0" data-toggle="popover" data-html="true" title="Details"  data-content="Expiry Date: <br/> " <?php echo $res['EmpPPNo']; ?> "Issuing Authority:" <?php echo $res['EmpPPNo']; ?>></i> </th><th class="com_number"><?php echo $res['EmpPPNo']; ?></th></tr>
 
                              <tr class="cdd-tr"><th class="det-f">PAG-IBIG:</th><th class="com_number"><?php echo $res['EmpPINo']; ?></th></tr>
 
@@ -930,7 +928,7 @@ else{
 
                        <div class="emp-details e201Hide">
 
-                       <h4 class="title dropdwn-title" >Job Description<i class="fa fa-angle-down toggle-btn"></i></h4>
+                       <h4 class="title dropdwn-title" >Job Description<i class="fa-solid fa-angle-down toggle-btn"></i></h4>
 
                         <hr>
 
@@ -978,7 +976,7 @@ else{
 
                        <div id="ed-to-hide" class="emp-details ed-st e201Hide">
 
-                       <h4 class="title dropdwn-title">Employment Details<i class="fa fa-angle-down toggle-btn"></i></h4>
+                       <h4 class="title dropdwn-title">Employment Details<i class="fa-solid fa-angle-down toggle-btn"></i></h4>
 
                         <hr>
 
@@ -988,7 +986,7 @@ else{
 
                            <thead>
 
-                             <tr class="pos"><th><i class="fa fa-briefcase"></i> <?php echo $res['PositionDesc']; ?>/<i class="current-prev">Current</i></th></tr>
+                             <tr class="pos"><th><i class="fa-solid fa-briefcase"></i> <?php echo $res['PositionDesc']; ?>/<i class="current-prev">Current</i></th></tr>
 
                           
 
@@ -1002,7 +1000,7 @@ else{
 
                            <thead>
 
-                             <tr class="pos"><th><i class="fa fa-briefcase"></i> <?php echo $res['EmpPP']; ?>/<i class="current-prev">Previous</i></th></tr>
+                             <tr class="pos"><th><i class="fa-solid fa-briefcase"></i> <?php echo $res['EmpPP']; ?>/<i class="current-prev">Previous</i></th></tr>
 
                              <tr class="info-t"><th><?php echo $res['EmpPPPos']; ?></th></tr>
 
@@ -1080,7 +1078,7 @@ else{
 
                                           ?>
 
-                                              <a  class="btn"><?php echo $row3["JDescription"]; ?> <i class="fa fa-times" id="<?php echo $row3['EJID']; ?>" aria-hidden="true"></i></a>
+                                              <a  class="btn"><?php echo $row3["JDescription"]; ?> <i class="fa-solid fa-times" id="<?php echo $row3['EJID']; ?>" aria-hidden="true"></i></a>
 
                                           <?php
 
@@ -1110,7 +1108,7 @@ else{
 
                                           ?>
 
-                                          <a  class="btn"><?php echo $row[1]; ?> <i class="fa fa-check-circle" id="<?php echo $row[0]; ?>" aria-hidden="true"></i></a>
+                                          <a  class="btn"><?php echo $row[1]; ?> <i class="fa-solid fa-check-circle" id="<?php echo $row[0]; ?>" aria-hidden="true"></i></a>
 
                                           <?php
 

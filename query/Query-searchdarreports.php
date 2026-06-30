@@ -11,6 +11,21 @@
           die("ERROR: Could not connect. " . $e->getMessage());
              }
 
+          /* Themed status pill (guarded — same helper used on migrated pages). */
+          if (!function_exists('wd_status_pill')) {
+              function wd_status_pill($desc) {
+                  $d = strtolower((string) $desc);
+                  if (strpos($d, 'approve') !== false)                                     { $c = 'ok'; }
+                  elseif (strpos($d, 'reject') !== false || strpos($d, 'cancel') !== false
+                       || strpos($d, 'disapprove') !== false || strpos($d, 'deny') !== false
+                       || strpos($d, 'decline') !== false)                                 { $c = 'danger'; }
+                  elseif (strpos($d, 'pending') !== false || strpos($d, 'file') !== false
+                       || strpos($d, 'process') !== false || strpos($d, 'review') !== false){ $c = 'warn'; }
+                  else                                                                     { $c = 'info'; }
+                  return '<span class="wd-pill wd-pill--' . $c . '">' . htmlspecialchars($desc) . '</span>';
+              }
+          }
+
           if (isset($_GET['fdetails'])){
               $id=$_POST['Eid'];
              if ($id=="All"){
@@ -245,12 +260,12 @@
                     <td><?php echo date("F j, Y", strtotime($row2["DateFiled"])); ?> </td>
                     <td><?php echo date("F j, Y", strtotime($row2["Start_Date"])); ?> </td>
                     <td><?php echo date("F j, Y", strtotime($row2["End_Date"])); ?> </td>
-                    <td><?php echo $row2["Leave_Type"]; ?> </td>  
-                    <td><?php echo $row2["Purpose"]; ?> </td>
-                    <td><?php echo $row2["Duration"]; ?> </td>
-                    <td><?php echo $row2["Status"]; ?> </td>
+                    <td><?php echo htmlspecialchars($row2["Leave_Type"]); ?> </td>
+                    <td><?php echo htmlspecialchars($row2["Purpose"]); ?> </td>
+                    <td><?php echo htmlspecialchars($row2["Duration"]); ?> </td>
+                    <td><?php echo wd_status_pill($row2["Status"]); ?> </td>
 
-              
+
                 </tr>
                 <?php
                    $ids=$ids+1;
