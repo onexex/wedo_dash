@@ -276,7 +276,7 @@
                     $reportsStmt = $pdo->prepare("SELECT em.EmpID, em.EmpLN, em.EmpFN, em.EmpMN
                         FROM empdetails e
                         INNER JOIN employees em ON e.EmpID = em.EmpID
-                        WHERE e.EmpISID = :sid AND e.EmpCompID = :cid
+                        WHERE e.EmpISID = :sid AND e.EmpCompID = :cid AND em.EmpStatusID = 1
                         ORDER BY em.EmpLN ASC");
                     $reportsStmt->execute([':sid' => $id, ':cid' => $_SESSION['CompID']]);
                     $reports = $reportsStmt->fetchAll();

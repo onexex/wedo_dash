@@ -64,26 +64,27 @@ if (session_status() === PHP_SESSION_NONE) { session_start(); }
   date_default_timezone_set("Asia/Manila"); 
 ?>
 <!DOCTYPE html>
-<html>
+<html lang="en">
 <head>
-  
+
     <title><?php  if ($_SESSION['CompanyName']==""){ echo "Dashboard"; } else{ echo "Payroll"; } ?></title>
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
-    <link rel="icon" href="assets/images/logos/WeDo.png" type="image/x-icon"> 
-    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/4.7.0/css/font-awesome.min.css">
-    <!-- <link rel="stylesheet" href="assets/css/font-awesome.min.css"> -->
-    <!--  <script src="https://code.jquery.com/jquery-3.3.1.slim.min.js" integrity="sha384-q8i/X+965DzO0rT7abK41JStQIAqVgRVzpbzo5smXKp4YfRvH+8abtTE1Pi6jizo" crossorigin="anonymous"></script> -->
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/popper.js/1.12.9/umd/popper.min.js" integrity="sha384-ApNbgh9B+Y1QKtv3Rn7W3mgPxhU9K/ScQsAP7hUibX39j7fakFPskvXusvfa0b4Q" crossorigin="anonymous"></script>
-    <link rel="stylesheet" href="https://maxcdn.bootstrapcdn.com/bootstrap/3.3.7/css/bootstrap.min.css">
+    <link rel="icon" href="assets/images/logos/WeDo.png" type="image/x-icon">
+
+    <!-- Functional libs (modals + existing JS) -->
     <script src="https://ajax.googleapis.com/ajax/libs/jquery/3.2.1/jquery.min.js"></script>
+    <link rel="stylesheet" href="https://maxcdn.bootstrapcdn.com/bootstrap/3.3.7/css/bootstrap.min.css">
     <script src="https://maxcdn.bootstrapcdn.com/bootstrap/3.3.7/js/bootstrap.min.js"></script>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
+
+    <!-- WeDo design system (loaded AFTER bootstrap so it wins) -->
+    <link rel="stylesheet" href="assets/css/wedo-theme.css">
+
     <script type="text/javascript" src="assets/js/script.js"></script>
     <script type="text/javascript" src="assets/js/script-home.js"></script>
     <script type="text/javascript" src="assets/js/payroll.js"></script>
-    <link rel="stylesheet" type="text/css" href="assets/css/style.css">
-    <link rel="stylesheet" type="text/css" href="assets/css/responsive.css">
-    
+
     <!-- include this script for payroll -->
     <script type="text/javascript">
       $('document').ready(function(){
@@ -139,11 +140,25 @@ if (session_status() === PHP_SESSION_NONE) { session_start(); }
         });
 
         function pop_print(){
-          w=window.open(null, 'Print_Page', 'scrollbars=no');        
-          var myStyle = '<link rel="stylesheet" href="https://maxcdn.bootstrapcdn.com/bootstrap/3.3.7/css/bootstrap.min.css" />';
-          w.document.write(myStyle + jQuery('#toprint').html());
+          // absolute base so the theme CSS resolves inside the blank popup
+          var base = location.origin + location.pathname.replace(/[^\/]*$/, '');
+          var head = ''
+            + '<link rel="stylesheet" href="' + base + 'assets/css/wedo-theme.css">'
+            + '<style>'
+            +   '@page{margin:12mm}'
+            +   'body{background:#fff;padding:0;color:var(--text);font-family:var(--font-body)}'
+            +   '.wd-table{width:100%;border-collapse:collapse}'
+            +   '.wd-table th{background:var(--surface-2);text-transform:none;color:var(--text)}'
+            +   '.wd-table th,.wd-table td{border:1px solid var(--border-2)}'
+            +   '.subtitle{text-align:right}'
+            +   '.pyrlfilt{color:var(--brand);font-family:var(--font-head)}'
+            +   '.pr-sign,.sign{display:flex;justify-content:space-between;gap:24px;margin-top:14px}'
+            + '</style>';
+          w = window.open(null, 'Print_Page', 'scrollbars=no');
+          w.document.write('<!DOCTYPE html><html><head>' + head + '</head><body>' + jQuery('#toprint').html() + '</body></html>');
           w.document.close();
-          w.print();
+          // let the stylesheet/fonts load before printing
+          setTimeout(function(){ w.print(); }, 350);
       }
       
       });
@@ -184,15 +199,21 @@ if (session_status() === PHP_SESSION_NONE) { session_start(); }
         </script>
     <!-- end srcipt -->
     <style type="text/css">
-      th, td{
-        white-space: nowrap;
-      }
+      .wd-table th, .wd-table td{ white-space: nowrap; }
+
+      /* payroll control grid */
+      .pr-controls{display:grid;grid-template-columns:repeat(auto-fit,minmax(190px,1fr));gap:18px;padding:18px 20px}
+      .pr-controls h5{font-family:var(--font-head);font-size:11px;font-weight:700;letter-spacing:.06em;
+        text-transform:uppercase;color:var(--text-3);margin:0 0 8px}
+      .pr-controls .wd-input{margin-bottom:8px}
+      .pr-actions{display:flex;flex-wrap:wrap;gap:8px}
+      .pr-actions .wd-btn{flex:1 1 auto;justify-content:center}
+      #reportview{ width:100%; }
+      .pr-sign{display:flex;justify-content:space-between;flex-wrap:wrap;gap:24px;padding:18px 20px}
+      .pr-sign h5{margin:0 0 4px;font-size:13px}
     </style>
 
 <style>
-  html body{
-		font-family: Tahoma !important;
-	}
     .overlay{
         display: none;
         position: fixed;
@@ -215,187 +236,165 @@ if (session_status() === PHP_SESSION_NONE) { session_start(); }
 </style>
 </head>
 <body>
-    <?php  include 'includes/header.php'; ?>
-    
-    <div class="w-container">
-        <div class="row">
-            <div class="col-lg-3"></div>
-            <!-- website content -->
-                <div class="col-lg-9 ">
-                <!-- wd-login -->
-                    <div class="in-con">
-                      <br>
-                        <div class="row" style="background-color: floralwhite;margin:1px">
-                                               
-                            <div class="col-md-3 pagti">
-                                <h5>Payroll Date</h5>
-                                <input type="date" class="form-control" id="pdate" name="pdate" style="margin-bottom:5px">
-                                <button class="btn btn-success btn-sm btngenviewerr" id="btngen">Generate</button>
-                                <button class="btn btn-danger btn-sm" id="btnApprovedPayroll">Approve for Release</button>
-                                
+    <?php $wd_active = 'payroll'; include 'includes/wd-header.php'; ?>
 
-                            </div>
-                            <div class="col-md-2 pagti">
-                                <h5>Cut Off Date</h5>
-                                <input type="date" class="form-control" id="cutOFd1"  name="cutOFd1" style="margin-bottom: 5px">
-                               
-                                <input type="date" class="form-control" id="cutOFd2"  name="cutOFd2" style="margin-bottom: 5px">
-                                
-                                
-                                            </div>
-                            <div class="col-md-3">
-                                <h5>Print & Display Filter</h5>
-                                <select class="form-control form-select-lg col-md-3 payrolfilater" style="margin-bottom:5px" >
-                                  <option value="0">All</option>
-                                  <option value="2">IC</option>
-                                  <option value="1">BE</option>
-                                </select>
-                              
-                                <button class="btn-sm btn btn-info  btnprint" id="btngen1"> <i class="fa fa-print"></i> Print</button>
-                                <button class=" btn-sm btn btn-info " id="btnview" ><i class="fa fa-eye"></i> Payroll</button>
-   
-                                 <button class="btn-sm btn btn-info   btnviewrp"><i class="fa fa-eye"></i> Summary</button>
-                            </div>
-
-                            <div class="col-md-2">
-                                <h5>Adjustment</h5>
-                                <button class="btn-sm btn btn-success "  data-toggle="modal" data-target="#exampleModal" id="inputAdj"> <i class="fa fa-plus"></i> Adjustment</button>
-
-                
-                            </div>
-                            <div class="overlay"></div>
-                        </div>
-                        <br>
-                        <div  id="result" class="alert" style="display:none"></div>
-                
-                <div id="toprint" style="overflow: scroll;">
-                  <div class="row" style="display: none;">
-                    <div class="col-md-6">
-                      <img src="assets/images/logo-2.png">
-                      
-                      <!--<h3>WeDo BPO</h3>-->
-                      <!--<h3>WeDo Metro Inc</h3>-->
-                    </div>
-                    <div class="col-md-6 subtitle">
-                      <!--<h4 class="pyrlfilt">WeDo BPO/Metro Payroll Report</h4>-->
-                         <h4 class="pyrlfilt">WeDo Metro Payroll Report</h4>
-                      <h5 class="thisdate"> </h5>
-                      <h5 class="payrolldate"> </h5>
-                    </div>
-                  </div>
-
-                      <table class="table" id="reportview" style="overflow: auto;">
-                        <thead>            
-                          <tr>
-                            <th>Employee Name</th>
-                            <th>Basic</th>
-                            <th>AB/TRD</th>
-                            <th>APCO</th>
-                                                      
-                            <th>OT</th>
-                            <th>Gross Pay</th>
-                            <th>SSS</th>
-                            <th>SSS Loan</th>
-                            <th>PH</th>
-                            <th>PI</th>
-                            <th>PI Loan</th>
-                            <th>Taxable Income</th>
-                            <th>Tax</th>
-                            <th>Netpay</th>
-                            <th>Allowance</th>
-                            <th>Adjustments</th>
-                            <th>Adjustment 2</th>
-                            <th>Pay Receivable</th>
-                          </tr>
-                        </thead>
-                        <tbody>
-
-                        
-                        </tbody>
-                      </table>
-                      <hr style="border-top: 2px solid;">
-                      <div class="sign" style="width: 100%;">
-                          <div class="prepared1" style="display: inline-block;" >
-                              <h5>Prepared By:</h5>
-                              <h5 class="prprdby">WeDo Payroll Management System</h5>
-                              <h5>Date/Time Printed: <?php echo date("F j,Y h:i:s A"); ?></h5>
-                          </div>
-                          <div class="prepared2" style="display: inline-block;float: right;">
-                              <h5>Approved for Release by:</h5>
-                              <br>
-                              <h5 class="apprvd">Jomod A. Ferrer - General Manager</h5>
-                          </div>
-                      </div>
-                </div>
-                <!-- end copy this code -->
-               
-
-                    </div>
-                </div>
-
+      <div class="wd-pagehead">
+        <div>
+          <h1>Payroll Management System</h1>
+          <p>Generate, review and approve payroll for the cut-off period</p>
         </div>
+      </div>
 
-        <!-- Modal -->
-      <div class="modal fade" id="exampleModal" tabindex="-1" role="dialog" aria-labelledby="exampleModalLabel" aria-hidden="true">
-        <div class="modal-dialog" role="document">
-          <div class="modal-content">
-            <div class="modal-header">
-              <h3 class="modal-title" id="exampleModalLabel">Adjusment Logger</h3>
-              <button type="button" class="close" data-dismiss="modal" aria-label="Close">
-                <span aria-hidden="true">&times;</span>
-              </button>
+      <!-- Controls -->
+      <section class="wd-card">
+        <div class="wd-card__head"><h3>Payroll controls</h3></div>
+        <div class="pr-controls">
+          <div>
+            <h5>Payroll Date</h5>
+            <input type="date" class="wd-input" id="pdate" name="pdate">
+            <div class="pr-actions">
+              <button class="wd-btn wd-btn--primary wd-btn--sm btngenviewerr" id="btngen"><i class="fa-solid fa-gears"></i> Generate</button>
+              <button class="wd-btn wd-btn--danger wd-btn--sm" id="btnApprovedPayroll"><i class="fa-solid fa-circle-check"></i> Approve for Release</button>
             </div>
-            <div class="modal-body">
-        
-              <table class="table table-hover">
-              
-                  <thead>
-                  <tr>
-                      <th>No</th>
-                      <th>Employee</th>
-                      <th>Amount</th>
-                      <th>Date</th>
-                      <th>Actions</th>
-                      </tr>
-                  </thead>
-          
-                  <tbody id="adjustment2">
-                
+          </div>
+
+          <div>
+            <h5>Cut Off Date</h5>
+            <input type="date" class="wd-input" id="cutOFd1" name="cutOFd1">
+            <input type="date" class="wd-input" id="cutOFd2" name="cutOFd2">
+          </div>
+
+          <div>
+            <h5>Print &amp; Display Filter</h5>
+            <select class="wd-select payrolfilater">
+              <option value="0">All</option>
+              <option value="2">IC</option>
+              <option value="1">BE</option>
+            </select>
+            <div class="pr-actions">
+              <button class="wd-btn wd-btn--info wd-btn--sm btnprint" id="btngen1"><i class="fa-solid fa-print"></i> Print</button>
+              <button class="wd-btn wd-btn--info wd-btn--sm" id="btnview"><i class="fa-solid fa-eye"></i> Payroll</button>
+              <button class="wd-btn wd-btn--info wd-btn--sm btnviewrp"><i class="fa-solid fa-eye"></i> Summary</button>
+            </div>
+          </div>
+
+          <div>
+            <h5>Adjustment</h5>
+            <button class="wd-btn wd-btn--success wd-btn--sm" data-toggle="modal" data-target="#exampleModal" id="inputAdj"><i class="fa-solid fa-plus"></i> Adjustment</button>
+          </div>
+        </div>
+        <div class="overlay"></div>
+      </section>
+
+      <div id="result" class="alert" style="display:none"></div>
+
+      <!-- Report -->
+      <section class="wd-card">
+        <div id="toprint">
+          <div class="row" style="display: none;">
+            <div class="col-md-6">
+              <img src="assets/images/logo-2.png">
+            </div>
+            <div class="col-md-6 subtitle">
+              <h4 class="pyrlfilt">WeDo Metro Payroll Report</h4>
+              <h5 class="thisdate"> </h5>
+              <h5 class="payrolldate"> </h5>
+            </div>
+          </div>
+
+          <div class="wd-tablewrap" style="max-height:none">
+            <table class="wd-table" id="reportview">
+              <thead>
+                <tr>
+                  <th>Employee Name</th>
+                  <th>Basic</th>
+                  <th>AB/TRD</th>
+                  <th>APCO</th>
+                  <th>OT</th>
+                  <th>Gross Pay</th>
+                  <th>SSS</th>
+                  <th>SSS Loan</th>
+                  <th>PH</th>
+                  <th>PI</th>
+                  <th>PI Loan</th>
+                  <th>Taxable Income</th>
+                  <th>Tax</th>
+                  <th>Netpay</th>
+                  <th>Allowance</th>
+                  <th>Adjustments</th>
+                  <th>Adjustment 2</th>
+                  <th>Pay Receivable</th>
+                </tr>
+              </thead>
+              <tbody>
               </tbody>
-            
-                  <tfoot>
-                      <tr>
-                          <td>
-                          <select class="form-control" id="employeedata" >
-                          
-                        </select>
-                          </td>
-                          <td>
-                          <p>
-                              <input type="text" class="form-control" id="adjamount" placeholder="Amount" required>
-                              </p>
-                          </td>
+            </table>
+          </div>
 
-                          <td>
-                              <button  class="btn btn-primary btn-sm " id="addAdjusment" ><i class="fa fa-plus"></i></button>
-                              <!-- <button  class="btn btn-primary btn-sm" id="updateAdjustment"><i class="fa fa-pencil"></i></button>
-                              <button  class="btn btn-danger btn-sm" id="deleteAdjusment" ><i class="fa fa-ban"></i></button> -->
-                              
-                          </td>
-                          
-                      </tr>
-                      
-                  </tfoot>
-              </table>
+          <hr style="border-top: 2px solid var(--border-2)">
+          <div class="pr-sign sign">
+            <div class="prepared1">
+              <h5>Prepared By:</h5>
+              <h5 class="prprdby">WeDo Payroll Management System</h5>
+              <h5>Date/Time Printed: <?php echo date("F j,Y h:i:s A"); ?></h5>
             </div>
-              <div  id="result1" class="alert" style="display:none"></div>
-            <div class="modal-footer">
-              <button type="button" class="btn btn-secondary" data-dismiss="modal">Close</button>
-              <!-- <button type="button" class="btn btn-primary">Save changes</button> -->
+            <div class="prepared2">
+              <h5>Approved for Release by:</h5>
+              <br>
+              <h5 class="apprvd">Jomod A. Ferrer - General Manager</h5>
             </div>
           </div>
         </div>
+      </section>
+
+    <?php include 'includes/wd-footer.php'; ?>
+
+    <!-- Adjustment logger modal -->
+    <div class="modal fade" id="exampleModal" tabindex="-1" role="dialog" aria-labelledby="exampleModalLabel" aria-hidden="true">
+      <div class="modal-dialog modal-lg" role="document">
+        <div class="modal-content">
+          <div class="modal-header" style="color:#fff;background-color:#f93627">
+            <h3 class="modal-titles" id="exampleModalLabel">Adjustment Logger</h3>
+            <button type="button" class="close" data-dismiss="modal" aria-label="Close">
+              <span aria-hidden="true">&times;</span>
+            </button>
+          </div>
+          <div class="modal-body">
+            <div class="wd-tablewrap">
+              <table class="wd-table">
+                <thead>
+                  <tr>
+                    <th>No</th>
+                    <th>Employee</th>
+                    <th>Amount</th>
+                    <th>Date</th>
+                    <th>Actions</th>
+                  </tr>
+                </thead>
+                <tbody id="adjustment2">
+                </tbody>
+                <tfoot>
+                  <tr>
+                    <td>
+                      <select class="wd-select" id="employeedata"></select>
+                    </td>
+                    <td>
+                      <input type="text" class="wd-input" id="adjamount" placeholder="Amount" required>
+                    </td>
+                    <td>
+                      <button class="wd-btn wd-btn--primary wd-btn--sm" id="addAdjusment"><i class="fa-solid fa-plus"></i></button>
+                    </td>
+                  </tr>
+                </tfoot>
+              </table>
+            </div>
+          </div>
+          <div id="result1" class="alert" style="display:none"></div>
+          <div class="modal-footer">
+            <button type="button" class="wd-btn wd-btn--ghost" data-dismiss="modal">Close</button>
+          </div>
+        </div>
       </div>
-           
-    </div>        
+    </div>
+
 </body></html>
