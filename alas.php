@@ -277,6 +277,7 @@
                         FROM empdetails e
                         INNER JOIN employees em ON e.EmpID = em.EmpID
                         WHERE e.EmpISID = :sid AND e.EmpCompID = :cid AND em.EmpStatusID = 1
+                          AND (e.EmpDateResigned IS NULL OR e.EmpDateResigned = '' OR e.EmpDateResigned = '0000-00-00')
                         ORDER BY em.EmpLN ASC");
                     $reportsStmt->execute([':sid' => $id, ':cid' => $_SESSION['CompID']]);
                     $reports = $reportsStmt->fetchAll();

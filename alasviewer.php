@@ -114,6 +114,12 @@
         .wd-card__foot { display: flex; gap: 10px; padding: 14px 20px; border-top: 1px solid var(--border); flex-wrap: wrap; }
         @media print {
             .captionText { display: block !important; }
+            /* The on-screen table body scrolls inside .wd-tablewrap (max-height:40vh).
+               Un-clip it for print so ALL rows render, not just the visible window. */
+            .wd-tablewrap { max-height: none !important; overflow: visible !important; border: 0 !important; }
+            .wd-table td, .wd-table th { white-space: normal; }
+            /* force the status pill backgrounds/colours to actually print */
+            * { -webkit-print-color-adjust: exact !important; print-color-adjust: exact !important; }
         }
     </style>
 </head>

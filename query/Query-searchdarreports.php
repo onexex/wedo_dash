@@ -537,7 +537,7 @@
 
                                           FROM otattendancelog as a 
                                           INNER JOIN employees as b ON a.EmpID=b.EmpID
-                                          INNER JOIN status as c ON a.Status=c.StatusID  WHERE  a.TimeIn BETWEEN :dfr AND :dto and (StatusID=1 or StatusID=2 or StatusID=4  or StatusID=5)");
+                                          INNER JOIN status as c ON a.Status=c.StatusID  WHERE  a.TimeIn BETWEEN :dfr AND :dto and (StatusID=1 or StatusID=2 or StatusID=4  or StatusID=5) ORDER BY b.EmpLN ASC, b.EmpFN ASC");
                                             $statement = $pdo->prepare($resultdata);
                                             $statement->bindParam(':dfr' , $dtf);
                                             $statement->bindParam(':dto' , $dtt);
@@ -563,7 +563,7 @@
 
                                           FROM otattendancelog as a 
                                           INNER JOIN employees as b ON a.EmpID=b.EmpID
-                                          INNER JOIN status as c ON a.Status=c.StatusID  WHERE b.EmpID=:idn AND a.TimeIn BETWEEN :dfr AND :dto and (StatusID=1 or StatusID=2 or StatusID=4 or StatusID=5)");
+                                          INNER JOIN status as c ON a.Status=c.StatusID  WHERE b.EmpID=:idn AND a.TimeIn BETWEEN :dfr AND :dto and (StatusID=1 or StatusID=2 or StatusID=4 or StatusID=5) ORDER BY b.EmpLN ASC, b.EmpFN ASC");
                                             $statement = $pdo->prepare($resultdata);
                                             $statement->bindParam(':idn' , $id);
                                             $statement->bindParam(':dfr' , $dtf);

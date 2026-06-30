@@ -88,7 +88,7 @@ function wd_can($ar, $k) { return isset($ar[$k]) && $ar[$k] == 2; }
                     ||wd_can($ar,'gprdv')||wd_can($ar,'obval')||wd_can($ar,'eoval')||wd_can($ar,'SPPContrib');
     ?>
 
-    <div class="wd-navsection">
+    <div class="wd-navsection is-collapsed">
       <button class="wd-navgroup" type="button" onclick="this.closest('.wd-navsection').classList.toggle('is-collapsed')">Modules <i class="fa-solid fa-chevron-down"></i></button>
       <div class="wd-navitems">
         <?php if(wd_can($ar,'alas')): ?><a class="wd-nav<?php echo wd_on('alas',$wd_active); ?>" href="alas"><i class="fa-solid fa-calendar-check"></i> Automated Leave Application</a><?php endif; ?>
@@ -202,6 +202,15 @@ function wd_can($ar, $k) { return isset($ar[$k]) && $ar[$k] == 2; }
     </header>
     <script>
       if(window.innerWidth<=900){var a=document.querySelector('.wd-app');if(a)a.classList.add('is-collapsed');}
+      // keep the active page's section (and any parent section, e.g. Maintenance
+      // inside Management) expanded on load, so navigating within a group doesn't
+      // collapse it and force a re-click.
+      (function(){
+        var active = document.querySelector('.wd-sidebar .wd-nav.is-active');
+        for(var sec = active && active.closest('.wd-navsection'); sec; sec = sec.parentElement && sec.parentElement.closest('.wd-navsection')){
+          sec.classList.remove('is-collapsed');
+        }
+      })();
       // full label as a hover tooltip, so ellipsis-truncated menu items stay readable
       document.querySelectorAll('.wd-sidebar .wd-nav').forEach(function(n){ if(!n.title) n.title = n.textContent.trim(); });
     </script>
