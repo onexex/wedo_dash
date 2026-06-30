@@ -260,7 +260,8 @@
         if ($_POST['leavedur']==0.5 && $vl_halfday==0){ echo "You cant file halfday on this Leave"; return; }
       }else if ($today>=$dtd){
         if ($vl_after==1){
-          if ($WDaysAL > $vl_duration_after){ echo "Your leave request couldn't be processed as the deadline has passed."; return; }
+          // On-behalf (IS) filing is exempt from the after-filing deadline window.
+          if (!$onBehalf && $WDaysAL > $vl_duration_after){ echo "Your leave request couldn't be processed as the deadline has passed."; return; }
         }else{ echo "You Cant File After a Leave in this LeaveType"; return; }
       }else {
         // Vacation Leave specific logic
