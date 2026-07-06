@@ -83,75 +83,104 @@ die("ERROR: Could not connect. " . $e->getMessage());
   
 ?>
 <!DOCTYPE html>
-<html>
+<html lang="en">
 <head>
+    <title><?php echo ($_SESSION['CompanyName'] == "") ? "Dashboard" : htmlspecialchars($_SESSION['CompanyName']); ?></title>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
 
-    <title><?php  if ($_SESSION['CompanyName']==""){ echo "Dashboard"; } else{ echo $_SESSION['CompanyName']; } ?></title>
-  <meta charset="utf-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1">
-   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/4.7.0/css/font-awesome.min.css">
-<!--  <script src="https://code.jquery.com/jquery-3.3.1.slim.min.js" integrity="sha384-q8i/X+965DzO0rT7abK41JStQIAqVgRVzpbzo5smXKp4YfRvH+8abtTE1Pi6jizo" crossorigin="anonymous"></script> -->
-  <script src="assets/js/popper.min.js" integrity="sha384-UO2eT0CpHqdSJQ6hJty5KVphtPhzWj9WO1clHTMGa3JDZwrnQq4sF86dIHNDz0W1" crossorigin="anonymous"></script>
-
-  <script src="https://ajax.googleapis.com/ajax/libs/jquery/3.4.0/jquery.min.js"></script><!-- 
-    <script src="https://stackpath.bootstrapcdn.com/bootstrap/4.3.1/js/bootstrap.min.js" integrity="sha384-JjSmVgyd0p3pXB1rRibZUAYoIIy6OrQ6VrjIEaFf/nJGzIxFDsf4x0xIM+B07jRM" crossorigin="anonymous"></script> -->
-  <link rel="stylesheet" href="https://maxcdn.bootstrapcdn.com/bootstrap/3.3.7/css/bootstrap.min.css">
-  <!--   <script src="https://ajax.googleapis.com/ajax/libs/jquery/3.2.1/jquery.min.js"></script> -->
+    <!-- Functional libs (Bootstrap modals + existing module JS) -->
+    <script src="https://ajax.googleapis.com/ajax/libs/jquery/3.4.0/jquery.min.js"></script>
+    <link rel="stylesheet" href="https://maxcdn.bootstrapcdn.com/bootstrap/3.3.7/css/bootstrap.min.css">
     <script src="https://maxcdn.bootstrapcdn.com/bootstrap/3.3.7/js/bootstrap.min.js"></script>
-  <script type="text/javascript" src="assets/js/script.js"></script>
-  <script type="text/javascript" src="assets/js/script-notifications.js"></script>
-  <link rel="stylesheet" type="text/css" href="assets/css/style.css">
-   <link rel="stylesheet" type="text/css" href="assets/css/responsive.css">
-    <script src="//cdn.jsdelivr.net/npm/sweetalert2@11"></script>
-  <style type="text/css">
-    .rsn{
-      display: none;
-    }
-    .srchpar input{
-      display: inline-block;
-      width: auto;
-    }
-  </style>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
 
-  </head>
-<body style="background-image: none">
-   <?php  include 'includes/header.php';  ?>
-    <div class="w-container">
-        <div class="row">
-          <div class="col-lg-3"></div>
-         <!-- website content -->
-         <div class="col-lg-9">
-                        <h4 class="page-title" style="<?php echo "color: " . $_SESSION['CompanyColor']; ?>">Notifications</h4>
+    <!-- WeDo design system (loaded AFTER bootstrap so it wins) -->
+    <link rel="stylesheet" href="assets/css/wedo-theme.css">
 
-              <div class="srchpar" style="padding: 0px 15px 0px 15px;">
-                <div class="row">
-                    <div class="col-lg-8">
-              
-                      <br>
-                        <label>View Notifications From:</label>
-                       <!--  <input type="text" onfocus="(this.type='date')" placeholder="Begin Date" value="<?php echo date("Y-m-d");?>" class="form-control" id="fromdp"> -->
-                        <input type="date" value="<?php echo date('Y-m-d');?>"  placeholder="Begin Date" class="form-control" id="fromdp">
-                        <label>To:</label>
-                        <input type="date" value="<?php echo date('Y-m-d', strtotime(date("Y-m-d")  . ' + 1 days'));?>" placeholder="End Date" class="form-control" id="todp">
-                          <!-- <input type="date" value="<?php echo date("Y-m-d");?>" class="form-control" id="todp"> -->
-                        <button class="btn btnrefreshnotif" style="background-color:transparent;"  type="button"><img src="assets/images/refreshicon.png" data-toggle="tooltip" data-placement="right" title="Refresh" width="25px"></button>
-                    </div>
+    <script type="text/javascript" src="assets/js/script.js"></script>
+    <script type="text/javascript" src="assets/js/script-notifications.js"></script>
+
+    <style type="text/css">
+        /* reason box stays hidden until DisApprove is clicked (JS toggles .rsn<id>) */
+        .rsn { display: none; }
+        /* Details column carries multi-line HTML — let it wrap inside the table */
+        .wd-table td.notif-details { white-space: normal; min-width: 240px; line-height: 1.55; }
+        .wd-table td.notif-type { white-space: normal; font-weight: 600; color: var(--text); }
+        /* eye / action button keeps its .btn-warning JS hook but reads as a clean icon button */
+        .wd-iconbtn.btn-warning { color: var(--text-2); background: var(--surface); }
+        .wd-iconbtn.btn-warning:hover { color: var(--brand); background: var(--surface-2); }
+        /* themed notification modals */
+        .notif-modal .modal-content { border: 0; border-radius: 14px; overflow: hidden; box-shadow: 0 24px 60px rgba(9, 21, 46, .28); }
+        .notif-modal .modal-header { background: #f93627; padding: 12px 16px; border: 0; }
+        .notif-modal .modal-header .close { color: #fff; opacity: 1; text-shadow: none; font-size: 26px; }
+        .notif-modal .modal-body { padding: 20px; color: var(--text); }
+        .notif-modal .modal-body h4 { font-family: var(--font-head); font-weight: 700; color: var(--text); margin: 0 0 10px; }
+        .notif-modal .modal-body h5 { color: var(--text-2); line-height: 1.6; margin: 8px 0; font-size: 14px; }
+        .notif-modal .modal-footer { border-top: 1px solid var(--border); padding: 14px 16px; text-align: left; }
+        .notif-modal .modal-footer .wd-btn + .wd-btn { margin-left: 8px; }
+        /* pin Approve=green / DisApprove=red past Bootstrap's .btn-danger/.btn-info hover colours */
+        .notif-modal .modal-footer .wd-btn--success,
+        .notif-modal .modal-footer .wd-btn--success:hover,
+        .notif-modal .modal-footer .wd-btn--success:focus { background: var(--ok-text); color: #fff; }
+        .notif-modal .modal-footer .wd-btn--danger,
+        .notif-modal .modal-footer .wd-btn--danger:hover,
+        .notif-modal .modal-footer .wd-btn--danger:focus { background: var(--danger-text); color: #fff; }
+    </style>
+</head>
+<body>
+    <?php
+        /* status text -> themed pill (guarded; shared with other migrated pages).
+           Order matters: "Disapproved..." contains "approve", so test disapprove first. */
+        if (!function_exists('wd_status_pill')) {
+            function wd_status_pill($desc) {
+                $d = strtolower((string) $desc);
+                if (strpos($d, 'disapprove') !== false || strpos($d, 'reject') !== false || strpos($d, 'cancel') !== false
+                 || strpos($d, 'deny') !== false || strpos($d, 'decline') !== false)   { $c = 'danger'; }
+                elseif (strpos($d, 'pending') !== false)                               { $c = 'warn'; }
+                elseif (strpos($d, 'approve') !== false || strpos($d, 'released') !== false) { $c = 'ok'; }
+                else                                                                   { $c = 'info'; }
+                return '<span class="wd-pill wd-pill--' . $c . '">' . htmlspecialchars($desc) . '</span>';
+            }
+        }
+        $wd_active = 'notifications';
+        include 'includes/wd-header.php';
+    ?>
+    <div class="wd-pagehead">
+        <div>
+            <h1>Notifications</h1>
+            <p>Approvals and status updates on your filed applications.</p>
+        </div>
+    </div>
+
+    <section class="wd-card">
+        <div class="wd-card__head">
+            <h3>Recent notifications</h3>
+            <div class="srchpar" style="display:flex;align-items:flex-end;gap:10px;flex-wrap:wrap">
+                <div class="wd-field" style="margin:0">
+                    <label for="fromdp">From</label>
+                    <input type="date" class="wd-input" id="fromdp" style="width:auto;padding:7px 10px" value="<?php echo date('Y-m-d'); ?>" placeholder="Begin Date">
                 </div>
-              </div>
+                <div class="wd-field" style="margin:0">
+                    <label for="todp">To</label>
+                    <input type="date" class="wd-input" id="todp" style="width:auto;padding:7px 10px" value="<?php echo date('Y-m-d', strtotime(date("Y-m-d") . ' + 1 days')); ?>" placeholder="End Date">
+                </div>
+                <button class="wd-btn wd-btn--ghost btnrefreshnotif" type="button" title="Refresh"><i class="fa-solid fa-rotate"></i> Refresh</button>
+            </div>
+        </div>
 
-          <br>
-           <table class="table">
-            <thead>
-              <tr >
-                <th class="darth col-darth">Notification Type</th>
-                <th class="darth col-darth">Details</th>
-                <th class="darth  col-darth">Date Time Updated</th>
-                <th class="td-act">Status</th>
-                <!-- <th class="td-act">Type</th> -->
-                <th class="td-act">Action</th>
-              </tr>
-            </thead>
-            <tbody class="body-half-screen" id="addob"> 
+        <div class="wd-tablewrap">
+            <table class="wd-table">
+                <thead>
+                    <tr>
+                        <th>Notification Type</th>
+                        <th>Details</th>
+                        <th>Date Time Updated</th>
+                        <th>Status</th>
+                        <th>Action</th>
+                    </tr>
+                </thead>
+                <tbody id="addob">
              
                 
                 <?php
@@ -394,24 +423,23 @@ die("ERROR: Could not connect. " . $e->getMessage());
                         
                     ?>
                      <tr>
-                    <td><?php  echo $row['ntype']; ?></td>
-                    <td><?php  echo $row['dtfromto']; ?></td>
+                    <td class="notif-type"><?php echo $row['ntype']; ?></td>
+                    <td class="notif-details"><?php echo $row['dtfromto']; ?></td>
                     <td><?php echo date("F d, Y h:i:s A", strtotime($row['dtp']));   ?></td>
-                    <td><?php  echo $row['stat']; ?></td>
-                    <td><button class="btn btn-warning" data-toggle="modal" data-target="#myModal<?php echo  $row['id']; ?>"><i class="fa fa-eye" aria-hidden="true"></i></button></td>
+                    <td><?php echo wd_status_pill($row['stat']); ?></td>
+                    <td><button class="wd-iconbtn btn-warning" data-toggle="modal" data-target="#myModal<?php echo  $row['id']; ?>" title="View details"><i class="fa-solid fa-eye" aria-hidden="true"></i></button></td>
                    
 
 
             
                         <!-- Modal -->
-                  <div class="modal fade" id="myModal<?php echo  $row['id']; ?>" role="dialog">
+                  <div class="modal fade notif-modal" id="myModal<?php echo  $row['id']; ?>" role="dialog">
                     <div class="modal-dialog">
-                    
+
                       <!-- Modal content-->
                       <div class="modal-content" >
-                        <div class="modal-header"  style="<?php echo "background-color: " . $_SESSION['CompanyColor']; ?>;padding: 7px;">
-                          <button type="button" class="close" style="color: #fff;opacity:1;" data-dismiss="modal">&times;</button>
-   
+                        <div class="modal-header">
+                          <button type="button" class="close" data-dismiss="modal">&times;</button>
                         </div>
                         <div class="modal-body">
                           <h4><?php  echo $row['ntype']; ?></h4>
@@ -457,8 +485,8 @@ die("ERROR: Could not connect. " . $e->getMessage());
                           ?>
                           <br>
                           <div class="form-group rsn rsn<?php echo  $row['id']; ?>">
-                            <label>Reason :</label>
-                            <textarea name="rs<?php echo  $row['id']; ?>" id="rs<?php echo  $row['id']; ?>" class="form-control"></textarea>
+                            <label style="font-weight:600;color:var(--text-2)">Reason :</label>
+                            <textarea name="rs<?php echo  $row['id']; ?>" id="rs<?php echo  $row['id']; ?>" class="wd-textarea"></textarea>
                           </div>
                         </div>
                         <div class="modal-footer">
@@ -474,10 +502,10 @@ die("ERROR: Could not connect. " . $e->getMessage());
                                  }else{
                                      
                             ?>
-                                <button type="button" style="padding: 10px 24px;font-size: 20px;border-radius: 30px;" class="btn btn-danger" id="<?php echo  $row['id']; ?>">Approve</button>
-                                <button type="button" style="padding: 10px 24px;font-size: 20px;border-radius: 30px;" class="btn btn-info" id="<?php echo  $row['id']; ?>">DisApprove</button> 
+                                <button type="button" class="wd-btn wd-btn--success btn-danger" id="<?php echo  $row['id']; ?>"><i class="fa-solid fa-check"></i> Approve</button>
+                                <button type="button" class="wd-btn wd-btn--danger btn-info" id="<?php echo  $row['id']; ?>"><i class="fa-solid fa-xmark"></i> DisApprove</button>
                                     <br>
-                                <label style="display:block;"><?php  echo $row['stat']; ?></label>
+                                <label style="display:block;margin-top:10px"><?php echo wd_status_pill($row['stat']); ?></label>
                             <?php
                                 }
                                  }
@@ -489,10 +517,10 @@ die("ERROR: Could not connect. " . $e->getMessage());
                             
                                 }else{
                                   ?>
-                                        <button type="button" style="padding: 10px 24px;font-size: 20px;border-radius: 30px;" class="btn btn-danger" id="<?php echo  $row['id']; ?>">Approve </button>
-                                        <button type="button" style="padding: 10px 24px;font-size: 20px;border-radius: 30px;" class="btn btn-info" id="<?php echo  $row['id']; ?>">DisApprove</button>
+                                        <button type="button" class="wd-btn wd-btn--success btn-danger" id="<?php echo  $row['id']; ?>"><i class="fa-solid fa-check"></i> Approve</button>
+                                        <button type="button" class="wd-btn wd-btn--danger btn-info" id="<?php echo  $row['id']; ?>"><i class="fa-solid fa-xmark"></i> DisApprove</button>
                                             <br>
-                                        <label style="display:block;"><?php  echo $row['stat']; ?></label>
+                                        <label style="display:block;margin-top:10px"><?php echo wd_status_pill($row['stat']); ?></label>
                                   <?php
                                 }   
                                 
@@ -515,32 +543,24 @@ die("ERROR: Could not connect. " . $e->getMessage());
             
    
                 </tbody>
-          </table>
-         </div>
-       </div>
-    </div>   
-      
-         <!-- The Modal -->
-        <div class="modal" id="modalWarning">
-          <div class="modal-dialog modal-dialog-centered">
-            <div class="modal-content">
-            
-              <!-- Modal Header --> 
-              <div class="modal-header" style="padding: 7px 8px;">
-                <button type="button" class="close" data-dismiss="modal">&times;</button>
-              </div>
-              
-              <!-- Modal body -->
-              <div class="modal-body">
-                <div class="alert alert-danger">
-            
-            </div>
-              </div>
-              
-              <!-- Modal footer -->
-            </div>
+            </table>
+        </div><!-- /.wd-tablewrap -->
+    </section>
+
+    <!-- Success / warning feedback modal (JS targets #modalWarning .alert) -->
+    <div class="modal fade notif-modal" id="modalWarning">
+      <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-content">
+          <div class="modal-header">
+            <button type="button" class="close" data-dismiss="modal">&times;</button>
+          </div>
+          <div class="modal-body">
+            <div class="alert alert-success" style="margin:0;border:0;border-radius:10px"></div>
           </div>
         </div>
-        
+      </div>
+    </div>
+
+    <?php include 'includes/wd-footer.php'; ?>
 </body>
 </html>
