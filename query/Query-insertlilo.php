@@ -364,7 +364,11 @@
 
          // Login absence gate: block a regular employee's Cenar clock-in when they
          // have an unaccounted absence, until a superior files leave/OB. Fail-open.
-         if ($_SESSION['UserType']==3){
+         // OJT (EmpStatID 4) and Trainee (3) are exempt: they have no leave credits
+         // and cannot file OB, so a superior could never clear the date and the
+         // employee would be locked out permanently.
+         $empStat = (int)(isset($_SESSION['empstatIDSMON']) ? $_SESSION['empstatIDSMON'] : 0);
+         if ($_SESSION['UserType']==3 && $empStat !== 3 && $empStat !== 4){
              require_once __DIR__ . '/../includes/loginabsencegate.php';
              $gateDates = getUnaccountedAbsences($pdo, $id, $compid);
              if (!empty($gateDates)){

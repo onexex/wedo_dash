@@ -67,6 +67,9 @@ a{color:var(--brand);text-decoration:none}
   font-family:inherit;font-size:11px;letter-spacing:.09em;text-transform:uppercase;color:rgba(255,255,255,.42);
   padding:16px 9px 7px;cursor:pointer;text-align:left}
 .wd-navgroup:hover{color:rgba(255,255,255,.72)}
+/* no white default-outline box after a mouse click; keep a subtle ring for keyboard focus */
+.wd-navgroup:focus{outline:none}
+.wd-navgroup:focus-visible{outline:none;color:rgba(255,255,255,.72)}
 .wd-navgroup i{font-size:10px;transition:transform .2s ease}
 .wd-navsection .wd-navitems{display:flex;flex-direction:column;gap:1px;overflow:hidden;max-height:3000px;transition:max-height .25s ease}
 .wd-navsection.is-collapsed .wd-navitems{max-height:0}
