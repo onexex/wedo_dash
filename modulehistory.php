@@ -14,6 +14,22 @@
 		   {
 		die("ERROR: Could not connect. " . $e->getMessage());
 		   }
+
+/* Map a status description to a themed pill colour (mirrors SendToOB.php et al.). */
+if (!function_exists('wd_status_pill')) {
+    function wd_status_pill($desc) {
+        $d = strtolower((string) $desc);
+        if (strpos($d, 'approve') !== false)                                     { $c = 'ok'; }
+        elseif (strpos($d, 'reject') !== false || strpos($d, 'cancel') !== false
+             || strpos($d, 'disapprove') !== false || strpos($d, 'deny') !== false
+             || strpos($d, 'decline') !== false)                                 { $c = 'danger'; }
+        elseif (strpos($d, 'pending') !== false || strpos($d, 'file') !== false
+             || strpos($d, 'process') !== false || strpos($d, 'review') !== false){ $c = 'warn'; }
+        else                                                                     { $c = 'info'; }
+        return '<span class="wd-pill wd-pill--' . $c . '">' . htmlspecialchars($desc) . '</span>';
+    }
+}
+
 //alas
 $id=$_SESSION['id'];
 if (isset($_GET['alash']))
@@ -318,16 +334,16 @@ if (isset($_GET['sob']))
                 {
                   ?>
                    <tr>
-                   <td><?php echo date("F j, Y", strtotime($row21['OBFD'])); ?></td>  
-                   <td><?php echo $row21['EmpLN']; ?></td>
+                   <td><?php echo date("F j, Y", strtotime($row21['OBFD'])); ?></td>
+                   <td><?php echo htmlspecialchars($row21['EmpLN']); ?></td>
                    <td><?php echo date("F j, Y", strtotime( $row21['OBDateFrom'])); ?></td>
                    <td><?php echo date("F j, Y", strtotime( $row21['OBDateTo'])); ?></td>
-                   <td><?php echo $row21['OBITo']; ?></td>
-                   <td><?php echo $row21['OBPurpose']; ?></td>
-                   <td><?php echo $row21['OBCAAmt']; ?></td>
-                   <td><?php echo $row21['StatusDesc']; ?></td>
-                
-                  </tr> 
+                   <td><?php echo htmlspecialchars($row21['OBITo']); ?></td>
+                   <td><?php echo htmlspecialchars($row21['OBPurpose']); ?></td>
+                   <td><?php echo htmlspecialchars($row21['OBCAAmt']); ?></td>
+                   <td><?php echo wd_status_pill($row21['StatusDesc']); ?></td>
+
+                  </tr>
               <?php 
               }
 
