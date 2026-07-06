@@ -89,7 +89,7 @@
             die("ERROR: Could not connect. " . $e->getMessage());
                }
             $statement = $pdo->prepare("select * from agency ");
-            $statement->execute(array(':name' => ""));
+            $statement->execute();
             while ($row = $statement->fetch()){
             ?>
               <tr>
@@ -151,8 +151,7 @@
                             <option value="2">Not Active</option>
                                <option value="1">Active</option>
                              <?php
-                                } ?></td>
-                          
+                                } ?>
                           </select>
                       </div>
                       </div>

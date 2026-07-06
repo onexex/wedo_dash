@@ -43,7 +43,7 @@
                                     $statement = $pdo->prepare("select * from companies where CompanyID='$_SESSION[CompID]'");
 
                                  }
-                              $statement->execute(array(':name' => ""));
+                              $statement->execute();
                               while ($row = $statement->fetch()){
                               ?>
                                  <option value="<?php echo $row['CompanyID']; ?>"><?php echo $row['CompanyDesc']; ?></option> 

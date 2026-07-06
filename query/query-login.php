@@ -208,8 +208,11 @@ die("ERROR: Could not connect. " . $e->getMessage());
                        
 
             	          $_SESSION['quesID']=$row['EmpID'];
-                    	    $epass=password_hash($row['EmpID'], PASSWORD_DEFAULT);
-                            setcookie("WeDoID",$epass, time()+28800, "/");
+                    	    // secure remember-me: random 256-bit token; only its hash is stored server-side
+                    	    $rtoken = bin2hex(random_bytes(32));
+                            $stmtRemember = $pdo->prepare("UPDATE empdetails SET remember_hash=:h, remember_expiry=:e WHERE EmpID=:id");
+                            $stmtRemember->execute([':h'=>password_hash($rtoken, PASSWORD_DEFAULT), ':e'=>date('Y-m-d H:i:s', time()+28800), ':id'=>$row['EmpID']]);
+                            setcookie("WeDoID", $rtoken, ['expires'=>time()+28800,'path'=>'/','httponly'=>true,'samesite'=>'Lax','secure'=>(!empty($_SERVER['HTTPS']) && strtolower($_SERVER['HTTPS'])!=='off')]);
                             
                             
                              ###### get the status of user 

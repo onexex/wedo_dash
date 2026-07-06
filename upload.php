@@ -1,9 +1,15 @@
 <?php
+if (session_status() === PHP_SESSION_NONE) { session_start(); }
+if (!isset($_SESSION['id']) || $_SESSION['id'] == "0") { header('location: login.php'); exit; }
+
 $filename = $_FILES['file']['name'];
  if(isset($_GET['q']))
   	{
    $id=$_GET['q'];
    }
+// sanitize id used in the filename (no path traversal)
+$id = preg_replace('/[^A-Za-z0-9._-]/', '', basename(isset($id) ? $id : ''));
+if ($id === '') { echo 0; exit; }
 
 /* Location */
 $location = "assets/images/". $id . ".jpg";

@@ -1,6 +1,20 @@
 $(document).ready(function() {
     var generatedChekno = 0;
     var idbookletid = 0;;
+
+    // Map a status description to a themed pill (mirrors the PHP wd_status_pill
+    // helper used on the reskinned modules). "disapprove" is tested before
+    // "approve" since it contains that substring.
+    function wdCheckPill(desc) {
+        var d = (desc == null ? '' : desc).toString().toLowerCase(), c;
+        if (d.indexOf('disapprove') !== -1 || d.indexOf('reject') !== -1 || d.indexOf('cancel') !== -1 ||
+            d.indexOf('deny') !== -1 || d.indexOf('decline') !== -1 || d.indexOf('void') !== -1) { c = 'danger'; }
+        else if (d.indexOf('approve') !== -1 || d.indexOf('release') !== -1) { c = 'ok'; }
+        else if (d.indexOf('pending') !== -1 || d.indexOf('file') !== -1 ||
+                 d.indexOf('process') !== -1 || d.indexOf('review') !== -1) { c = 'warn'; }
+        else { c = 'info'; }
+        return "<span class='wd-pill wd-pill--" + c + "'>" + (desc == null ? '' : desc) + "</span>";
+    }
     jQuery.fn.capitalize = function() {
         $(this[0]).keyup(function(event) {
             var box = event.target;
@@ -222,19 +236,17 @@ $(document).ready(function() {
                             "<td  >" + item.payee + "</td>" +
                             "<td  >" + item.bankinfo + "</td>" +
                             "<td  >" + item.checkno + "</td>" +
-                            "<td  >" + basic + "</td>" +
+                            "<td  ><b>" + basic + "</b></td>" +
                             "<td  >" + item.checkdate + "</td>" +
-                            "<td  >" + item.StatusDesc + "</td>" +
+                            "<td  >" + wdCheckPill(item.StatusDesc) + "</td>" +
                             "<td  class='actions'>";
                         if (item.status == 7) {
-                            payeedata += "<button  value ='" + item.id + "' disabled id='cancel' data-toggle='modal' data-target='#amsshow' class='btn btn-secondary btn-sm'><i class='fa fa-ban'></i> </button>"
-                            "</td>";
+                            payeedata += "<button type='button' value='" + item.id + "' disabled id='cancel' data-toggle='modal' data-target='#amsshow' class='wd-iconbtn' style='width:32px;height:32px;font-size:13px;opacity:.5;cursor:not-allowed'><i class='fa-solid fa-ban'></i></button>";
                         } else {
-                            payeedata += "<button  value ='" + item.id + "'  id='cancel' data-toggle='modal' data-target='#amsshow' class='btn btn-danger btn-sm'><i class='fa fa-ban'></i> </button>"
-                            "</td>";
+                            payeedata += "<button type='button' value='" + item.id + "' id='cancel' data-toggle='modal' data-target='#amsshow' class='wd-iconbtn' title='Cancel cheque' style='width:32px;height:32px;font-size:13px;color:var(--danger-text);border-color:var(--danger-bg)'><i class='fa-solid fa-ban'></i></button>";
                         }
 
-                        payeedata += "</tr>";
+                        payeedata += "</td></tr>";
                     })
 
                     $("#historydata").empty().append(payeedata);

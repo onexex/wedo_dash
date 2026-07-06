@@ -4,7 +4,7 @@
     $handle = new ReportController();
     if (session_status() === PHP_SESSION_NONE) { session_start(); }
     if (isset($_SESSION['id']) && $_SESSION['id']!="0"){}
-    else { header ('location: login'); }
+    else { header ('location: login'); exit; }
     date_default_timezone_set("Asia/Manila");
     $ids=$_SESSION['id'];
     $empid = $_POST['emp'];
@@ -37,8 +37,6 @@
     }
     else if ($_POST['emp']=="all" && $_SESSION['UserType']==2)
     {
-
-        echo $empid;
         $resultdata = $handle->runQuery("SELECT a.EmpID as EmpID, a.EmpLN as lastName, a.EmpFN as firstName, a.EmpMN as midName, b.Day_s as araw, d.TimeFrom as tf, d.TimeTo as tt, c.dfrom as startDate, c.dto as endDate FROM employees AS a
             INNER JOIN workdays AS b ON b.empid=a.EmpID
             INNER JOIN schedeffectivity AS c ON c.efids=b.EFID
@@ -49,8 +47,6 @@
     }
     else if ($_POST['emp']!="all" && $_SESSION['UserType']==2)
     {
-
-        echo $empid;
         $resultdata = $handle->runQuery("SELECT a.EmpID as EmpID, a.EmpLN as lastName, a.EmpFN as firstName, a.EmpMN as midName, b.Day_s as araw, d.TimeFrom as tf, d.TimeTo as tt, c.dfrom as startDate, c.dto as endDate FROM employees AS a
             INNER JOIN workdays AS b ON b.empid=a.EmpID
             INNER JOIN schedeffectivity AS c ON c.efids=b.EFID
@@ -91,14 +87,14 @@
     ?>
 
 
-    <thead>
+    <thead id="tabth">
         <tr>
-            <th width="5%" class="text-center" >No</th>
-            <th class="text-center">EmpID</th>
-            <th width="25%" class="text-center"  align="center">Name</th>
-            <th width="25%" class="text-center"  align="center">Effectivity Date</th>
-            <th width="25%" class="text-center"  align="center">Day</th>
-            <th width="25%" class="text-center"  align="center">Schedule</th>
+            <th>No</th>
+            <th>EmpID</th>
+            <th>Name</th>
+            <th>Effectivity Date</th>
+            <th>Day</th>
+            <th>Schedule</th>
         </tr>
     </thead>
     <tbody id="darviewer">
@@ -109,26 +105,23 @@
             if(!empty($resultdata)){
                 foreach($resultdata as $key => $value){
                     $ids=$ids+1;
-
         ?>
         <tr>
-            <td width="5%" class="text-center"> <?php echo $ids; ?> </td>
-            <td class=text-center" ><?php echo $resultdata[$key]["EmpID"]; ?> </td>
-            <td width="25%" class="text-center" ><?php echo $resultdata[$key]["firstName"] . " " . $resultdata[$key]["midName"] . " " . $resultdata[$key]["lastName"]; ?> </td>
-            <td class="text-center"> From <?php echo $resultdata[$key]["startDate"] . " To ". $resultdata[$key]["endDate"]?></td>
-            <td width="25%" class="text-center" ><?php echo $resultdata[$key]["araw"]?></td>
-            <td width="25%" class="text-center" ><?php echo $resultdata[$key]["tf"] . " to " . $resultdata[$key]["tt"]?></td>
+            <td class="text-center"><?php echo $ids; ?></td>
+            <td class="text-center"><?php echo htmlspecialchars($resultdata[$key]["EmpID"]); ?></td>
+            <td><?php echo htmlspecialchars($resultdata[$key]["firstName"] . " " . $resultdata[$key]["midName"] . " " . $resultdata[$key]["lastName"]); ?></td>
+            <td class="text-center">From <?php echo htmlspecialchars($resultdata[$key]["startDate"] . " To " . $resultdata[$key]["endDate"]); ?></td>
+            <td class="text-center"><?php echo htmlspecialchars($resultdata[$key]["araw"]); ?></td>
+            <td class="text-center"><?php echo htmlspecialchars($resultdata[$key]["tf"] . " to " . $resultdata[$key]["tt"]); ?></td>
         </tr>
-
         <?php
                 }
             }
             else{
-                ?>
-                    <td width="5%" class="text-center"> EMPTY !</td>
-                <?php
-
+        ?>
+        <tr><td colspan="6" class="text-center" style="padding:18px;color:var(--muted,#667085)">No schedules found for this period.</td></tr>
+        <?php
             }
         ?>
-        
+
     </tbody>

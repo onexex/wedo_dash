@@ -16,15 +16,11 @@ $(document).ready(function() {
                 var emp = '';
                 $(resultData).each(function(index, item) {
                     emp += "<tr>" +
-                        "<td class='idBarcode'>" + item.bankname + "</td>" +
-
-                        "<td style='margin-left:5%'>" +
-                        "<button  value ='" + item.id + "' id='view'  data-toggle='modal' data-target='#exampleModalCenter' class='btn btn-primary btn-sm'><i class='fa fa-edit'></i>  </button>" +
-                        "</td>" +
-
-                        "<td style='margin-left:5%'>" +
-                        "<button  value ='" + item.id + "' id='delete'  class='btn btn-danger btn-sm'><i class='fa fa-ban'></i> </button>" +
-                        "</td>"
+                        "<td><b>" + item.bankname + "</b></td>" +
+                        "<td><div class='bk-actions'>" +
+                        "<button value='" + item.id + "' id='view' data-toggle='modal' data-target='#exampleModalCenter' class='wd-iconbtn wd-iconbtn--sm bk-edit' title='Manage booklets'><i class='fa-solid fa-pen'></i></button>" +
+                        "<button value='" + item.id + "' id='delete' type='button' class='wd-iconbtn wd-iconbtn--sm bk-del' title='Delete bank'><i class='fa-solid fa-trash'></i></button>" +
+                        "</div></td>";
                     emp += "</tr>";
                 })
                 $("#tblbankbookle").empty();
@@ -49,18 +45,18 @@ $(document).ready(function() {
                 var emp = '';
                 $(resultData).each(function(index, item) {
                     emp += "<tr>"
-                    emp += "<td class='idBarcode'>" + item.bookletfrom + "</td>"
-                    emp += "<td class='idBarcode'>" + item.bookleto + "</td>"
+                    emp += "<td><b>" + item.bookletfrom + "</b></td>"
+                    emp += "<td><b>" + item.bookleto + "</b></td>"
 
-                    emp += "<td style='margin-left:5%'>";
+                    emp += "<td>";
                     if (item.status == "1") {
-                        emp += "<button id='status' value='" + item.id + "' type='button' class='btn btn-success btn-sm'> Active</button>"
+                        emp += "<button id='status' value='" + item.id + "' type='button' class='bk-status bk-status--on'>Active</button>"
                     } else {
-                        emp += "<button id='status' value ='" + item.id + "' type='button' class='btn btn-secondary btn-sm'> Inactive</button>"
+                        emp += "<button id='status' value='" + item.id + "' type='button' class='bk-status bk-status--off'>Inactive</button>"
                     }
                     emp += "</td>"
-                    emp += "<td style='margin-left:5%'>"
-                    emp += "<button  value ='" + item.id + "' id='delcheckbook'  class='btn btn-danger btn-sm'><i class='fa fa-ban'></i> </button>"
+                    emp += "<td>"
+                    emp += "<button value='" + item.id + "' id='delcheckbook' type='button' class='wd-iconbtn wd-iconbtn--sm bk-del' title='Remove booklet'><i class='fa-solid fa-trash'></i></button>"
                     emp += "</td>"
                     emp += "</tr>";
                 })

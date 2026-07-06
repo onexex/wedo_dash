@@ -110,10 +110,13 @@ $num_arr = explode(".",$nums);
 $decnum = $num_arr[1] ;
 
 $num = str_replace(array(',', ' '), '' , trim($num));
-if(! $num) {
-  return false;
-}
-
+/* Do NOT `return` here. This amount-to-words block was copied from a standalone
+   number-to-words function, where `return false` returned from the FUNCTION. At
+   global script scope that `return` aborts the whole AJAX response with an EMPTY
+   body, which the client (dataType:'json') reports as
+   "SyntaxError: Unexpected end of JSON input" whenever the selected
+   employee/paydate has no payrol row (PYRecivable = 0). Treat a zero/blank
+   amount as 0 and fall through so a valid JSON payload is always returned. */
 $num = (int) $num;
 
 $words = array();

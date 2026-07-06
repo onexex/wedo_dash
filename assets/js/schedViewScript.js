@@ -1,63 +1,32 @@
-$(document).ready(function(){ 
+$(document).ready(function () {
 
-    $(document).on('click', '#viewsched', function(e){
+    // Refresh the schedule table for the chosen employee + date range.
+    // Query-SchedView returns a fresh <thead> + <tbody id="darviewer">, which
+    // replaces the inner HTML of the #tab table.
+    $(document).on('click', '#viewsched', function () {
+        var emp   = $('#empcompid').val();
         var date1 = $('#dtp1').val();
         var date2 = $('#dtp2').val();
-        var emp = $('#empcompid').val();
 
         $.ajax({
-            url:'Query-SchedView',
-            type:'POST',
-            data: { emp : emp , date1 : date1, date2 : date2 },
-            success:function(res){
-                $("#tab").empty();
-                $("#tab").append(res);
-                var xmlhttp = new XMLHttpRequest();            
-                xmlhttp.onreadystatechange = function() {
-                    if (this.readyState == 4 && this.status == 200) {
-                        document.getElementById("tab").innerHTML = this.responseText;
-                        // modal.style.display = "none";
-                    }
-                };
+            url: 'Query-SchedView',
+            type: 'POST',
+            data: { emp: emp, date1: date1, date2: date2 },
+            beforeSend: function () {
+                $('#viewsched').prop('disabled', true);
+                $('#darviewer').html('<tr><td colspan="6" class="text-center" style="padding:18px">Loading&hellip;</td></tr>');
             },
-            error: function(err, msg) {
-                alert (msg);
+            success: function (res) {
+                $('#tab').html(res);
+            },
+            error: function (xhr, status, err) {
+                $('#darviewer').html('<tr><td colspan="6" class="text-center" style="padding:18px">Unable to load schedules.</td></tr>');
+                alert('Unable to load schedules: ' + (err || status));
+            },
+            complete: function () {
+                $('#viewsched').prop('disabled', false);
             }
         });
-
-        // alert(emp);
-
     });
 
-
-    // $("#viewlilo").click(function(){ 
-    //     var modal = document.getElementById("thislilomodal");
-    //     //    modal.style.display = "block"; 
-    //     var vl = ($("#empcompid").val());
-    //     var dtfr = ($("#dtp1").val()); 
-    //     var dtto = ($("#dtp2").val()); 
-
-
-    //     $.ajax({
-    //         url:'Query-LiloView',
-    //         type:'post',
-    //         data: { Eid : vl , dtfrom : dtfr, dtto : dtto },
-    //         success:function(res){
-    //             // console.log(res);
-    //             // return false;
-    //             modal.style.display = "none"; 
-    //             $("#tab").empty();
-    //             $("#tab").append(res);
-    //             var xmlhttp = new XMLHttpRequest();            
-    //             xmlhttp.onreadystatechange = function() {
-    //                 if (this.readyState == 4 && this.status == 200) {
-    //                     document.getElementById("tab").innerHTML = this.responseText;
-    //                     modal.style.display = "none";
-    //                 }
-    //             };
-    //             xmlhttp.open("GET", "Query-LiloView?eid=" + vl + "&dfrom=" + dtfr + "&dto=" + dtto, true);
-    //             xmlhttp.send();
-    //         }
-    //     });
-    // });
-})
+});

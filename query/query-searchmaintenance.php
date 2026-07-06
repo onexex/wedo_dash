@@ -395,7 +395,7 @@ if (isset($_GET['otmaint'])){
             die("ERROR: Could not connect. " . $e->getMessage());
                }
             $statement = $pdo->prepare("select * from agency ");
-            $statement->execute(array(':name' => ""));
+            $statement->execute();
             while ($row = $statement->fetch()){
             ?>
               <tr>
@@ -411,6 +411,55 @@ if (isset($_GET['otmaint'])){
                                 } ?></td>
                                 <td class="td-dar"><button type="button" title="EDIT" class="btn btn-info" data-toggle="modal" data-target="#myModal<?php echo $row[0];  ?>"><i class="fa fa-pencil" aria-hidden="true"></i></button></td>
                               </tr>
+              <!-- edit modal re-emitted so Edit still works after an AJAX add (matches includes/agency.php) -->
+              <div class="modal" id="myModal<?php echo $row[0];  ?>">
+                <div class="modal-dialog">
+                  <div class="modal-content">
+                    <div class="modal-header">
+                      <h4 class="modal-title">Agency</h4>
+                      <button type="button" class="close" data-dismiss="modal">&times;</button>
+                    </div>
+                    <div class="modal-body ob-body">
+                      <form method="post" action="?updateagency=<?php echo $row[0];  ?>" class="frmagency<?php echo $row[0];  ?>">
+                        <div class="row">
+                          <div class="col-lg-6">
+                            <div class="form-group">
+                              <label>No.:</label>
+                              <input type="text" name="agencyno" value="<?php echo $row['AgencyID']; ?>" id="agencyno" class="form-control">
+                            </div>
+                          </div>
+                        </div>
+                        <div class="row">
+                          <div class="col-lg-6">
+                            <div class="form-group">
+                              <label>Agency Name:</label>
+                              <input type="text" name="agencyname" value="<?php echo $row['AgencyName']; ?>" id="agencyname" class="form-control">
+                            </div>
+                          </div>
+                          <div class="col-lg-6">
+                            <div class="form-group">
+                              <label>Status:</label>
+                              <select class="form-control" name="agencystatus" id="agencystatus">
+                                <?php if ($row['IsActive']=="1"){ ?>
+                                  <option value="1">Active</option>
+                                  <option value="2">Not Active</option>
+                                <?php }else{ ?>
+                                  <option value="2">Not Active</option>
+                                  <option value="1">Active</option>
+                                <?php } ?>
+                              </select>
+                            </div>
+                          </div>
+                        </div>
+                        <button type="submit" required="required" class="btn btn-success btn-block btnagencys">Update</button>
+                      </form>
+                    </div>
+                    <div class="modal-footer">
+                      <button type="button" class="btn btn-danger" data-dismiss="modal">Close</button>
+                    </div>
+                  </div>
+                </div>
+              </div>
             <?php
 
             }
@@ -430,11 +479,90 @@ if (isset($_GET['otmaint'])){
             while ($row = $statement->fetch()){
             ?>
               <tr>
-                             
-                         
                                 <td class="td-dar"><?php echo $row['CompanyID']; ?></td>
                                 <td class="td-dar"><?php echo $row['CompanyDesc']; ?></td>
-                                <td class="td-dar"><button type="button" title="EDIT" class="btn btn-info" data-toggle="modal" data-target="#myview<?php echo $row[0];  ?>"><i class="fa fa-pencil" aria-hidden="true"></i></button></td>
+                                <td class="td-dar"><?php echo $row['compcode']; ?></td>
+                                <td class="td-dar"><?php echo $row['comcolor']; ?></td>
+                                <td class="td-dar"><button type="button" title="VIEW" class="btn btn-warning" data-toggle="modal" data-target="#myview<?php echo $row[0];  ?>"><i class="fa fa-eye" aria-hidden="true"></i></button> <button type="button" title="EDIT" class="btn btn-info" data-toggle="modal" data-target="#myModal<?php echo $row[0];  ?>"><i class="fa fa-pencil" aria-hidden="true"></i></button></td>
+                              </tr>
+
+  <!-- view + edit modals re-emitted so they still work after an AJAX add (matches includes/company.php) -->
+  <div class="modal" id="myview<?php echo $row[0];  ?>">
+    <div class="modal-dialog">
+      <div class="modal-content">
+        <div class="modal-header">
+          <h4 class="modal-title"><?php echo $row['CompanyDesc']; ?></h4>
+          <button type="button" class="close" data-dismiss="modal">&times;</button>
+        </div>
+        <div class="modal-body">
+          <form action="?updtcomp" method="post" class="frmup" enctype="multipart/form-data">
+            <div class="form-group">
+              <label>Company No</label>
+              <input type="text" readonly="readonly" class="form-control" name="ucomno" value="<?php echo $row['CompanyID']; ?>">
+            </div>
+            <div class="form-group">
+              <label>Company Name</label>
+              <input type="text" class="form-control" readonly="readonly" name="ucomname" value="<?php echo $row['CompanyDesc']; ?>">
+            </div>
+            <div class="form-group">
+              <label>Company Code</label>
+              <input type="text" class="form-control" readonly="readonly" name="ucomcode" value="<?php echo $row['compcode']; ?>">
+            </div>
+            <div class="">
+              <div class="comlogod" id="ucomplogodiv" style="<?php echo "background-image: url('" . $row['logopath'] . "')" ?>; background-color: <?php echo $row['comcolor']; ?>"></div>
+            </div>
+            <br>
+          </form>
+        </div>
+        <div class="modal-footer">
+          <button type="button" class="btn btn-danger" data-dismiss="modal">Close</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="modal" id="myModal<?php echo $row[0];  ?>">
+    <div class="modal-dialog">
+      <div class="modal-content">
+        <div class="modal-header">
+          <h4 class="modal-title">Update <?php echo $row['CompanyDesc']; ?></h4>
+          <button type="button" class="close" data-dismiss="modal">&times;</button>
+        </div>
+        <div class="modal-body">
+          <form action="?updtcomp" method="post" class="frmup" enctype="multipart/form-data">
+            <div class="form-group">
+              <label>Company No</label>
+              <input type="text" readonly="readonly" class="form-control" name="ucomno" value="<?php echo $row['CompanyID']; ?>">
+            </div>
+            <div class="form-group">
+              <label>Company Name</label>
+              <input type="text" class="form-control" name="ucomname" value="<?php echo $row['CompanyDesc']; ?>">
+            </div>
+            <div class="form-group">
+              <label>Company Code</label>
+              <input type="text" class="form-control" name="ucomcode" value="<?php echo $row['compcode']; ?>">
+            </div>
+            <div class="form-group">
+              <label>Company Color</label>
+              <input type="color" class="form-control" name="ucomcolor" value="<?php echo $row['comcolor']; ?>">
+            </div>
+            <div class="form-group">
+              <label>Company logo</label>
+              <input type="file" onchange="chng(this)" class="form-control" name="ucomplogo" id="ucomplogo">
+            </div>
+            <div class="">
+              <div class="comlogod" id="ucomplogodiv" style="<?php echo "background-image: url('" . $row['logopath'] . "')" ?>; background-color: <?php echo $row['comcolor']; ?>"></div>
+            </div>
+            <br>
+            <button type="submit" id="<?php echo $row['CompanyID']; ?>" onclick="thisid(this.id)" class="btn btn-info">Update</button>
+          </form>
+        </div>
+        <div class="modal-footer">
+          <button type="button" class="btn btn-danger" data-dismiss="modal">Close</button>
+        </div>
+      </div>
+    </div>
+  </div>
             <?php
 
             }
@@ -615,6 +743,53 @@ if (isset($_GET['otmaint'])){
                                 <td class="td-dar"><?php echo $row['CompanyDesc']; ?></td>
                                 <td class="td-dar"><button type="button" title="EDIT" class="btn btn-info" data-toggle="modal" data-target="#myModal<?php echo $row[0];  ?>"><i class="fa fa-pencil" aria-hidden="true"></i></button></td>
                               </tr>
+     <!-- edit modal re-emitted so Edit still works after an AJAX add (matches includes/department.php) -->
+     <div class="modal" id="myModal<?php echo $row[0];  ?>">
+            <div class="modal-dialog">
+              <div class="modal-content">
+                <div class="modal-header">
+                  <h4 class="modal-title">Department</h4>
+                  <button type="button" class="close" data-dismiss="modal">&times;</button>
+                </div>
+                <div class="modal-body ob-body">
+                        <form action="?updtdep=<?php echo $row[0];  ?>" method="post" class="frmdep<?php echo $row[0];  ?>">
+                  <div class="row">
+                      <div class="col-lg-6">
+                        <div class="form-group">
+                          <label>Department Name:</label>
+                          <input type="text" name="depname" id="depname" value="<?php echo $row['DepartmentDesc']; ?>" class="form-control">
+                        </div>
+                    </div>
+                       <div class="col-lg-6">
+                        <div class="form-group">
+                          <label>Company:</label>
+                          <select class="form-control" name="compid" id="compid">
+                             <?php
+                              if ($_SESSION['UserType']==1){
+                                  $stDept = $pdo->prepare("select * from companies");
+                                 }else{
+                                    $stDept = $pdo->prepare("select * from companies where CompanyID='$_SESSION[CompID]'");
+                                 }
+                              $stDept->execute();
+                              while ($rowDept = $stDept->fetch()){
+                              ?>
+                                 <option value="<?php echo $rowDept['CompanyID']; ?>"><?php echo $rowDept['CompanyDesc']; ?></option>
+                              <?php
+                            }
+                        ?>
+                          </select>
+                        </div>
+                    </div>
+                    </div>
+                           <button type="submit" class="btn btn-success btn-block btnupdatedep">Update</button>
+                          </form>
+                </div>
+                <div class="modal-footer">
+                  <button type="button" class="btn btn-danger" data-dismiss="modal">Close</button>
+                </div>
+              </div>
+            </div>
+          </div>
             <?php
 
             }

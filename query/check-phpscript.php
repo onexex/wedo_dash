@@ -320,9 +320,8 @@ echo json_encode(array("totalPRSUM"=>$s,"inserterr"=>$errinsert,"dat"=>$d));
 if (isset($_GET['search'])){
     $payee=$_POST['inputVal'];
     $data=[];
-    $getca = $pdo->prepare("Select * from listofpayee where payee LIKE '%$payee%'  order by payee  limit 3");
-  //  $getca->bindParam(':value' , $payee);
-    $getca->execute();
+    $getca = $pdo->prepare("Select * from listofpayee where payee LIKE :q order by payee limit 3");
+    $getca->execute([':q' => '%' . $payee . '%']);
 
     $count = $getca->rowCount();
       if($count > 0){

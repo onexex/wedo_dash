@@ -83,7 +83,8 @@
 		   if ($_FILES['ucomplogo']['name']!=""){
 			   $filename = $_FILES['ucomplogo']['name'];
 				/* Location */
-				$location = "assets/images/logos/". $_POST['ucomno'] . ".jpg";
+				$__logoId = preg_replace('/[^A-Za-z0-9._-]/', '', basename($_POST['ucomno']));
+				$location = "assets/images/logos/". $__logoId . ".jpg";
 				$uploadOk = 1;
 				$imageFileType = pathinfo($location,PATHINFO_EXTENSION);
 
@@ -290,10 +291,9 @@
 		   }
 		
 		   $id=$_GET['updtdep'];
-			$sql = "UPDATE departments SET DepartmentDesc='$_POST[depname]' WHERE DepartmentID='$id'";
-		  
+			$sql = "UPDATE departments SET DepartmentDesc=:desc WHERE DepartmentID=:id";
 		   $stmt = $pdo->prepare($sql);
-		    $stmt->execute(); 
+		    $stmt->execute([':desc' => $_POST['depname'], ':id' => $id]);
 		     	 $id=$_SESSION['id'];
 						     $ch="Maintenance : Updated Department";
 						// insert into dars

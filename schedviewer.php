@@ -1,34 +1,32 @@
 <?php
-
     if (session_status() === PHP_SESSION_NONE) { session_start(); }
-    if (isset($_SESSION['id']) && $_SESSION['id']!="0"){}
-    else { header ('location: login'); }
+
+    if (isset($_SESSION['id']) && $_SESSION['id'] != "0") {
+        // authorised
+    } else {
+        header('location: login');
+        exit;
+    }
 
     include 'ReportController.php';
     $handle = new ReportController();
 
-    $dt=date('Y-m-d');
-    $dt2=date('Y-m-3');
-    $dt3=date('Y-m-16');
-    $ddt=date('Y-m-d', strtotime(date('Y-m-1')));
-    $ddt2=date('Y-m-d', strtotime(date('Y-m-1')));
-    if ($dt>$dt2 && $dt<$dt3){
-        $dt1=$ddt2;
-    }else{ 
-        $dt1=$ddt;
-    }
-    $dt2=date('Y-m-d', strtotime('+1 days'));
+    $dt  = date('Y-m-d');
+    $dt2 = date('Y-m-3');
+    $dt3 = date('Y-m-16');
+    $ddt  = date('Y-m-d', strtotime(date('Y-m-1')));
+    $ddt2 = date('Y-m-d', strtotime(date('Y-m-1')));
+    if ($dt > $dt2 && $dt < $dt3) { $dt1 = $ddt2; } else { $dt1 = $ddt; }
+    $dt2 = date('Y-m-d', strtotime('+1 days'));
 
-    if ($_SESSION['UserType']==1){
+    if ($_SESSION['UserType'] == 1) {
         $resultdata = $handle->runQuery("SELECT a.EmpID as EmpID, a.EmpLN as lastName, a.EmpFN as firstName, a.EmpMN as midName, b.Day_s as araw, d.TimeFrom as tf, d.TimeTo as tt, c.dfrom as startDate, c.dto as endDate FROM employees AS a
             INNER JOIN workdays AS b ON b.empid=a.EmpID
             INNER JOIN schedeffectivity AS c ON c.efids=b.EFID
             INNER JOIN workschedule as d ON d.WorkSchedID =b.SchedTime
             WHERE ('$dt' BETWEEN c.dfrom AND c.dto) AND ('$dt2' BETWEEN c.dfrom AND c.dto)
         ");
-    }
-    else if ($_SESSION['UserType']==2){
-
+    } else if ($_SESSION['UserType'] == 2) {
         $resultdata = $handle->runQuery("SELECT a.EmpID as EmpID, a.EmpLN as lastName, a.EmpFN as firstName, a.EmpMN as midName, b.Day_s as araw, d.TimeFrom as tf, d.TimeTo as tt, c.dfrom as startDate, c.dto as endDate FROM employees AS a
             INNER JOIN workdays AS b ON b.empid=a.EmpID
             INNER JOIN schedeffectivity AS c ON c.efids=b.EFID
@@ -36,9 +34,7 @@
             INNER JOIN empdetails AS e ON e.EmpID=a.EmpID
             WHERE ('$dt' BETWEEN c.dfrom AND c.dto) AND ('$dt2' BETWEEN c.dfrom AND c.dto) OR e.EmpID ='" . $_SESSION['id'] . "' AND e.EmpISID='" . $_SESSION['id'] . "'
         ");
-    }
-    else
-    {
+    } else {
         $resultdata = $handle->runQuery("SELECT a.EmpID as EmpID, a.EmpLN as lastName, a.EmpFN as firstName, a.EmpMN as midName, b.Day_s as araw, d.TimeFrom as tf, d.TimeTo as tt, c.dfrom as startDate, c.dto as endDate FROM employees AS a
             INNER JOIN workdays AS b ON b.empid=a.EmpID
             INNER JOIN schedeffectivity AS c ON c.efids=b.EFID
@@ -46,196 +42,200 @@
             WHERE ('$dt' BETWEEN c.dfrom AND c.dto) AND ('$dt2' BETWEEN c.dfrom AND c.dto)
         ");
     }
-
 ?>
-
 <!DOCTYPE html>
 <html lang="en">
 
 <head>
-    
     <title>Schedule Viewer</title>
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
-    <link rel="icon" href="assets/images/logos/WeDo.png" type="image/x-icon"> 
-    <link rel="stylesheet" href="https://maxcdn.bootstrapcdn.com/bootstrap/4.3.1/css/bootstrap.min.css">
-    <script src="https://ajax.googleapis.com/ajax/libs/jquery/3.4.0/jquery.min.js"></script>
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/popper.js/1.14.7/umd/popper.min.js"></script>
-    <script src="https://maxcdn.bootstrapcdn.com/bootstrap/4.3.1/js/bootstrap.min.js"></script>
-    
-    <link rel="stylesheet" href="https://stackpath.bootstrapcdn.com/bootstrap/4.3.1/css/bootstrap.min.css" integrity="sha384-ggOyR0iXCbMQv3Xipma34MD+dH/1fQ784/j6cY/iJTQUOhcWr7x9JvoRxT2MZw1T" crossorigin="anonymous">
-    <!--  <link rel="stylesheet" href="https://use.fontawesome.com/releases/v5.8.2/css/all.css" integrity="sha384-oS3vJWv+0UjzBfQzYUhtDYW+Pj2yciDJxpsK1OYPAYjqT085Qq/1cq5FLXAZQ7Ay" crossorigin="anonymous"> -->
-    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/4.7.0/css/font-awesome.min.css">
-    <!--  <script src="https://code.jquery.com/jquery-3.3.1.slim.min.js" integrity="sha384-q8i/X+965DzO0rT7abK41JStQIAqVgRVzpbzo5smXKp4YfRvH+8abtTE1Pi6jizo" crossorigin="anonymous"></script> -->
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/popper.js/1.14.7/umd/popper.min.js" integrity="sha384-UO2eT0CpHqdSJQ6hJty5KVphtPhzWj9WO1clHTMGa3JDZwrnQq4sF86dIHNDz0W1" crossorigin="anonymous"></script>
-    
-    <script src="https://ajax.googleapis.com/ajax/libs/jquery/3.4.0/jquery.min.js"></script>
-    <script src="https://stackpath.bootstrapcdn.com/bootstrap/4.3.1/js/bootstrap.min.js" integrity="sha384-JjSmVgyd0p3pXB1rRibZUAYoIIy6OrQ6VrjIEaFf/nJGzIxFDsf4x0xIM+B07jRM" crossorigin="anonymous"></script>
-    <link rel="stylesheet" href="https://maxcdn.bootstrapcdn.com/bootstrap/3.3.7/css/bootstrap.min.css">
-    <script src="assets/js/schedViewScript.js"></script>
-    <script type="text/javascript" src="assets/js/script-reports.js"></script>
-    <link rel="stylesheet" type="text/css" href="assets/css/style.css">
-    <link rel="stylesheet" type="text/css" href="assets/css/responsive.css">
-    
-    <link rel="stylesheet" type="text/css" href="assets/css/style-reports.css">
-    <link rel="stylesheet" href="https://cdn.datatables.net/1.10.19/css/jquery.dataTables.min.css">
-    <link rel="stylesheet" href="https://cdn.datatables.net/buttons/1.5.6/css/buttons.dataTables.min.css">
-    <script src="https://code.jquery.com/jquery-3.3.1.js"></script>
-    <script src="https://cdn.datatables.net/1.10.19/js/jquery.dataTables.min.js"></script>
-    <script src="https://cdn.datatables.net/buttons/1.5.6/js/dataTables.buttons.min.js"></script>
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.1.3/jszip.min.js"></script>
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/pdfmake/0.1.53/pdfmake.min.js"></script>  
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/pdfmake/0.1.53/vfs_fonts.js"></script>
-    <script src="https://cdn.datatables.net/buttons/1.5.6/js/buttons.html5.min.js"></script>
+    <link rel="icon" href="assets/images/logos/WeDo.png" type="image/x-icon">
 
+    <!-- Functional libs (Bootstrap modals + existing module JS) -->
+    <script src="https://ajax.googleapis.com/ajax/libs/jquery/3.4.0/jquery.min.js"></script>
+    <link rel="stylesheet" href="https://maxcdn.bootstrapcdn.com/bootstrap/3.3.7/css/bootstrap.min.css">
+    <script src="https://maxcdn.bootstrapcdn.com/bootstrap/3.3.7/js/bootstrap.min.js"></script>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
+
+    <!-- WeDo design system (loaded AFTER bootstrap so it wins) -->
+    <link rel="stylesheet" href="assets/css/wedo-theme.css">
+
+    <script type="text/javascript" src="assets/js/script.js"></script>
+    <script type="text/javascript" src="assets/js/schedViewScript.js"></script>
+
+    <!-- Print the report area in landscape.
+         The refresh AJAX (schedViewScript.js) swaps ONLY #tab's innerHTML, so the
+         print captions live in #tblprint1 (outside #tab) and survive a refresh.
+         Hooks preserved: #btnprint #tblprint1 #tab #darviewer .captionText #captionText #dateRange #empcompid #dtp1 #dtp2 -->
+    <script type="text/javascript">
+        $(document).ready(function () {
+            $(document).on('click', '#btnprint', function () {
+                var css = '@page { size: landscape; }',
+                    head = document.head || document.getElementsByTagName('head')[0],
+                    style = document.createElement('style');
+
+                style.type = 'text/css';
+                style.media = 'print';
+                if (style.styleSheet) {
+                    style.styleSheet.cssText = css;
+                } else {
+                    style.appendChild(document.createTextNode(css));
+                }
+                head.appendChild(style);
+
+                var originalContents = document.body.innerHTML;
+                $("#tab td").css({ padding: '9px', 'text-align': 'left', 'font-size': '10px' });
+                $("#tab th").css("font-size", "10px");
+                $(".captionText").css("font-size", "12px").removeClass("d-none").addClass("d-block");
+                $("#captionText").html($("#empcompid option:selected").text());
+                $("#dateRange").html($("#dtp1").val() + " To : " + $("#dtp2").val());
+
+                var printContents = document.getElementById('tblprint1').innerHTML;
+                document.body.innerHTML = printContents;
+                window.print();
+                document.body.innerHTML = originalContents;
+                $(".captionText").removeClass("d-block").addClass("d-none");
+            });
+        });
+
+        function exportToExcel() {
+            var dataFileType = 'application/vnd.ms-excel';
+            var tableSelect = document.getElementById("tab");
+            var tableHTMLData = tableSelect.outerHTML.replace(/ /g, '%20');
+            var emp = document.getElementById("empcompid");
+            var filename = "SchedViewer_" + document.getElementById("dtp1").value + "_" +
+                document.getElementById("dtp2").value + "_" + emp.options[emp.selectedIndex].text;
+            filename = filename.trim() + '.xls';
+
+            var downloadurl = document.createElement("a");
+            document.body.appendChild(downloadurl);
+
+            if (navigator.msSaveOrOpenBlob) {
+                var blob = new Blob(['﻿', tableHTMLData], { type: dataFileType });
+                navigator.msSaveOrOpenBlob(blob, filename);
+            } else {
+                downloadurl.href = 'data:' + dataFileType + ', ' + tableHTMLData;
+                downloadurl.download = filename;
+                downloadurl.click();
+            }
+        }
+    </script>
+
+    <style>
+        /* Print caption helpers (Bootstrap 4 d-none/d-block aren't in BS3) */
+        .d-none { display: none !important; }
+        .d-block { display: block !important; }
+        .captionText { font-weight: 600; color: var(--text); margin: 2px 0; }
+
+        .wd-card__foot { display: flex; gap: 10px; padding: 14px 20px; border-top: 1px solid var(--border); flex-wrap: wrap; }
+
+        @media print {
+            .captionText { display: block !important; }
+            /* The on-screen table body scrolls inside .wd-tablewrap (max-height:40vh).
+               Un-clip it for print so ALL rows render, not just the visible window. */
+            .wd-tablewrap { max-height: none !important; overflow: visible !important; border: 0 !important; }
+            .wd-table td, .wd-table th { white-space: normal; }
+            * { -webkit-print-color-adjust: exact !important; print-color-adjust: exact !important; }
+        }
+    </style>
 </head>
 
 <body>
-    <?php 
-        include 'includes/header.php';
-    ?>
+    <?php $wd_active = 'schedviewer'; include 'includes/wd-header.php'; ?>
 
-    <div class="lg-hide-logo" id="lg-hide-logo">
-        <img width="150px" src="<?php echo $_SESSION['CompanyLogo']; ?>">
-        <h4><?php echo $_SESSION['CompanyName']; ?></h4>
-    </div>
-    <div class="w-container">
-        <div class="row">
-            <div class="col-lg-3"></div>
-            <!-- website content -->
-            <div class="col-lg-9 wd-login">
-                <h4 class="page-title" style="<?php echo "color: " . $_SESSION['CompanyColor']; ?>">Schedule Viewer
-                </h4>
-                <div id="container" style="padding: 40px; height: 100%;">
-                    <div class="row">
-                        <div class="col-lg-4">
-                            <div class="form-group ">
-                                <form id="vlilodata">
-                                    <label for="sel1">Choose Employee:</label>
-                                    <select class="form-control" id="empcompid" name="empcompany">
-                                        <option value="all">All</option>
-
-                                        <?php
-                                            if ($_SESSION['UserType']==1){
-                                                $sql=mysqli_query($con, "SELECT * FROM employees INNER JOIN empdetails ON employees.EmpID=empdetails.EmpID WHERE employees.EmpStatusID = 1 AND employees.EmpID<>'admin' ORDER BY EmpLN ASC");
-                                            }
-                                            else if ($_SESSION['UserType']==2){
-                                                $sql=mysqli_query($con, "SELECT * FROM employees INNER JOIN empdetails ON employees.EmpID=empdetails.EmpID WHERE employees.EmpStatusID = 1 AND employees.EmpID<>'admin' AND EmpCompID='" . $_SESSION['CompID']  . "' AND EmpISID='" . $_SESSION['id'] . "' ORDER BY EmpLN ASC");
-                                            }
-                                            else {
-                                                $sql=mysqli_query($con, "SELECT * FROM employees INNER JOIN empdetails ON employees.EmpID=empdetails.EmpID WHERE employees.EmpStatusID = 1 AND employees.EmpID<>'admin' ORDER BY EmpLN ASC");
-                                            }
-                                            while($res=mysqli_fetch_array($sql)){
-                                        ?>
-                                        <option value="<?php echo $res['EmpID']; ?>">
-                                            <?php echo $res['EmpLN'] . ", " . $res['EmpFN'] . " " . $res['EmpMN']; ?>
-                                        </option>
-                                        <?php   
-                                            }
-                                        ?>
-                                    </select>
-                            </div>
-                        </div>
-                        <div class="col-lg-8">
-                            <div class="dtpar">
-                                <p>Date Parameters:</p>
-                                <label>From:</label>
-                                <input type="date" class="form-control" id="dtp1" value=<?php $dt=date('Y-m-d'); $dt2=date('Y-m-1'); $dt3=date('Y-m-16'); $ddt=date('Y-m-d', strtotime(date('Y-m-1'))); $ddt2=date('Y-m-d', strtotime(date('Y-m-1'))); if ($dt>$dt2 && $dt<$dt3){ echo $ddt2; }else{ echo $ddt; }?>>
-                                <!-- <input type="text" class="form-control" id="date1"> -->
-                                <label>To:</label>
-                                <input type="date" class="form-control" id="dtp2" value="<?php echo date("Y-m-d");?>">
-                                <button class="btn" id="viewsched" type="button"><img src="assets/images/refreshicon.png" data-toggle="tooltip" data-placement="right" title="Refresh" width="25px"></button>
-                            </div>
-                        </div>
-                        </form>
-                    </div>
-                    <!--   <p>Export to:</p> -->
-                    <div id="tblprint1">
-                        <table id="tab">
-                            <thead>
-                                <tr>
-                                    <th width="5%" class="text-center" >No</th>
-                                    <th class="text-center">EmpID</th>
-                                    <th width="25%" class="text-center"  align="center">Name</th>
-                                    <th width="25%" class="text-center"  align="center">Effectivity Date</th>
-                                    <th width="25%" class="text-center"  align="center">Day</th>
-                                    <th width="25%" class="text-center"  align="center">Schedule</th>
-                                </tr>
-                            </thead>
-                            <tbody id="darviewer">
-
-                                <?php
-                                    $ids=0;
-
-                                    if(!empty($resultdata)){
-                                        foreach($resultdata as $key => $value){
-                                            $ids=$ids+1;
-
-                                            $startDay = $resultdata[$key]["startDate"];
-                                            $endDay = $resultdata[$key]["endDate"];
-                                            $date;
-
-                                            // for ( $date = $startDay; $date <= $endDay; $date++){
-                                            // }
-                                            // return;
-
-
-                                ?>
-                                <tr>
-                                    <td width="5%" class="text-center"> <?php echo $ids; ?> </td>
-                                    <td class=text-center" ><?php echo $resultdata[$key]["EmpID"]; ?> </td>
-                                    <td width="25%" class="text-center" ><?php echo $resultdata[$key]["firstName"] . " " . $resultdata[$key]["midName"] . " " . $resultdata[$key]["lastName"]; ?> </td>
-                                    <td class="text-center"> From <?php echo $resultdata[$key]["startDate"] . " To ". $resultdata[$key]["endDate"]?></td>
-                                    <td width="25%" class="text-center" ><?php echo $resultdata[$key]["araw"]?></td>
-                                    <td width="25%" class="text-center" ><?php echo $resultdata[$key]["tf"] . " to " . $resultdata[$key]["tt"]?></td>
-                                </tr>
-
-                                <?php
-                                        }
-                                    }
-                                    else{
-                                        ?>
-                                            <td width="5%" class="text-center"> EMPTY !</td>
-                                        <?php
-
-                                    }
-                                ?>
-                                
-                            </tbody>
-                        </table>
-                    </div>
-
-                </div>
-            </div>
+    <div class="wd-pagehead">
+        <div>
+            <h1>Schedule Viewer</h1>
+            <p>Review employee work-schedule effectivity periods, days and shift times.</p>
         </div>
     </div>
 
-
-    <!-- The Modal -->
-    <div class="modal" id="thislilomodal">
-        <div class="modal-dialog modal-dialog-centered">
-            <div class="modal-content">
-
-                <!-- Modal Header -->
-                <div class="modal-header" style="padding: 7px 8px;">
+    <section class="wd-card">
+        <div class="wd-card__head">
+            <h3>Employee schedules</h3>
+            <form id="vlilodata" style="display:flex;align-items:flex-end;gap:10px;flex-wrap:wrap;margin:0">
+                <div class="wd-field" style="margin:0">
+                    <label for="empcompid">Choose Employee</label>
+                    <select class="wd-select" id="empcompid" name="empcompany" style="min-width:230px">
+                        <option value="all">All</option>
+                        <?php
+                            if ($_SESSION['UserType'] == 1) {
+                                $sql = mysqli_query($con, "SELECT * FROM employees INNER JOIN empdetails ON employees.EmpID=empdetails.EmpID WHERE employees.EmpStatusID = 1 AND employees.EmpID<>'admin' ORDER BY EmpLN ASC");
+                            } else if ($_SESSION['UserType'] == 2) {
+                                $sql = mysqli_query($con, "SELECT * FROM employees INNER JOIN empdetails ON employees.EmpID=empdetails.EmpID WHERE employees.EmpStatusID = 1 AND employees.EmpID<>'admin' AND EmpCompID='" . $_SESSION['CompID'] . "' AND EmpISID='" . $_SESSION['id'] . "' ORDER BY EmpLN ASC");
+                            } else {
+                                $sql = mysqli_query($con, "SELECT * FROM employees INNER JOIN empdetails ON employees.EmpID=empdetails.EmpID WHERE employees.EmpStatusID = 1 AND employees.EmpID<>'admin' ORDER BY EmpLN ASC");
+                            }
+                            while ($res = mysqli_fetch_array($sql)) {
+                        ?>
+                        <option value="<?php echo htmlspecialchars($res['EmpID']); ?>"><?php echo htmlspecialchars($res['EmpLN'] . ", " . $res['EmpFN'] . " " . $res['EmpMN']); ?></option>
+                        <?php } ?>
+                    </select>
                 </div>
-
-                <!-- Modal body -->
-                <div class="modal-body">
-                    <div class="alert " style="text-align: center;">
-
-                        <img width="150px" src="assets/images/load.gif">
-                    </div>
+                <div class="wd-field" style="margin:0">
+                    <label for="dtp1">From</label>
+                    <input type="date" class="wd-input" id="dtp1" style="width:auto;padding:7px 10px" value="<?php echo $dt1; ?>">
                 </div>
+                <div class="wd-field" style="margin:0">
+                    <label for="dtp2">To</label>
+                    <input type="date" class="wd-input" id="dtp2" style="width:auto;padding:7px 10px" value="<?php echo date('Y-m-d'); ?>">
+                </div>
+                <button class="wd-btn wd-btn--ghost" id="viewsched" type="button" title="Refresh"><i class="fa-solid fa-rotate"></i></button>
+            </form>
+        </div>
 
-                <!-- Modal footer -->
+        <div id="tblprint1">
+            <!-- print-only captions (shown by #btnprint handler) -->
+            <label class="captionText d-none" id="captionTextMain">Schedule Viewer</label>
+            <label class="captionText d-none" id="captionText">All Employees</label>
+            <label class="captionText d-none" id="dateRange"></label>
 
-
+            <div class="wd-tablewrap">
+                <table class="wd-table" id="tab">
+                    <thead id="tabth">
+                        <tr>
+                            <th>No</th>
+                            <th>EmpID</th>
+                            <th>Name</th>
+                            <th>Effectivity Date</th>
+                            <th>Day</th>
+                            <th>Schedule</th>
+                        </tr>
+                    </thead>
+                    <tbody id="darviewer">
+                        <?php
+                            $ids = 0;
+                            if (!empty($resultdata)) {
+                                foreach ($resultdata as $key => $value) {
+                                    $ids = $ids + 1;
+                        ?>
+                        <tr>
+                            <td class="text-center"><?php echo $ids; ?></td>
+                            <td class="text-center"><?php echo htmlspecialchars($resultdata[$key]["EmpID"]); ?></td>
+                            <td><?php echo htmlspecialchars($resultdata[$key]["firstName"] . " " . $resultdata[$key]["midName"] . " " . $resultdata[$key]["lastName"]); ?></td>
+                            <td class="text-center">From <?php echo htmlspecialchars($resultdata[$key]["startDate"] . " To " . $resultdata[$key]["endDate"]); ?></td>
+                            <td class="text-center"><?php echo htmlspecialchars($resultdata[$key]["araw"]); ?></td>
+                            <td class="text-center"><?php echo htmlspecialchars($resultdata[$key]["tf"] . " to " . $resultdata[$key]["tt"]); ?></td>
+                        </tr>
+                        <?php
+                                }
+                            } else {
+                        ?>
+                        <tr><td colspan="6" class="text-center" style="padding:18px;color:var(--muted,#667085)">No schedules found for this period.</td></tr>
+                        <?php } ?>
+                    </tbody>
+                </table>
             </div>
         </div>
-    </div>
-    <!-- modal end -->
 
+        <div class="wd-card__foot">
+            <button class="wd-btn wd-btn--ghost" id="btnprint" type="button"><i class="fa-solid fa-print"></i> Print this Data Table</button>
+            <button class="wd-btn wd-btn--primary" type="button" onclick="exportToExcel()"><i class="fa-solid fa-file-excel"></i> Export to Excel</button>
+        </div>
+    </section>
+
+    <?php include 'includes/wd-footer.php'; ?>
 </body>
 
 </html>

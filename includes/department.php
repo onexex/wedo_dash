@@ -50,7 +50,7 @@
                                     $statement = $pdo->prepare("select * from companies where CompanyID='$_SESSION[CompID]'");
 
                                  }
-                              $statement->execute(array(':name' => ""));
+                              $statement->execute();
                               while ($row = $statement->fetch()){
                               ?>
                                  <option value="<?php echo $row['CompanyID']; ?>"><?php echo $row['CompanyDesc']; ?></option> 
@@ -164,7 +164,7 @@
                                     $st = $pdo->prepare("select * from companies where CompanyID='$_SESSION[CompID]'");
 
                                  }
-                              $st->execute(array(':name' => ""));
+                              $st->execute();
                               while ($row1 = $st->fetch()){
                               ?>
                                  <option value="<?php echo $row1['CompanyID']; ?>"><?php echo $row1['CompanyDesc']; ?></option> 

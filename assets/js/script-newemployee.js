@@ -135,38 +135,13 @@
                                 data: {compid : cid},
                                 type:'POST',                                  
                                  success:function(data){
-                                   
                                    $("#empID").val(data);
+                                   if (window.neValidateAll) { window.neValidateAll(false); }
                                  }
                       });
                });
-              $('#wrkschmon').change(function(){
-                if ($("#ifch").prop('checked')){
-                 if ($(this).val()!=""){
-                        $("#wrkschtues").val($("#wrkschmon").val());
-                        $("#wrkschwed").val($("#wrkschmon").val());
-                        $("#wrkschthu").val($("#wrkschmon").val());
-                        $("#wrkschfri").val($("#wrkschmon").val());
-                        $("#wrkschsat").val($("#wrkschmon").val());
-                        $("#wrkschsun").val($("#wrkschmon").val());
-                      }
-                  }
-              });
-            
-              $('#ifch').click(function(){
-                      /* Get input value on change */
-                    if ($(this).prop('checked')){
-                      if ($("#wrkschmon").val()!=""){
-                        $("#wrkschtues").val($("#wrkschmon").val());
-                        $("#wrkschwed").val($("#wrkschmon").val());
-                        $("#wrkschthu").val($("#wrkschmon").val());
-                        $("#wrkschfri").val($("#wrkschmon").val());
-                        $("#wrkschsat").val($("#wrkschmon").val());
-                        $("#wrkschsun").val($("#wrkschmon").val());
-                      }
-                    }
-                
-               });
+              // Work schedule is handled in the dedicated Scheduler module, so the
+              // per-day inherit handlers were removed along with that form section.
 
               $("body").click(function(){
                 // var x= event.target.className;
@@ -193,72 +168,16 @@
                                     }
                                    else
                                      {
-                        var miss1=0;
-                        if ($("#empfname").val() == ""){
-                        miss1=miss1+1;
+                        /* count empty required fields across every tab + paint
+                           the badges/red borders (validation lives in newemployee.php) */
+                        var neEmpty = window.neValidateAll ? window.neValidateAll(true) : 0;
+                        if (neEmpty > 0) {
+                            var t = window.neFirstIncompleteTab && window.neFirstIncompleteTab();
+                            if (t) { $('#' + t).trigger('click'); }
                         }
-                        if ($("#empdob").val() == ""){
-                           miss1=miss1+1;
-                        }
-                        if ($("#emplname").val() == ""){
-                         miss1=miss1+1;
-                        }
-                          if ($("#empgender").val() == ""){
-                         miss1=miss1+1;
-                        }
-                          if ($("#empcs").val() == ""){
-                         miss1=miss1+1;
-                        }
-                          if ($("#pempdistrict").val() == "" || $("#pempcity").val() == "" || $("#pempprovince").val() == "" || $("#pempzipcode").val() == "" || $("#pempcountry").val() == ""){
-                     
-                         miss1=miss1+1;
-                        }
-                        
-                        if (miss1>=0){
-                     
-                            // $("#btn-ci").val() = 'Contact Information (' + miss1 + ')';
-                            document.getElementById("btn-ci").innerHTML = 'General Information (' + miss1 + ')';
-                            
-                        } 
 
-                        var miss2=0;
-                        if ($("#empID").val() == ""){
-                         miss2=miss2+1;
-                        }
-                        if ($("#empstatus").val()==""){
-                     
-                           miss2=miss2+1;
-                        }
-                          if ($("#empdesccode").val()==""){
-                           miss2=miss2+1;
-                        }
-                           if ($("#empdepartment").val()==""){
-                           miss2=miss2+1;
-                        }
-                           if ($("#idempposition").val()==""){
-                           miss2=miss2+1;
-                        }
-                        if ($("#empis").val()==""){
-                           miss2=miss2+1;
-                        }
-                         if ($("#empdth").val()==""){
-
-                           miss2=miss2+1;
-                        }
-                       
-                         
-                        if ($("#empbasic").val()==""){
-                           miss2=miss2+1;
-                        }
-                        if (miss2>=0){
-                     
-                            // $("#btn-ci").val() = 'Contact Information (' + miss1 + ')';
-                            document.getElementById("btn-es").innerHTML = 'Employment Information (' + miss2 + ')';
-                          
-                        } 
-
-                        if (miss2==0 && miss1==0)
-                        { 
+                        if (neEmpty == 0)
+                        {
                            
 
                                 var fd = new FormData(); 
@@ -333,7 +252,7 @@
                                  
                         }
                         else{
-                        swal("Message!", "Please Fill up required Fields!");
+                        swal("Incomplete", "Please fill up the " + neEmpty + " required field(s) highlighted in red.");
                             // $('#modalWarning').modal('toggle');
                             // $('#modalWarning .alert').html("Please Fill up required Fields!"); 
                         }

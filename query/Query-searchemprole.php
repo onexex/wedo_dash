@@ -20,13 +20,23 @@ die("ERROR: Could not connect. " . $e->getMessage());
 
 
 
-$statement = $pdo->prepare("SELECT * FROM employees WHERE EmpLN = :term");
-$statement->bindParam(':term' , $_REQUEST["term"]);
-$statement->execute(); 
+// Prefix search on last name (the live-search box labelled "Search Employee
+// Lastname"). Was a broken exact match (EmpLN = :term) so partial input matched
+// nothing — restored to the intended LIKE prefix search.
+$term = ($_REQUEST["term"] ?? "") . "%";
+$statement = $pdo->prepare("SELECT * FROM employees WHERE EmpLN LIKE :term ORDER BY EmpLN LIMIT 15");
+$statement->bindParam(':term', $term);
+$statement->execute();
 
-  while ($row = $statement->fetch()){
-       echo "<a class='btn btn-block btn-name' id='" . $row["EmpID"] . "' class='btn' >" . $row["EmpLN"] . " " . $row["EmpFN"] . " " . $row["EmpMN"]; "</a>";   
-  }
+$found = false;
+while ($row = $statement->fetch()){
+    $found = true;
+    echo "<a class='btn btn-block btn-name' id='" . htmlspecialchars($row["EmpID"]) . "'>"
+       . htmlspecialchars($row["EmpLN"] . " " . $row["EmpFN"] . " " . $row["EmpMN"]) . "</a>";
+}
+if (!$found) {
+    echo "<a class='btn btn-name'>No matches found</a>";
+}
 
  
 // // Check connection

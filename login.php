@@ -4,9 +4,17 @@
 
     // 1. Handle Logout immediately
     if (isset($_GET['logout'])) {
+    // invalidate the server-side remember-me token for this user, too
+    if (!empty($_SESSION['id'])) {
+        try {
+            $pdoLogout = new PDO("mysql:host=$servername;dbname=$db", $username, $password);
+            $pdoLogout->prepare("UPDATE empdetails SET remember_hash=NULL, remember_expiry=NULL WHERE EmpID=:id")
+                      ->execute([':id' => $_SESSION['id']]);
+        } catch (Exception $e) { /* non-fatal */ }
+    }
     $_SESSION = [];
     session_destroy();
-    setcookie('WeDoID', '', time() - 3600, '/');
+    setcookie('WeDoID', '', ['expires'=>time()-3600,'path'=>'/','httponly'=>true,'samesite'=>'Lax','secure'=>(!empty($_SERVER['HTTPS']) && strtolower($_SERVER['HTTPS'])!=='off')]);
     header('location: login.php');
     exit();
     }
@@ -31,7 +39,7 @@
 
         while ($row = $stmt->fetch(PDO::FETCH_ASSOC)) {
             // Check if this row's EmpID matches the hashed cookie
-            if (password_verify($row['EmpID'], $_COOKIE["WeDoID"])) {
+            if ((!empty($row['remember_hash']) && password_verify($_COOKIE["WeDoID"], $row['remember_hash']) && (empty($row['remember_expiry']) || strtotime($row['remember_expiry']) > time()))) {
 
                 // Set all session variables at once
                 $_SESSION['id']       = $row['EmpID'];
