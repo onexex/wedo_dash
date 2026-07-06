@@ -18,7 +18,9 @@
  *    exempt; only an absence OLDER than that blocks.
  *  - Caller decides who to run this for. Intended for regular employees only
  *    (UserType / EmpRoleID == 3); admins (1) and supervisors (2) are exempt so
- *    they can still log in to file on a subordinate's behalf.
+ *    they can still log in to file on a subordinate's behalf. OJT (EmpStatID 4)
+ *    and Trainee (3) are also exempt: they have no leave credits and cannot file
+ *    OB, so blocking them would lock them out permanently with no way to clear.
  *
  * FAIL-OPEN: any error returns an empty array (never block due to a bug).
  */
