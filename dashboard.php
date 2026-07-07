@@ -442,11 +442,20 @@ try {
       $deptPat = [];
       $patT = ['logs'=>0,'late'=>0,'expected'=>0,'absences'=>0];
       if ($showDept) {
-          // tardiness: MinsLack = minutes late on time-in (see query/Query-insertlilo.php)
+          // tardiness: MinsLack = minutes late on time-in (see query/Query-insertlilo.php).
+          // Gemana (WeDoinc-0010) is flexi — tardy only from 8 AM — so his lateness is
+          // recomputed from an 08:00 baseline off TimeIn via the CASE below (not the stored
+          // MinsLack, which for older rows reflects a previous 7 AM schedule). Gemana-only;
+          // everyone else keeps using MinsLack. Matches query/dashboard-drilldown.php.
           try {
               $st = $wdpdo->prepare(
                   "SELECT COALESCE(dp.DepartmentDesc,'Unassigned') dept, COUNT(*) logs,
-                          SUM(a.MinsLack>0) late, ROUND(AVG(NULLIF(a.MinsLack,0)),0) avg_min
+                          SUM(CASE WHEN a.EmpID=:flx1
+                                   THEN TIMESTAMPDIFF(SECOND, CONCAT(a.WSFrom,' 08:00:00'), a.TimeIn) > 0
+                                   ELSE a.MinsLack > 0 END) late,
+                          ROUND(AVG(NULLIF(CASE WHEN a.EmpID=:flx2
+                                   THEN GREATEST(TIMESTAMPDIFF(SECOND, CONCAT(a.WSFrom,' 08:00:00'), a.TimeIn)/60, 0)
+                                   ELSE a.MinsLack END, 0)),0) avg_min
                    FROM attendancelog a
                    JOIN employees e ON a.EmpID=e.EmpID
                    JOIN empdetails d ON e.EmpID=d.EmpID
@@ -454,7 +463,7 @@ try {
                    LEFT JOIN departments dp ON p.DepartmentID=dp.DepartmentID
                    WHERE a.WSFrom BETWEEN :pf AND :pt$scopeAnd$resignAnd
                    GROUP BY dept");
-              $pr = [':pf'=>$patFrom, ':pt'=>$patTo]; if ($scope==='team') { $pr[':uid']=$uid; }
+              $pr = [':pf'=>$patFrom, ':pt'=>$patTo, ':flx1'=>'WeDoinc-0010', ':flx2'=>'WeDoinc-0010']; if ($scope==='team') { $pr[':uid']=$uid; }
               $st->execute($pr);
               while ($r = $st->fetch(PDO::FETCH_ASSOC)) {
                   $dn = $r['dept'] ?: 'Unassigned';

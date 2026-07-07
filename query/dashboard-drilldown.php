@@ -51,6 +51,12 @@ $scopeAnd  = ($scope === 'team') ? " AND d.EmpISID = :uid" : "";
 // e.EmpStatusID=1, not the resignation date) and not OJT (EmpStatID 4).
 $resignAnd = " AND e.EmpStatusID = 1 AND d.EmpStatID <> 4";
 
+// Gemana (WeDoinc-0010) works a fixed 7 AM–7 PM schedule but is TARDY ONLY from
+// 8 AM onward. His tardiness is recomputed from an 08:00 baseline off the actual
+// TimeIn (see the dedicated block below), independent of the stored MinsLack —
+// which for older rows reflects a previous 7 AM schedule. Rule is Gemana-only.
+$FLEXI = 'WeDoinc-0010';
+
 /* ---- late time-ins: one row per tardy clock-in ---- */
 $tard = [];
 try {
@@ -62,11 +68,38 @@ try {
          LEFT JOIN positions p ON e.PosID = p.PSID
          LEFT JOIN departments dp ON p.DepartmentID = dp.DepartmentID
          WHERE a.WSFrom BETWEEN :pf AND :pt AND a.MinsLack > 0
+           AND a.EmpID <> :flexi
            AND COALESCE(dp.DepartmentDesc,'Unassigned') = :dept$scopeAnd$resignAnd
          ORDER BY e.EmpLN, e.EmpFN, a.WSFrom");
-    $pr = [':pf'=>$pf, ':pt'=>$pt, ':dept'=>$dept]; if ($scope==='team') { $pr[':uid']=$uid; }
+    $pr = [':pf'=>$pf, ':pt'=>$pt, ':dept'=>$dept, ':flexi'=>$FLEXI]; if ($scope==='team') { $pr[':uid']=$uid; }
     $st->execute($pr);
     while ($r = $st->fetch(PDO::FETCH_ASSOC)) {
+        $nm = trim($r['EmpLN'] . ', ' . $r['EmpFN'], ', ');
+        $tard[$nm][] = ['d' => $r['d'], 'm' => (int) round($r['m'])];
+    }
+} catch (Exception $e) {}
+
+/* ---- Gemana (WeDoinc-0010) flexi tardiness — SPECIAL CASE ----
+   Schedule is 7 AM–7 PM but he is tardy only from 8 AM onward. Recompute his
+   late rows from an 08:00 baseline off the actual TimeIn (ignores stored
+   MinsLack). Same $tard[name][] shape as above; excluded from the query above
+   so he is never double-counted. */
+try {
+    $gst = $pdo->prepare(
+        "SELECT e.EmpLN, e.EmpFN, a.WSFrom d,
+                TIMESTAMPDIFF(SECOND, CONCAT(a.WSFrom,' 08:00:00'), a.TimeIn)/60 m
+         FROM attendancelog a
+         JOIN employees e ON a.EmpID = e.EmpID
+         JOIN empdetails d ON e.EmpID = d.EmpID
+         LEFT JOIN positions p ON e.PosID = p.PSID
+         LEFT JOIN departments dp ON p.DepartmentID = dp.DepartmentID
+         WHERE a.EmpID = :flexi AND a.WSFrom BETWEEN :pf AND :pt
+           AND TIMESTAMPDIFF(SECOND, CONCAT(a.WSFrom,' 08:00:00'), a.TimeIn) > 0
+           AND COALESCE(dp.DepartmentDesc,'Unassigned') = :dept$scopeAnd$resignAnd
+         ORDER BY a.WSFrom");
+    $pr = [':pf'=>$pf, ':pt'=>$pt, ':dept'=>$dept, ':flexi'=>$FLEXI]; if ($scope==='team') { $pr[':uid']=$uid; }
+    $gst->execute($pr);
+    while ($r = $gst->fetch(PDO::FETCH_ASSOC)) {
         $nm = trim($r['EmpLN'] . ', ' . $r['EmpFN'], ', ');
         $tard[$nm][] = ['d' => $r['d'], 'm' => (int) round($r['m'])];
     }
