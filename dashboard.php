@@ -433,8 +433,9 @@ try {
          (team = direct reports). Hidden for self scope. */
       $showDept = ($scope !== 'self');
       $scopeAnd = ($scope==='team') ? " AND d.EmpISID = :uid" : "";
-      // exclude only employees who had already resigned BEFORE the window started
-      $resignAnd = " AND (d.EmpDateResigned IS NULL OR d.EmpDateResigned='' OR d.EmpDateResigned='0000-00-00' OR d.EmpDateResigned >= :rf)";
+      // YTD panels show CURRENT workforce only: exclude anyone who has resigned and
+      // exclude OJTs (empdetails.EmpStatID = 4 — see includes/loginabsencegate.php).
+      $resignAnd = " AND (d.EmpDateResigned IS NULL OR d.EmpDateResigned='' OR d.EmpDateResigned='0000-00-00') AND d.EmpStatID <> 4";
       $deptPat = [];
       $patT = ['logs'=>0,'late'=>0,'expected'=>0,'absences'=>0];
       if ($showDept) {
@@ -450,7 +451,7 @@ try {
                    LEFT JOIN departments dp ON p.DepartmentID=dp.DepartmentID
                    WHERE a.WSFrom BETWEEN :pf AND :pt$scopeAnd$resignAnd
                    GROUP BY dept");
-              $pr = [':pf'=>$patFrom, ':pt'=>$patTo, ':rf'=>$patFrom]; if ($scope==='team') { $pr[':uid']=$uid; }
+              $pr = [':pf'=>$patFrom, ':pt'=>$patTo]; if ($scope==='team') { $pr[':uid']=$uid; }
               $st->execute($pr);
               while ($r = $st->fetch(PDO::FETCH_ASSOC)) {
                   $dn = $r['dept'] ?: 'Unassigned';
@@ -490,7 +491,7 @@ try {
                    LEFT JOIN obshbd ob ON ob.EmpID = e.EmpID AND dts.dt BETWEEN ob.OBDateFrom AND ob.OBDateTo AND ob.OBStatus NOT IN (3,5,6,7)
                    WHERE 1=1$scopeAnd$resignAnd
                    GROUP BY dept");
-              $pr = [':pf1'=>$patFrom, ':pt1'=>$patTo, ':pf2'=>$patFrom, ':pt2'=>$patTo, ':rf'=>$patFrom];
+              $pr = [':pf1'=>$patFrom, ':pt1'=>$patTo, ':pf2'=>$patFrom, ':pt2'=>$patTo];
               if ($scope==='team') { $pr[':uid']=$uid; }
               $st->execute($pr);
               while ($r = $st->fetch(PDO::FETCH_ASSOC)) {

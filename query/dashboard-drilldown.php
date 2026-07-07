@@ -47,7 +47,8 @@ if (strtotime($pt) - strtotime($pf) > 366 * 86400) { $pf = date('Y-m-d', strtoti
 if ($dept === '') { echo '<div class="dd-none">No department specified.</div>'; exit; }
 
 $scopeAnd  = ($scope === 'team') ? " AND d.EmpISID = :uid" : "";
-$resignAnd = " AND (d.EmpDateResigned IS NULL OR d.EmpDateResigned='' OR d.EmpDateResigned='0000-00-00' OR d.EmpDateResigned >= :rf)";
+// Match dashboard.php: current workforce only — exclude resigned and OJTs (EmpStatID 4).
+$resignAnd = " AND (d.EmpDateResigned IS NULL OR d.EmpDateResigned='' OR d.EmpDateResigned='0000-00-00') AND d.EmpStatID <> 4";
 
 /* ---- late time-ins: one row per tardy clock-in ---- */
 $tard = [];
@@ -62,7 +63,7 @@ try {
          WHERE a.WSFrom BETWEEN :pf AND :pt AND a.MinsLack > 0
            AND COALESCE(dp.DepartmentDesc,'Unassigned') = :dept$scopeAnd$resignAnd
          ORDER BY e.EmpLN, e.EmpFN, a.WSFrom");
-    $pr = [':pf'=>$pf, ':pt'=>$pt, ':dept'=>$dept, ':rf'=>$pf]; if ($scope==='team') { $pr[':uid']=$uid; }
+    $pr = [':pf'=>$pf, ':pt'=>$pt, ':dept'=>$dept]; if ($scope==='team') { $pr[':uid']=$uid; }
     $st->execute($pr);
     while ($r = $st->fetch(PDO::FETCH_ASSOC)) {
         $nm = trim($r['EmpLN'] . ', ' . $r['EmpFN'], ', ');
@@ -96,7 +97,7 @@ try {
            AND h.SID IS NULL AND a.LogID IS NULL AND lv.EmpID IS NULL AND ob.EmpID IS NULL$scopeAnd$resignAnd
          GROUP BY e.EmpID, e.EmpLN, e.EmpFN, dts.dt
          ORDER BY e.EmpLN, e.EmpFN, dts.dt");
-    $pr = [':pf1'=>$pf, ':pt1'=>$pt, ':pf2'=>$pf, ':pt2'=>$pt, ':dept'=>$dept, ':rf'=>$pf];
+    $pr = [':pf1'=>$pf, ':pt1'=>$pt, ':pf2'=>$pf, ':pt2'=>$pt, ':dept'=>$dept];
     if ($scope==='team') { $pr[':uid']=$uid; }
     $st->execute($pr);
     while ($r = $st->fetch(PDO::FETCH_ASSOC)) {
