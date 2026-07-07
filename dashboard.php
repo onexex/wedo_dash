@@ -138,6 +138,7 @@ try {
       /* department tardiness/absence patterns */
       .dash-deptpat{margin-top:18px}
       .dash-period{display:flex;align-items:flex-end;gap:8px;flex-wrap:wrap}
+      .dash-headright{display:flex;align-items:flex-end;gap:14px;flex-wrap:wrap;justify-content:flex-end}
       .dash-period .wd-field{margin:0}
       .dash-period label{font-size:11px}
       .dpat-wrap{overflow-x:auto}
@@ -154,6 +155,29 @@ try {
       .dpat-metric .fill.abs{background:var(--brand)}
       .dpat-metric .pct{min-width:38px;text-align:right;font-weight:700;color:var(--text)}
       .dpat-sub{color:var(--text-3);font-size:11px}
+      /* department drill-down */
+      table.dpat tbody tr{cursor:pointer}
+      .dpat-drill{color:var(--text-3);font-size:10px;margin-left:6px;opacity:.45;transition:opacity .15s,transform .15s}
+      table.dpat tbody tr:hover .dpat-drill{opacity:1;transform:translateX(2px);color:var(--brand)}
+      .dd-modalhead{background:#f93627;color:#fff;border:0}
+      .dd-modalhead .modal-title{color:#fff;font-family:var(--font-head);font-weight:700}
+      .dd-modalhead .close{color:#fff;opacity:.9;text-shadow:none;font-size:26px}
+      #dpatDrill .modal-body{max-height:72vh;overflow:auto;padding:18px 20px}
+      .dd-loading,.dd-none{color:var(--text-3);text-align:center;padding:22px;font-size:13px}
+      .dd-head{font-weight:700;color:var(--text);margin-bottom:14px;font-family:var(--font-head);font-size:16px}
+      .dd-head .dd-period{font-weight:600;color:var(--text-3);font-size:12px}
+      .dd-sec{margin-bottom:22px}
+      .dd-sec__h{font-size:11px;text-transform:uppercase;letter-spacing:.04em;color:var(--text-2);font-weight:700;display:flex;align-items:center;gap:8px;margin-bottom:8px}
+      .dd-sec__h .dd-count{margin-left:auto;background:var(--surface-2);color:var(--text-2);border-radius:var(--radius-pill);padding:1px 10px;font-size:12px}
+      table.dd-tbl{width:100%;border-collapse:collapse;font-size:13px}
+      table.dd-tbl th,table.dd-tbl td{padding:8px 10px;text-align:left;border-bottom:1px solid var(--border);vertical-align:top}
+      table.dd-tbl th{font-size:11px;text-transform:uppercase;letter-spacing:.04em;color:var(--text-3);font-weight:700}
+      table.dd-tbl th.num,table.dd-tbl td.num{text-align:right;white-space:nowrap}
+      .dd-emp{font-weight:600;color:var(--text);white-space:nowrap}
+      .dd-chips{display:flex;flex-wrap:wrap;gap:5px}
+      .dd-chip{background:var(--warn-bg,#fdf0e3);color:var(--warn-text);border-radius:6px;padding:2px 7px;font-size:11px;white-space:nowrap}
+      .dd-chip b{font-weight:700}
+      .dd-chip--abs{background:var(--brand-tint);color:var(--brand)}
 
       .dash-scopebadge{display:inline-flex;align-items:center;gap:6px;font-size:12px;font-weight:600;color:var(--brand);background:var(--brand-tint);padding:4px 10px;border-radius:var(--radius-pill)}
       .dash-viewall{font-size:12px;font-weight:600;color:var(--brand);text-decoration:none;white-space:nowrap}
@@ -290,6 +314,16 @@ try {
           for ($i=6; $i>=0; $i--) { $dd = date('Y-m-d', strtotime($attnDate." -$i days")); $trend[$dd] = $tmap[$dd] ?? 0; }
       } catch (Exception $e) {}
 
+      /* ---- dashboard reporting period — default YEAR-TO-DATE ----
+         A single dashboard-wide window (Jan 1 of the effective year → effective
+         date) driving every time-based panel below. User-overridable via GET
+         (?pf=&pt=). Clamped to ~1 year to keep the absence recursive-CTE cheap. */
+      $vd = function($s, $def) { $t = strtotime((string)$s); return $t ? date('Y-m-d', $t) : $def; };
+      $patTo   = $vd($_GET['pt'] ?? '', $attnDate);
+      $patFrom = $vd($_GET['pf'] ?? '', date('Y-01-01', strtotime($patTo)));   // Jan 1 of the "to" year
+      if ($patFrom > $patTo) { $t = $patFrom; $patFrom = $patTo; $patTo = $t; }
+      if (strtotime($patTo) - strtotime($patFrom) > 366*86400) { $patFrom = date('Y-m-d', strtotime($patTo.' -366 days')); }
+
       /* ---- pending approvals (scope-adaptive) ---- */
       // per-table meta: status col + immediate-superior col
       $ptbl = [
@@ -344,20 +378,20 @@ try {
       $deptDist = [];
       foreach ($roster as $r) { $d = $r['dept'] ?: 'Unassigned'; $deptDist[$d] = ($deptDist[$d] ?? 0) + 1; }
       arsort($deptDist);
-      // recent hires (last 90 days) from roster
+      // hires within the reporting period (YTD) from roster
       $recentHires = [];
       foreach ($roster as $r) {
-          if (!empty($r['EmpDateHired']) && $r['EmpDateHired'] >= date('Y-m-d', strtotime('-90 days')) && $r['EmpDateHired'] <= $today) {
+          if (!empty($r['EmpDateHired']) && $r['EmpDateHired'] >= $patFrom && $r['EmpDateHired'] <= $patTo) {
               $recentHires[] = $r;
           }
       }
       usort($recentHires, function($a,$b){ return strcmp($b['EmpDateHired'],$a['EmpDateHired']); });
-      // recent resignations (scope) last 90 days
+      // resignations within the reporting period (YTD), scope-limited
       $recentResigned = (int)$scalar("SELECT COUNT(*) FROM employees e JOIN empdetails d ON e.EmpID=d.EmpID
           WHERE d.EmpDateResigned IS NOT NULL AND d.EmpDateResigned <> '' AND d.EmpDateResigned <> '0000-00-00'
-                AND d.EmpDateResigned >= :rd"
+                AND d.EmpDateResigned BETWEEN :rd AND :rt"
           . ($scope==='team' ? " AND d.EmpISID=:uid" : ($scope==='self' ? " AND e.EmpID=:uid" : "")),
-          [':rd'=>date('Y-m-d', strtotime('-90 days'))]);
+          [':rd'=>$patFrom, ':rt'=>$patTo]);
 
       /* ---- leave & credits ---- */
       $onLeave = []; $upcoming = []; $lowCredit = [];
@@ -390,18 +424,17 @@ try {
       } catch (Exception $e) {}
 
       /* ---- tardiness & absenteeism patterns, by department ----
-         Window is user-selectable via GET (?pf=&pt=), default = last 30 days
-         ending at the effective attendance date. NOT active-filtered on purpose:
-         a "pattern" should reflect everyone who actually worked in the window
-         (the active filter collapses to ~1 person on the local seed). Scope still
-         applies (team = direct reports). Hidden for self scope. */
+         Uses the dashboard-wide reporting period ($patFrom..$patTo, default
+         year-to-date). Includes everyone who was EMPLOYED
+         DURING the window (resigned date empty or on/after the window start) and
+         actually worked in it — NOT filtered on CURRENT active status, which would
+         drop people who were employed during a past window but have since left (and
+         would collapse to ~1 person on the local seed). Scope still applies
+         (team = direct reports). Hidden for self scope. */
       $showDept = ($scope !== 'self');
-      $vd = function($s, $def) { $t = strtotime((string)$s); return $t ? date('Y-m-d', $t) : $def; };
-      $patTo   = $vd($_GET['pt'] ?? '', $attnDate);
-      $patFrom = $vd($_GET['pf'] ?? '', date('Y-m-d', strtotime($patTo.' -29 days')));
-      if ($patFrom > $patTo) { $t = $patFrom; $patFrom = $patTo; $patTo = $t; }
-      if (strtotime($patTo) - strtotime($patFrom) > 92*86400) { $patFrom = date('Y-m-d', strtotime($patTo.' -92 days')); } // protect the recursive CTE
       $scopeAnd = ($scope==='team') ? " AND d.EmpISID = :uid" : "";
+      // exclude only employees who had already resigned BEFORE the window started
+      $resignAnd = " AND (d.EmpDateResigned IS NULL OR d.EmpDateResigned='' OR d.EmpDateResigned='0000-00-00' OR d.EmpDateResigned >= :rf)";
       $deptPat = [];
       $patT = ['logs'=>0,'late'=>0,'expected'=>0,'absences'=>0];
       if ($showDept) {
@@ -415,9 +448,9 @@ try {
                    JOIN empdetails d ON e.EmpID=d.EmpID
                    LEFT JOIN positions p ON e.PosID=p.PSID
                    LEFT JOIN departments dp ON p.DepartmentID=dp.DepartmentID
-                   WHERE a.WSFrom BETWEEN :pf AND :pt$scopeAnd
+                   WHERE a.WSFrom BETWEEN :pf AND :pt$scopeAnd$resignAnd
                    GROUP BY dept");
-              $pr = [':pf'=>$patFrom, ':pt'=>$patTo]; if ($scope==='team') { $pr[':uid']=$uid; }
+              $pr = [':pf'=>$patFrom, ':pt'=>$patTo, ':rf'=>$patFrom]; if ($scope==='team') { $pr[':uid']=$uid; }
               $st->execute($pr);
               while ($r = $st->fetch(PDO::FETCH_ASSOC)) {
                   $dn = $r['dept'] ?: 'Unassigned';
@@ -455,9 +488,9 @@ try {
                    LEFT JOIN attendancelog a ON a.EmpID = e.EmpID AND a.WSFrom = dts.dt
                    LEFT JOIN hleavesbd lv ON lv.EmpID = e.EmpID AND dts.dt BETWEEN lv.LStart AND lv.LEnd AND lv.LStatus NOT IN (3,5,6,7)
                    LEFT JOIN obshbd ob ON ob.EmpID = e.EmpID AND dts.dt BETWEEN ob.OBDateFrom AND ob.OBDateTo AND ob.OBStatus NOT IN (3,5,6,7)
-                   WHERE 1=1$scopeAnd
+                   WHERE 1=1$scopeAnd$resignAnd
                    GROUP BY dept");
-              $pr = [':pf1'=>$patFrom, ':pt1'=>$patTo, ':pf2'=>$patFrom, ':pt2'=>$patTo];
+              $pr = [':pf1'=>$patFrom, ':pt1'=>$patTo, ':pf2'=>$patFrom, ':pt2'=>$patTo, ':rf'=>$patFrom];
               if ($scope==='team') { $pr[':uid']=$uid; }
               $st->execute($pr);
               while ($r = $st->fetch(PDO::FETCH_ASSOC)) {
@@ -493,7 +526,14 @@ try {
           <h1>Dashboard</h1>
           <p>Welcome back, <?php echo htmlspecialchars(trim(explode(',', $wdName)[1] ?? $wdName)); ?> &mdash; <?php echo date('l, F j Y'); ?></p>
         </div>
-        <span class="dash-scopebadge"><i class="fa-solid <?php echo $scope==='org'?'fa-building':($scope==='team'?'fa-users':'fa-user'); ?>"></i> <?php echo $scopeLabel; ?></span>
+        <div class="dash-headright">
+          <form method="get" action="dashboard" class="dash-period" title="Reporting period — defaults to year-to-date">
+            <div class="wd-field"><label for="pf">From</label><input type="date" id="pf" name="pf" class="wd-input" style="width:auto;padding:7px 10px" value="<?php echo htmlspecialchars($patFrom); ?>"></div>
+            <div class="wd-field"><label for="pt">To</label><input type="date" id="pt" name="pt" class="wd-input" style="width:auto;padding:7px 10px" value="<?php echo htmlspecialchars($patTo); ?>"></div>
+            <button type="submit" class="wd-btn wd-btn--primary"><i class="fa-solid fa-filter"></i> Apply</button>
+          </form>
+          <span class="dash-scopebadge"><i class="fa-solid <?php echo $scope==='org'?'fa-building':($scope==='team'?'fa-users':'fa-user'); ?>"></i> <?php echo $scopeLabel; ?></span>
+        </div>
       </div>
 
       <!-- ===== KPI STATS ===== -->
@@ -523,11 +563,7 @@ try {
       <section class="wd-card dash-deptpat">
         <div class="wd-card__head">
           <h3>Tardiness &amp; absenteeism by department</h3>
-          <form method="get" action="dashboard" class="dash-period">
-            <div class="wd-field"><label for="pf">From</label><input type="date" id="pf" name="pf" class="wd-input" style="width:auto;padding:7px 10px" value="<?php echo htmlspecialchars($patFrom); ?>"></div>
-            <div class="wd-field"><label for="pt">To</label><input type="date" id="pt" name="pt" class="wd-input" style="width:auto;padding:7px 10px" value="<?php echo htmlspecialchars($patTo); ?>"></div>
-            <button type="submit" class="wd-btn wd-btn--primary"><i class="fa-solid fa-filter"></i> Apply</button>
-          </form>
+          <span class="dash-cardnote"><i class="fa-regular fa-calendar"></i> <?php echo date('M j', strtotime($patFrom)); ?> &ndash; <?php echo date('M j, Y', strtotime($patTo)); ?></span>
         </div>
         <div class="dash-body">
           <p class="dash-cardnote" style="margin:0 0 4px">
@@ -537,7 +573,7 @@ try {
           </p>
           <?php if ($deptPat): ?>
             <div class="dpat-wrap">
-              <table class="dpat">
+              <table class="dpat" data-pf="<?php echo htmlspecialchars($patFrom); ?>" data-pt="<?php echo htmlspecialchars($patTo); ?>">
                 <thead>
                   <tr>
                     <th>Department</th>
@@ -550,8 +586,8 @@ try {
                 </thead>
                 <tbody>
                   <?php foreach ($deptPat as $dn => $dv): ?>
-                    <tr>
-                      <td class="dept"><?php echo htmlspecialchars($dn); ?></td>
+                    <tr data-dept="<?php echo htmlspecialchars($dn, ENT_QUOTES); ?>" title="Click to see who &amp; which dates">
+                      <td class="dept"><?php echo htmlspecialchars($dn); ?> <i class="fa-solid fa-chevron-right dpat-drill"></i></td>
                       <td class="num"><?php echo (int)$dv['late']; ?> <span class="dpat-sub">/ <?php echo (int)$dv['logs']; ?></span></td>
                       <td class="num">
                         <span class="dpat-metric"><span class="track"><span class="fill late" style="width:<?php echo min(100,(int)$dv['latePct']); ?>%"></span></span><span class="pct"><?php echo (int)$dv['latePct']; ?>%</span></span>
@@ -566,9 +602,9 @@ try {
                 </tbody>
               </table>
             </div>
-            <p class="dash-cardnote" style="margin:12px 0 0"><i class="fa-solid fa-circle-info"></i> Tardiness = time-ins with minutes late &gt; 0. Absence = scheduled work days (per each employee's work-schedule effectivity, excluding holidays) with no attendance and no ALAS leave or OB on file &mdash; a day covered by any ALAS/OB filing that isn't disapproved or cancelled is never counted absent. Counted only for employees who worked at least once in the window.</p>
+            <p class="dash-cardnote" style="margin:12px 0 0"><i class="fa-solid fa-circle-info"></i> Tardiness = time-ins with minutes late &gt; 0. Absence = scheduled work days (per each employee's work-schedule effectivity, excluding holidays) with no attendance and no ALAS leave or OB on file &mdash; a day covered by any ALAS/OB filing that isn't disapproved or cancelled is never counted absent. Counted only for employees who were employed during the period (not resigned before it) and worked at least once in the window.</p>
           <?php else: ?>
-            <div class="dash-empty"><i class="fa-solid fa-chart-simple"></i>No attendance in this window. Pick a wider date range above.</div>
+            <div class="dash-empty"><i class="fa-solid fa-chart-simple"></i>No attendance for employees in this period. Adjust the period at the top of the dashboard.</div>
           <?php endif; ?>
         </div>
       </section>
@@ -682,7 +718,7 @@ try {
               <div class="dash-att__cell"><div class="dash-att__n" style="color:var(--text-2)"><?php echo (int)$totalOnFile; ?></div><div class="dash-att__l">On file</div></div>
               <div class="dash-att__cell"><div class="dash-att__n" style="color:var(--text-3)"><?php echo (int)$inactiveCount; ?></div><div class="dash-att__l">Resigned/Inactive</div></div>
               <?php endif; ?>
-              <div class="dash-att__cell"><div class="dash-att__n n-out"><?php echo (int)$recentResigned; ?></div><div class="dash-att__l">Left (90d)</div></div>
+              <div class="dash-att__cell"><div class="dash-att__n n-out"><?php echo (int)$recentResigned; ?></div><div class="dash-att__l">Left (YTD)</div></div>
             </div>
 
             <?php if ($deptDist): $maxD = max($deptDist); ?>
@@ -773,5 +809,36 @@ try {
       </div><!-- /.dash-grid -->
 
     <?php include 'includes/wd-footer.php'; ?>
+
+    <!-- department drill-down: who was late / absent, and on which dates -->
+    <div class="modal" id="dpatDrill" tabindex="-1" role="dialog">
+      <div class="modal-dialog modal-lg" role="document">
+        <div class="modal-content">
+          <div class="modal-header dd-modalhead">
+            <button type="button" class="close" data-dismiss="modal" aria-label="Close">&times;</button>
+            <h4 class="modal-title"><i class="fa-solid fa-magnifying-glass-chart"></i> <span id="ddTitle">Department detail</span></h4>
+          </div>
+          <div class="modal-body" id="ddBody"></div>
+        </div>
+      </div>
+    </div>
+    <script>
+      (function(){
+        var tbl = document.querySelector('table.dpat');
+        if (!tbl || !window.jQuery) return;
+        var pf = tbl.getAttribute('data-pf'), pt = tbl.getAttribute('data-pt');
+        tbl.querySelectorAll('tbody tr').forEach(function(tr){
+          tr.addEventListener('click', function(){
+            var dept = tr.getAttribute('data-dept'); if (!dept) return;
+            document.getElementById('ddTitle').textContent = dept;
+            document.getElementById('ddBody').innerHTML = '<div class="dd-loading"><i class="fa-solid fa-spinner fa-spin"></i> Loading&hellip;</div>';
+            jQuery('#dpatDrill').modal('show');
+            jQuery.get('query/dashboard-drilldown.php', { dept: dept, pf: pf, pt: pt })
+              .done(function(html){ document.getElementById('ddBody').innerHTML = html; })
+              .fail(function(){ document.getElementById('ddBody').innerHTML = '<div class="dd-none">Could not load details. Please try again.</div>'; });
+          });
+        });
+      })();
+    </script>
   </body>
 </html>
