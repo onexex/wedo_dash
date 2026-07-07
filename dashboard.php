@@ -433,9 +433,12 @@ try {
          (team = direct reports). Hidden for self scope. */
       $showDept = ($scope !== 'self');
       $scopeAnd = ($scope==='team') ? " AND d.EmpISID = :uid" : "";
-      // YTD panels show CURRENT workforce only: exclude anyone who has resigned and
-      // exclude OJTs (empdetails.EmpStatID = 4 — see includes/loginabsencegate.php).
-      $resignAnd = " AND (d.EmpDateResigned IS NULL OR d.EmpDateResigned='' OR d.EmpDateResigned='0000-00-00') AND d.EmpStatID <> 4";
+      // YTD panels show CURRENT workforce only: not resigned and not OJT. "Not
+      // resigned" is the active flag e.EmpStatusID=1 (1=active, 2=resigned) — NOT
+      // the resignation DATE, which the local seed leaves populated on active staff
+      // (21/22 actives have one), so a date test would hide almost everyone. OJT is
+      // empdetails.EmpStatID=4 ("On-the Job Training", see includes/loginabsencegate.php).
+      $resignAnd = " AND e.EmpStatusID = 1 AND d.EmpStatID <> 4";
       $deptPat = [];
       $patT = ['logs'=>0,'late'=>0,'expected'=>0,'absences'=>0];
       if ($showDept) {

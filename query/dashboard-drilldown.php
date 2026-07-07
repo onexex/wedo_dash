@@ -47,8 +47,9 @@ if (strtotime($pt) - strtotime($pf) > 366 * 86400) { $pf = date('Y-m-d', strtoti
 if ($dept === '') { echo '<div class="dd-none">No department specified.</div>'; exit; }
 
 $scopeAnd  = ($scope === 'team') ? " AND d.EmpISID = :uid" : "";
-// Match dashboard.php: current workforce only — exclude resigned and OJTs (EmpStatID 4).
-$resignAnd = " AND (d.EmpDateResigned IS NULL OR d.EmpDateResigned='' OR d.EmpDateResigned='0000-00-00') AND d.EmpStatID <> 4";
+// Match dashboard.php: current workforce only — not resigned (active flag
+// e.EmpStatusID=1, not the resignation date) and not OJT (EmpStatID 4).
+$resignAnd = " AND e.EmpStatusID = 1 AND d.EmpStatID <> 4";
 
 /* ---- late time-ins: one row per tardy clock-in ---- */
 $tard = [];
