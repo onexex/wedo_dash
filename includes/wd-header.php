@@ -74,6 +74,7 @@ function wd_can($ar, $k) { return isset($ar[$k]) && $ar[$k] == 2; }
     <div class="wd-brand"><img src="assets/images/logos/wedo-logo.png" alt="WeDo BPO Inc." style="height:46px;width:auto"></div>
     <div class="wd-brand__tag"><?php echo htmlspecialchars($_SESSION['CompanyName'] ?: 'WeDo BPO'); ?></div>
 
+    <?php if(wd_can($ar,'dashboard')): ?><a class="wd-nav<?php echo wd_on('dashboard',$wd_active); ?>" href="dashboard"><i class="fa-solid fa-chart-pie"></i> Dashboard</a><?php endif; ?>
     <a class="wd-nav<?php echo wd_on('index',$wd_active); ?>" href="index"><i class="fa-solid fa-gauge"></i> Home</a>
 
     <?php

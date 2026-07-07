@@ -115,6 +115,7 @@ ar_row('fa-square-plus', 'OT Filing System Maintenance',  'otfs',               
 
 /* ---- Others ---- */
 ar_group('Others');
+ar_row('fa-chart-pie',    'Dashboard',         'dashboard', $row);
 ar_row('fa-user',         'Search Employee',   'srch',    $row);
 ar_row('fa-pen-to-square','Update 201 Files',  'updte',   $row);
 ar_row('fa-bullhorn',     "GM'S Corner",       'gcorner', $row);
