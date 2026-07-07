@@ -262,8 +262,8 @@ try {
       // accounted-for sets on $attnDate (same statuses as the absence panel)
       $presentIds = $leaveIds = $obIds = [];
       try { $presentIds = array_flip($q("SELECT DISTINCT EmpID FROM attendancelog WHERE WSFrom=:ad", [':ad'=>$attnDate])->fetchAll(PDO::FETCH_COLUMN)); } catch (Exception $e) {}
-      try { $leaveIds   = array_flip($q("SELECT DISTINCT EmpID FROM hleavesbd WHERE :ad BETWEEN LStart AND LEnd AND LStatus IN (1,2,4,8,9)", [':ad'=>$attnDate])->fetchAll(PDO::FETCH_COLUMN)); } catch (Exception $e) {}
-      try { $obIds      = array_flip($q("SELECT DISTINCT EmpID FROM obshbd WHERE :ad BETWEEN OBDateFrom AND OBDateTo AND OBStatus IN (1,2,4)", [':ad'=>$attnDate])->fetchAll(PDO::FETCH_COLUMN)); } catch (Exception $e) {}
+      try { $leaveIds   = array_flip($q("SELECT DISTINCT EmpID FROM hleavesbd WHERE :ad BETWEEN LStart AND LEnd AND LStatus NOT IN (3,5,6,7)", [':ad'=>$attnDate])->fetchAll(PDO::FETCH_COLUMN)); } catch (Exception $e) {}
+      try { $obIds      = array_flip($q("SELECT DISTINCT EmpID FROM obshbd WHERE :ad BETWEEN OBDateFrom AND OBDateTo AND OBStatus NOT IN (3,5,6,7)", [':ad'=>$attnDate])->fetchAll(PDO::FETCH_COLUMN)); } catch (Exception $e) {}
 
       // partition ONLY the scheduled employees
       $presentCount = $leaveCount = $obCount = 0; $notInIds = [];
@@ -425,10 +425,12 @@ try {
                   $patT['logs'] += (int)$r['logs']; $patT['late'] += (int)$r['late'];
               }
           } catch (Exception $e) {}
-          // absenteeism: scheduled work days with no attendance / approved-or-pending
-          // leave / OB, among employees who worked in the window. Set-based mirror of
-          // includes/loginabsencegate.php — "scheduled" honors each employee's
-          // work-schedule effectivity period (workdays + workschedule + schedeffectivity,
+          // absenteeism: scheduled work days with NO attendance and NO ALAS leave / OB
+          // on file, among employees who worked in the window. A day covered by any
+          // ALAS (hleavesbd) or OB (obshbd) filing that isn't disapproved/cancelled
+          // (status NOT IN 3,5,6,7) is excused and never counted absent. Set-based
+          // mirror of includes/loginabsencegate.php — "scheduled" honors each employee's
+          // work-schedule effectivity (workdays + workschedule + schedeffectivity,
           // non-rest, date within se.dfrom..se.dto) and excludes company holidays.
           try {
               $st = $wdpdo->prepare(
@@ -451,8 +453,8 @@ try {
                    LEFT JOIN departments dp ON p.DepartmentID = dp.DepartmentID
                    LEFT JOIN holidays h ON h.Hdate = dts.dt AND h.HCompID = d.EmpCompID
                    LEFT JOIN attendancelog a ON a.EmpID = e.EmpID AND a.WSFrom = dts.dt
-                   LEFT JOIN hleavesbd lv ON lv.EmpID = e.EmpID AND dts.dt BETWEEN lv.LStart AND lv.LEnd AND lv.LStatus IN (1,2,4,8,9)
-                   LEFT JOIN obshbd ob ON ob.EmpID = e.EmpID AND dts.dt BETWEEN ob.OBDateFrom AND ob.OBDateTo AND ob.OBStatus IN (1,2,4)
+                   LEFT JOIN hleavesbd lv ON lv.EmpID = e.EmpID AND dts.dt BETWEEN lv.LStart AND lv.LEnd AND lv.LStatus NOT IN (3,5,6,7)
+                   LEFT JOIN obshbd ob ON ob.EmpID = e.EmpID AND dts.dt BETWEEN ob.OBDateFrom AND ob.OBDateTo AND ob.OBStatus NOT IN (3,5,6,7)
                    WHERE 1=1$scopeAnd
                    GROUP BY dept");
               $pr = [':pf1'=>$patFrom, ':pt1'=>$patTo, ':pf2'=>$patFrom, ':pt2'=>$patTo];
@@ -564,7 +566,7 @@ try {
                 </tbody>
               </table>
             </div>
-            <p class="dash-cardnote" style="margin:12px 0 0"><i class="fa-solid fa-circle-info"></i> Tardiness = time-ins with minutes late &gt; 0. Absence = scheduled work days (per each employee's work-schedule effectivity, excluding holidays) with no attendance, leave, or OB &mdash; counted only for employees who worked at least once in the window.</p>
+            <p class="dash-cardnote" style="margin:12px 0 0"><i class="fa-solid fa-circle-info"></i> Tardiness = time-ins with minutes late &gt; 0. Absence = scheduled work days (per each employee's work-schedule effectivity, excluding holidays) with no attendance and no ALAS leave or OB on file &mdash; a day covered by any ALAS/OB filing that isn't disapproved or cancelled is never counted absent. Counted only for employees who worked at least once in the window.</p>
           <?php else: ?>
             <div class="dash-empty"><i class="fa-solid fa-chart-simple"></i>No attendance in this window. Pick a wider date range above.</div>
           <?php endif; ?>
