@@ -2,7 +2,21 @@
     if (session_status() === PHP_SESSION_NONE) { session_start(); }
     if (isset($_SESSION['id']) && $_SESSION['id']!="0"){}
     else{ header ('location: login'); }
-     
+
+    /* status text -> themed pill (must match notifications.php; page-scoped CSS
+       for .wd-pill/.notif-* persists in <head>, only #addob innerHTML is swapped) */
+    if (!function_exists('wd_status_pill')) {
+        function wd_status_pill($desc) {
+            $d = strtolower((string) $desc);
+            if (strpos($d, 'disapprove') !== false || strpos($d, 'reject') !== false || strpos($d, 'cancel') !== false
+             || strpos($d, 'deny') !== false || strpos($d, 'decline') !== false)   { $c = 'danger'; }
+            elseif (strpos($d, 'pending') !== false)                               { $c = 'warn'; }
+            elseif (strpos($d, 'approve') !== false || strpos($d, 'released') !== false) { $c = 'ok'; }
+            else                                                                   { $c = 'info'; }
+            return '<span class="wd-pill wd-pill--' . $c . '">' . htmlspecialchars($desc) . '</span>';
+        }
+    }
+
     try{
         try{
           include 'w_conn.php';
@@ -206,24 +220,23 @@
                    
                     ?>
                      <tr>
-                    <td><?php  echo $row['ntype']; ?></td>
-                    <td><?php  echo $row['dtfromto']; ?></td>
+                    <td class="notif-type"><?php echo $row['ntype']; ?></td>
+                    <td class="notif-details"><?php echo $row['dtfromto']; ?></td>
                     <td><?php echo date("F d, Y h:i:s A", strtotime($row['dtp']));   ?></td>
-                    <td><?php  echo $row['stat']; ?></td>
-                    <td><button class="btn btn-warning" data-toggle="modal" data-target="#myModal<?php echo  $row['id']; ?>"><i class="fa fa-eye" aria-hidden="true"></i></button>
+                    <td><?php echo wd_status_pill($row['stat']); ?></td>
+                    <td><button class="wd-iconbtn btn-warning" data-toggle="modal" data-target="#myModal<?php echo  $row['id']; ?>" title="View details"><i class="fa-solid fa-eye" aria-hidden="true"></i></button>
                         </td>
                         
 
             
                         <!-- Modal -->
-                  <div class="modal fade" id="myModal<?php echo  $row['id']; ?>" role="dialog">
+                  <div class="modal fade notif-modal" id="myModal<?php echo  $row['id']; ?>" role="dialog">
                     <div class="modal-dialog">
-                    
+
                       <!-- Modal content-->
                       <div class="modal-content" >
-                        <div class="modal-header"  style="<?php echo "background-color: " . $_SESSION['CompanyColor']; ?>;padding: 7px;">
-                          <button type="button" class="close" style="color: #fff;" data-dismiss="modal">&times;</button>
-   
+                        <div class="modal-header">
+                          <button type="button" class="close" data-dismiss="modal">&times;</button>
                         </div>
                         <div class="modal-body">
                           <h4><?php  echo $row['ntype']; ?></h4>
@@ -248,8 +261,8 @@
                           ?>
                           <br>
                           <div class="form-group rsn rsn<?php echo  $row['id']; ?>">
-                            <label>Reason :</label>
-                            <textarea name="rs<?php echo  $row['id']; ?>" id="rs<?php echo  $row['id']; ?>" class="form-control"></textarea>
+                            <label style="font-weight:600;color:var(--text-2)">Reason :</label>
+                            <textarea name="rs<?php echo  $row['id']; ?>" id="rs<?php echo  $row['id']; ?>" class="wd-textarea"></textarea>
                           </div>
                         </div>
                         <div class="modal-footer">
@@ -264,10 +277,10 @@
                                  }else{
                                      
                             ?>
-                                <button type="button" class="btn btn-danger" id="<?php echo  $row['id']; ?>">Approve</button>
-                                <button type="button" class="btn btn-info" id="<?php echo  $row['id']; ?>">DisApprove</button> 
+                                <button type="button" class="wd-btn wd-btn--success btn-danger" id="<?php echo  $row['id']; ?>"><i class="fa-solid fa-check"></i> Approve</button>
+                                <button type="button" class="wd-btn wd-btn--danger btn-info" id="<?php echo  $row['id']; ?>"><i class="fa-solid fa-xmark"></i> DisApprove</button>
                                     <br>
-                                <label style="display:block;"><?php  echo $row['stat']; ?></label>
+                                <label style="display:block;margin-top:10px"><?php echo wd_status_pill($row['stat']); ?></label>
                             <?php
                                 }
                                  }
@@ -275,10 +288,10 @@
                               <?php
                           }else{
                               ?>
-                                 <button type="button" class="btn btn-danger" id="<?php echo  $row['id']; ?>">Approve</button>
-                                        <button type="button" class="btn btn-info" id="<?php echo  $row['id']; ?>">DisApprove</button> 
+                                 <button type="button" class="wd-btn wd-btn--success btn-danger" id="<?php echo  $row['id']; ?>"><i class="fa-solid fa-check"></i> Approve</button>
+                                        <button type="button" class="wd-btn wd-btn--danger btn-info" id="<?php echo  $row['id']; ?>"><i class="fa-solid fa-xmark"></i> DisApprove</button>
                                             <br>
-                                        <label style="display:block;"><?php  echo $row['stat']; ?></label>
+                                        <label style="display:block;margin-top:10px"><?php echo wd_status_pill($row['stat']); ?></label>
                               <?php
                           }
                                 

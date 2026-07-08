@@ -14,6 +14,22 @@
 		   {
 		die("ERROR: Could not connect. " . $e->getMessage());
 		   }
+
+/* Map a status description to a themed pill colour (mirrors SendToOB.php et al.). */
+if (!function_exists('wd_status_pill')) {
+    function wd_status_pill($desc) {
+        $d = strtolower((string) $desc);
+        if (strpos($d, 'approve') !== false)                                     { $c = 'ok'; }
+        elseif (strpos($d, 'reject') !== false || strpos($d, 'cancel') !== false
+             || strpos($d, 'disapprove') !== false || strpos($d, 'deny') !== false
+             || strpos($d, 'decline') !== false)                                 { $c = 'danger'; }
+        elseif (strpos($d, 'pending') !== false || strpos($d, 'file') !== false
+             || strpos($d, 'process') !== false || strpos($d, 'review') !== false){ $c = 'warn'; }
+        else                                                                     { $c = 'info'; }
+        return '<span class="wd-pill wd-pill--' . $c . '">' . htmlspecialchars($desc) . '</span>';
+    }
+}
+
 //alas
 $id=$_SESSION['id'];
 if (isset($_GET['alash']))
@@ -26,8 +42,10 @@ if (isset($_GET['alash']))
 								    -- INNER JOIN hleaves on a.FID=hleaves.LeaveID
                                   INNER JOIN status as b on a.LStatus=b.StatusID 
                                   -- INNER JOIN leaves_validation c ON c.sid=a.LType 
-                                  INNER JOIN leaves as d on a.LType=d.LeaveID where a.EmpID=:id and a.LStart BETWEEN '" . $_GET['dfrom'] . "' AND '" . $_GET['dto'] ."' and a.LStatus<>7 order by a.LStart desc ");
+                                  INNER JOIN leaves as d on a.LType=d.LeaveID where a.EmpID=:id and a.LStart BETWEEN :dfrom AND :dto and a.LStatus<>7 order by a.LStart desc ");
 								  $statement->bindParam(':id' , $id);
+								  $statement->bindValue(':dfrom', isset($_GET['dfrom']) ? $_GET['dfrom'] : '');
+								  $statement->bindValue(':dto', isset($_GET['dto']) ? $_GET['dto'] : '');
 								  $statement->execute();
 								while ($row21 = $statement->fetch())
 								{
@@ -93,9 +111,12 @@ if (isset($_GET['obh']))
 	         <tbody id="tbob">
             <?php
                   $statement = $pdo->prepare("SELECT * from obs as a INNER JOIN status as b on a.OBStatus=b.StatusID  
-                                  where a.EmpID=:id and a.OBStatus<>7 and  (a.OBDateFrom BETWEEN '" . $_GET['dfrom'] . "' AND '" . $_GET['dto'] ."' or a.OBDateTo BETWEEN '" . $_GET['dfrom'] . "' AND '" . $_GET['dto'] ."') order by a.OBInputDate desc");
+                                  where a.EmpID=:id and a.OBStatus<>7 and  (a.OBDateFrom BETWEEN :dfrom1 AND :dto1 or a.OBDateTo BETWEEN :dfrom2 AND :dto2) order by a.OBInputDate desc");
 
                   $statement->bindParam(':id' , $id);
+                  $df = isset($_GET['dfrom']) ? $_GET['dfrom'] : ''; $dt = isset($_GET['dto']) ? $_GET['dto'] : '';
+                  $statement->bindValue(':dfrom1', $df); $statement->bindValue(':dto1', $dt);
+                  $statement->bindValue(':dfrom2', $df); $statement->bindValue(':dto2', $dt);
                   $statement->execute();
                 while ($row21 = $statement->fetch())
                 {
@@ -237,8 +258,10 @@ if (isset($_GET['eoh']))
 	        <tbody id="tbeodata">
                   <?php   
                   $id=$_SESSION['id'];
-                  $statement = $pdo->prepare("SELECT * from earlyout as a INNER JOIN status as b on a.status=b.StatusID  where a.EmpID=:id and a.status<>7 and a.DFile BETWEEN '" . $_GET['dfrom'] . "' AND '" . $_GET['dto'] ."' order by a.DateTimeInputed desc");
+                  $statement = $pdo->prepare("SELECT * from earlyout as a INNER JOIN status as b on a.status=b.StatusID  where a.EmpID=:id and a.status<>7 and a.DFile BETWEEN :dfrom AND :dto order by a.DateTimeInputed desc");
                   $statement->bindParam(':id' , $id);
+                  $statement->bindValue(':dfrom', isset($_GET['dfrom']) ? $_GET['dfrom'] : '');
+                  $statement->bindValue(':dto', isset($_GET['dto']) ? $_GET['dto'] : '');
                   $statement->execute();
                 while ($row21 = $statement->fetch())
                 {
@@ -318,16 +341,16 @@ if (isset($_GET['sob']))
                 {
                   ?>
                    <tr>
-                   <td><?php echo date("F j, Y", strtotime($row21['OBFD'])); ?></td>  
-                   <td><?php echo $row21['EmpLN']; ?></td>
+                   <td><?php echo date("F j, Y", strtotime($row21['OBFD'])); ?></td>
+                   <td><?php echo htmlspecialchars($row21['EmpLN']); ?></td>
                    <td><?php echo date("F j, Y", strtotime( $row21['OBDateFrom'])); ?></td>
                    <td><?php echo date("F j, Y", strtotime( $row21['OBDateTo'])); ?></td>
-                   <td><?php echo $row21['OBITo']; ?></td>
-                   <td><?php echo $row21['OBPurpose']; ?></td>
-                   <td><?php echo $row21['OBCAAmt']; ?></td>
-                   <td><?php echo $row21['StatusDesc']; ?></td>
-                
-                  </tr> 
+                   <td><?php echo htmlspecialchars($row21['OBITo']); ?></td>
+                   <td><?php echo htmlspecialchars($row21['OBPurpose']); ?></td>
+                   <td><?php echo htmlspecialchars($row21['OBCAAmt']); ?></td>
+                   <td><?php echo wd_status_pill($row21['StatusDesc']); ?></td>
+
+                  </tr>
               <?php 
               }
 

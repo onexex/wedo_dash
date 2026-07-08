@@ -1,36 +1,28 @@
 <?php if (session_status() === PHP_SESSION_NONE) { session_start(); }
   if (isset($_SESSION['id']) && $_SESSION['id']!="0"){}
-  else{ header ('location: login.php'); }
+  else{ header ('location: login.php'); exit; }
+
+// Only a Super User may (re)upload a company logo — company management is admin.
+if (($_SESSION['UserType'] ?? null) != 1) { http_response_code(403); echo "0"; exit; }
 ?>
 <?php
-$filename = $_FILES['file']['name'];
-$ext = pathinfo($filename, PATHINFO_EXTENSION);
+// Company id used in the stored filename — hard-sanitize to prevent path traversal
+// (was "assets/images/logos/".$_GET['q'].".ext" with q unsanitized → ../ escape).
+$id = isset($_GET['q']) ? $_GET['q'] : '';
+$id = preg_replace('/[^A-Za-z0-9._-]/', '', basename($id));
 
- if(isset($_GET['q']))
-  	{
-   $id=$_GET['q'];
-   }
+$ext = strtolower(pathinfo($_FILES['file']['name'] ?? '', PATHINFO_EXTENSION));
+$valid_extensions = array("jpg", "jpeg", "png");
 
-/* Location */
-$location = "assets/images/logos/". $id . "." . $ext;
-$uploadOk = 1;
-$imageFileType = pathinfo($location,PATHINFO_EXTENSION);
+// reject bad id / non-image extension / non-image content
+if ($id === '' || !in_array($ext, $valid_extensions, true)) { echo 0; exit; }
+if (empty($_FILES['file']['tmp_name']) || !@getimagesize($_FILES['file']['tmp_name'])) { echo 0; exit; }
 
-/* Valid extensions */
-$valid_extensions = array("jpg","jpeg","png");
-/* Check file extension */
-if(!in_array(strtolower($imageFileType), $valid_extensions)) {
-   $uploadOk = 0;
+$location = "assets/images/logos/" . $id . "." . $ext;
+
+if (move_uploaded_file($_FILES['file']['tmp_name'], $location)) {
+    echo $location;
+} else {
+    echo 0;
 }
-
-if($uploadOk == 0){
-   echo 0;
-}else{
-   /* Upload file */
-   move_uploaded_file($_FILES['file']['tmp_name'],$location);
-     echo $location;
-  
-  
-   }
-
 ?>

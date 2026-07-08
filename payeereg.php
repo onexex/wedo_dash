@@ -1,116 +1,112 @@
-<?php if (session_status() === PHP_SESSION_NONE) { session_start(); }
-if (isset($_SESSION['id']) && $_SESSION['id']!="0"){}
-  else{ header ('location: login.php'); }
-?>
 <?php
+    if (session_status() === PHP_SESSION_NONE) { session_start(); }
+    if (!isset($_SESSION['id']) || $_SESSION['id'] == "0") { header('location: login.php'); exit; }
     include 'w_conn.php';
-      date_default_timezone_set("Asia/Manila"); 
+    date_default_timezone_set("Asia/Manila");
 ?>
-
 <!DOCTYPE html>
-<html>
+<html lang="en">
 <head>
-  
-     <title><?php  if ($_SESSION['CompanyName']==""){ echo "Dashboard"; } else{ echo "Payee Registry"; } ?></title> 
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
-	  <link rel="stylesheet" href="https://stackpath.bootstrapcdn.com/bootstrap/4.3.1/css/bootstrap.min.css" integrity="sha384-ggOyR0iXCbMQv3Xipma34MD+dH/1fQ784/j6cY/iJTQUOhcWr7x9JvoRxT2MZw1T" crossorigin="anonymous">
-	  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/4.7.0/css/font-awesome.min.css">
-	  <script src="https://cdnjs.cloudflare.com/ajax/libs/popper.js/1.14.7/umd/popper.min.js" integrity="sha384-UO2eT0CpHqdSJQ6hJty5KVphtPhzWj9WO1clHTMGa3JDZwrnQq4sF86dIHNDz0W1" crossorigin="anonymous"></script> 
-	  <script src="https://ajax.googleapis.com/ajax/libs/jquery/3.4.0/jquery.min.js"></script>
-	  <script src="https://stackpath.bootstrapcdn.com/bootstrap/4.3.1/js/bootstrap.min.js" integrity="sha384-JjSmVgyd0p3pXB1rRibZUAYoIIy6OrQ6VrjIEaFf/nJGzIxFDsf4x0xIM+B07jRM" crossorigin="anonymous"></script>
-	  <link rel="stylesheet" href="https://maxcdn.bootstrapcdn.com/bootstrap/3.3.7/css/bootstrap.min.css">
-	  <script type="text/javascript" src="assets/js/script.js"></script>
-	  <script src="assets/js/script-reports.js"></script>
-	  <script type="text/javascript" src="assets/js/script-modules.js"></script>
-	  <link rel="stylesheet" type="text/css" href="assets/css/style.css">
-  <link rel="stylesheet" type="text/css" href="assets/css/responsive.css">
+    <title><?php echo ($_SESSION['CompanyName'] == "") ? "Dashboard" : "Payee Registry"; ?></title>
+    <link rel="icon" href="assets/images/logos/WeDo.png" type="image/x-icon">
+
+    <!-- Functional libs (Bootstrap modals + jQuery + FontAwesome 6) -->
+    <script src="https://ajax.googleapis.com/ajax/libs/jquery/3.4.0/jquery.min.js"></script>
+    <link rel="stylesheet" href="https://maxcdn.bootstrapcdn.com/bootstrap/3.3.7/css/bootstrap.min.css">
+    <script src="https://maxcdn.bootstrapcdn.com/bootstrap/3.3.7/js/bootstrap.min.js"></script>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
+
+    <!-- WeDo design system (loaded AFTER bootstrap so it wins) -->
+    <link rel="stylesheet" href="assets/css/wedo-theme.css">
+
+    <script type="text/javascript" src="assets/js/script.js"></script>
     <script type="text/javascript" src="assets/js/payeeregistry.js"></script>
 
-<style>
+    <style type="text/css">
+        /* add-payee form: three fields on one line, wraps on narrow screens */
+        .pr-addgrid { display: grid; grid-template-columns: 1fr 1fr auto; gap: 14px; align-items: end; }
+        @media (max-width: 640px) { .pr-addgrid { grid-template-columns: 1fr; } }
+        .pr-addgrid .wd-field { margin: 0; }
 
-    .formlabel{
-        color:red !important;
-        display:none;
-    }
-    .overlay{
-        display: none;
-        position: fixed;
-        width: 100%;
-        height: 100%;
-        top: 0;
-        left: 0;
-        z-index: 999;
-        background: rgba(255,255,255,0.8) url("assets/images/01.gif") center no-repeat;
-    }
-    
-    /* Turn off scrollbar when body element has the loading class */
-    body.loading{
-        overflow: hidden;   
-    }
-    /* Make spinner image visible when body element has the loading class */
-    body.loading .overlay{
-        display: block;
-    }
-</style>
+        /* flash alert lives just under the form */
+        #result { margin: 14px 0 0; }
+        #result .close { float: right; font-size: 20px; line-height: 1; opacity: .6; cursor: pointer; }
+        #result .close:hover { opacity: 1; }
+
+        /* filter box in the list card head */
+        .pr-filter { display: flex; align-items: center; gap: 8px; }
+        .pr-filter .wd-input { width: 220px; max-width: 46vw; padding: 8px 11px; }
+
+        /* delete button injected per row by payeeregistry.js */
+        #tblpayeereg .wd-iconbtn { color: var(--danger-text); border-color: var(--border); }
+        #tblpayeereg .wd-iconbtn:hover { background: var(--danger-bg); border-color: var(--danger-text); }
+
+        .pr-empty td { text-align: center; color: var(--text-3); padding: 22px; }
+    </style>
 </head>
 <body>
-<?php  include 'includes/header.php'; ?>
-<div class="w-container">
-        <div class="row">
-            <div class="col-lg-3"></div>
-            <div class="col-lg-9 module-content">
-       			 <h4 >Payee Registry</h4>
-                    <br>
-                    <div class="row">
-                        <div class="col-lg-12">                          
-                            <div class="row">
-                                
-                                 <div class="col-lg-4" style="padding-top:10px">
-                                        <label for="">Enter Payee:</label>
-                                        <input id="payee" type="text" class="form-control" placeholder="Enter Payee">
-                                    </div>
-                                    <div class="col-lg-4" style="padding-top:10px">
-                                        <label for=""> Enter Account number:</label>
-                                        <input  id="can" type="text" class="form-control" placeholder="Account Number">
-                                    </div>
-                                    <div class="col-lg-4" style="padding-top:10px">
-                                        <br>
-                                        <button id="store" class="btn btn-primary"> <i class="fa fa-plus"></i></button>
-                                    </div>
+    <?php
+        $wd_active = 'payeereg';
+        include 'includes/wd-header.php';
+    ?>
 
-                                    <div class="col-lg-9" style="padding-top:10px">
-                                        <br>
-                                        <div  id="result" class="alert alert-success" style="display:none"></div>
-                                    </div>
-                                    
-                            </div>
-                           
-                            <div class="row">
-                                <div class="col-lg-9" style="padding-top:20px">
-                                    <table class="table">
-                                        <thead>
-                                            <tr>
-                                           
-                                            <th scope="col">Payee</th>
-                                            <th scope="col">CAN</th>
-                                            <th scope="col">Action</th>
-                                            </tr>
-                                        </thead>
-                                        <tbody id="tblpayeereg">
-                                           
-                                           
-                                        </tbody>
-                                    </table> 
-                                </div>                           
-                            </div>
-                        </div>
-                    </div>
+    <div class="wd-pagehead">
+        <div>
+            <h1>Payee Management System</h1>
+            <p>Register payees and their customer account numbers (CAN) for disbursements.</p>
+        </div>
+    </div>
 
-                    <!-- closing tag above div -->
+    <!-- Add payee -->
+    <section class="wd-card">
+        <div class="wd-card__head">
+            <h3>Add a payee</h3>
+        </div>
+        <div style="padding:18px 20px">
+            <div class="pr-addgrid">
+                <div class="wd-field">
+                    <label for="payee">Payee <a style="color:var(--brand)">*</a></label>
+                    <input id="payee" type="text" class="wd-input" placeholder="Payee name" autocomplete="off">
+                </div>
+                <div class="wd-field">
+                    <label for="can">Customer Account Number <a style="color:var(--brand)">*</a></label>
+                    <input id="can" type="text" class="wd-input" placeholder="Account number" autocomplete="off">
+                </div>
+                <div class="wd-field">
+                    <button id="store" type="button" class="wd-btn wd-btn--primary"><i class="fa-solid fa-plus"></i> Add payee</button>
+                </div>
+            </div>
+            <div id="result" class="alert alert-success" style="display:none"></div>
+        </div>
+    </section>
+
+    <!-- Registered payees -->
+    <section class="wd-card">
+        <div class="wd-card__head">
+            <h3>Registered payees <span class="wd-pill wd-pill--info" style="margin-left:6px"><span id="payeecount">0</span></span></h3>
+            <div class="pr-filter">
+                <i class="fa-solid fa-magnifying-glass" style="color:var(--text-3)"></i>
+                <input id="payeefilter" type="text" class="wd-input" placeholder="Filter payees&hellip;" autocomplete="off">
             </div>
         </div>
-</div>
+        <div class="wd-tablewrap">
+            <table class="wd-table">
+                <thead>
+                    <tr>
+                        <th scope="col">Payee</th>
+                        <th scope="col">CAN</th>
+                        <th scope="col" style="text-align:right">Action</th>
+                    </tr>
+                </thead>
+                <tbody id="tblpayeereg">
+                    <tr class="pr-empty"><td colspan="3">Loading payees&hellip;</td></tr>
+                </tbody>
+            </table>
+        </div>
+    </section>
 
+    <?php include 'includes/wd-footer.php'; ?>
 </body>
 </html>

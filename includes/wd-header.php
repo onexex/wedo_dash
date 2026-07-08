@@ -74,6 +74,7 @@ function wd_can($ar, $k) { return isset($ar[$k]) && $ar[$k] == 2; }
     <div class="wd-brand"><img src="assets/images/logos/wedo-logo.png" alt="WeDo BPO Inc." style="height:46px;width:auto"></div>
     <div class="wd-brand__tag"><?php echo htmlspecialchars($_SESSION['CompanyName'] ?: 'WeDo BPO'); ?></div>
 
+    <?php if(wd_can($ar,'dashboard')): ?><a class="wd-nav<?php echo wd_on('dashboard',$wd_active); ?>" href="dashboard"><i class="fa-solid fa-chart-pie"></i> Dashboard</a><?php endif; ?>
     <a class="wd-nav<?php echo wd_on('index',$wd_active); ?>" href="index"><i class="fa-solid fa-gauge"></i> Home</a>
 
     <?php
@@ -82,7 +83,10 @@ function wd_can($ar, $k) { return isset($ar[$k]) && $ar[$k] == 2; }
                        ||wd_can($ar,'eov')||wd_can($ar,'coe')||wd_can($ar,'payslipt')||wd_can($ar,'obv')||wd_can($ar,'atv')
                        ||wd_can($ar,'fdetls')||wd_can($ar,'lcreaditview');
       $wd_show_mgmt = wd_can($ar,'arights')||wd_can($ar,'ams')||wd_can($ar,'payeereg')||wd_can($ar,'bookletreg')||wd_can($ar,'eemployee')
-                    ||wd_can($ar,'e201d')||wd_can($ar,'EF')||wd_can($ar,'schedv')||wd_can($ar,'agncy')||wd_can($ar,'comp')||wd_can($ar,'dep')
+                    ||wd_can($ar,'e201d')||wd_can($ar,'EF')||wd_can($ar,'schedv');
+      /* Maintenance is now its own top-level section (leveled with Management),
+         no longer nested inside Management. */
+      $wd_show_maint = wd_can($ar,'agncy')||wd_can($ar,'comp')||wd_can($ar,'dep')
                     ||wd_can($ar,'pos')||wd_can($ar,'jl')||wd_can($ar,'hmo')||wd_can($ar,'est')||wd_can($ar,'rel')||wd_can($ar,'classf')
                     ||wd_can($ar,'wt')||wd_can($ar,'tlv')||wd_can($ar,'lval')||wd_can($ar,'ur')||wd_can($ar,'otfs')||wd_can($ar,'hldy')
                     ||wd_can($ar,'gprdv')||wd_can($ar,'obval')||wd_can($ar,'eoval')||wd_can($ar,'SPPContrib');
@@ -137,35 +141,37 @@ function wd_can($ar, $k) { return isset($ar[$k]) && $ar[$k] == 2; }
         <?php if(wd_can($ar,'eemployee')): ?><a class="wd-nav<?php echo wd_on('newemployee',$wd_active); ?>" href="newemployee"><i class="fa-solid fa-user-plus"></i> Enroll Employee</a><?php endif; ?>
         <?php if(wd_can($ar,'payeereg')): ?><a class="wd-nav<?php echo wd_on('payeereg',$wd_active); ?>" href="payeereg"><i class="fa-solid fa-box-archive"></i> Payee Management System</a><?php endif; ?>
         <?php if(wd_can($ar,'schedv')): ?><a class="wd-nav<?php echo wd_on('schedviewer',$wd_active); ?>" href="schedviewer"><i class="fa-solid fa-chart-column"></i> Schedule Viewer</a><?php endif; ?>
+      </div>
+    </div>
+    <?php endif; ?>
 
-        <div class="wd-navsection wd-navsub is-collapsed">
-          <button class="wd-navgroup" type="button" onclick="this.closest('.wd-navsection').classList.toggle('is-collapsed')"><i class="fa-solid fa-wrench" style="font-size:11px"></i> Maintenance <i class="fa-solid fa-chevron-down"></i></button>
-          <div class="wd-navitems">
-            <?php if(wd_can($ar,'agncy')): ?><a class="wd-nav" href="maintenance?agency"><i class="fa-solid fa-square-plus"></i> Agencies</a><?php endif; ?>
-            <?php if(wd_can($ar,'classf')): ?><a class="wd-nav" href="maintenance?classification"><i class="fa-solid fa-square-plus"></i> Classifications</a><?php endif; ?>
-            <?php if(wd_can($ar,'comp')): ?><a class="wd-nav" href="maintenance?company"><i class="fa-solid fa-square-plus"></i> Companies</a><?php endif; ?>
-            <?php if(wd_can($ar,'dep')): ?><a class="wd-nav" href="maintenance?department"><i class="fa-solid fa-square-plus"></i> Departments</a><?php endif; ?>
-            <?php if(wd_can($ar,'est')): ?><a class="wd-nav" href="maintenance?employeestatus"><i class="fa-solid fa-square-plus"></i> Employee Status</a><?php endif; ?>
-            <?php if(wd_can($ar,'eoval')): ?><a class="wd-nav" href="maintenance?eovalidation"><i class="fa-solid fa-square-plus"></i> EO Validation</a><?php endif; ?>
-            <a class="wd-nav" href="maintenance?parentalfamilydetails"><i class="fa-solid fa-square-plus"></i> Family Details for Parental</a>
-            <?php if(wd_can($ar,'hmo')): ?><a class="wd-nav" href="maintenance?hmo"><i class="fa-solid fa-square-plus"></i> HMOs</a><?php endif; ?>
-            <?php if(wd_can($ar,'hldy')): ?><a class="wd-nav" href="maintenance?holiday"><i class="fa-solid fa-square-plus"></i> Holiday Logger</a><?php endif; ?>
-            <?php if(wd_can($ar,'jl')): ?><a class="wd-nav" href="maintenance?joblevel"><i class="fa-solid fa-square-plus"></i> Job Levels</a><?php endif; ?>
-            <?php if(wd_can($ar,'lval')): ?><a class="wd-nav" href="maintenance?leavevalidation"><i class="fa-solid fa-square-plus"></i> Leave Validation</a><?php endif; ?>
-            <?php if(wd_can($ar,'gprdv')): ?><a class="wd-nav" href="maintenance?lilovalidation"><i class="fa-solid fa-square-plus"></i> Lilo Validation</a><?php endif; ?>
-            <?php if(wd_can($ar,'obval')): ?><a class="wd-nav" href="maintenance?obvalidation"><i class="fa-solid fa-square-plus"></i> OB Validation</a><?php endif; ?>
-            <?php if(wd_can($ar,'otfs')): ?><a class="wd-nav" href="maintenance?otfsm"><i class="fa-solid fa-square-plus"></i> OT Filing System Maintenance</a><?php endif; ?>
-            <?php if(wd_can($ar,'SPPContrib')): ?><a class="wd-nav" href="maintenance?pagibig"><i class="fa-solid fa-square-plus"></i> Pagibig Contribution</a><?php endif; ?>
-            <?php if(wd_can($ar,'SPPContrib')): ?><a class="wd-nav" href="maintenance?philhealth"><i class="fa-solid fa-square-plus"></i> PhilHealth Contribution</a><?php endif; ?>
-            <?php if(wd_can($ar,'pos')): ?><a class="wd-nav" href="maintenance?position"><i class="fa-solid fa-square-plus"></i> Positions</a><?php endif; ?>
-            <?php if(wd_can($ar,'rel')): ?><a class="wd-nav" href="maintenance?relationship"><i class="fa-solid fa-square-plus"></i> Relationships</a><?php endif; ?>
-            <?php if(wd_can($ar,'SPPContrib')): ?><a class="wd-nav" href="maintenance?silloan"><i class="fa-solid fa-square-plus"></i> SIL LOAN</a><?php endif; ?>
-            <?php if(wd_can($ar,'SPPContrib')): ?><a class="wd-nav" href="maintenance?sss"><i class="fa-solid fa-square-plus"></i> SSS Contribution</a><?php endif; ?>
-            <?php if(wd_can($ar,'tlv')): ?><a class="wd-nav" href="maintenance?typesofleave"><i class="fa-solid fa-square-plus"></i> Types of Leaves</a><?php endif; ?>
-            <?php if(wd_can($ar,'ur')): ?><a class="wd-nav" href="maintenance?userrole"><i class="fa-solid fa-square-plus"></i> User Roles</a><?php endif; ?>
-            <?php if(wd_can($ar,'wt')): ?><a class="wd-nav" href="maintenance?worktime"><i class="fa-solid fa-square-plus"></i> Work Shifts</a><?php endif; ?>
-          </div>
-        </div>
+    <?php if($wd_show_maint): ?>
+    <div class="wd-navsection is-collapsed">
+      <button class="wd-navgroup" type="button" onclick="this.closest('.wd-navsection').classList.toggle('is-collapsed')">Maintenance <i class="fa-solid fa-chevron-down"></i></button>
+      <div class="wd-navitems">
+        <?php if(wd_can($ar,'agncy')): ?><a class="wd-nav<?php echo wd_on('agency',$wd_active); ?>" href="maintenance?agency"><i class="fa-solid fa-square-plus"></i> Agencies</a><?php endif; ?>
+        <?php if(wd_can($ar,'classf')): ?><a class="wd-nav<?php echo wd_on('classification',$wd_active); ?>" href="maintenance?classification"><i class="fa-solid fa-square-plus"></i> Classifications</a><?php endif; ?>
+        <?php if(wd_can($ar,'comp')): ?><a class="wd-nav<?php echo wd_on('company',$wd_active); ?>" href="maintenance?company"><i class="fa-solid fa-square-plus"></i> Companies</a><?php endif; ?>
+        <?php if(wd_can($ar,'dep')): ?><a class="wd-nav<?php echo wd_on('department',$wd_active); ?>" href="maintenance?department"><i class="fa-solid fa-square-plus"></i> Departments</a><?php endif; ?>
+        <?php if(wd_can($ar,'est')): ?><a class="wd-nav<?php echo wd_on('employeestatus',$wd_active); ?>" href="maintenance?employeestatus"><i class="fa-solid fa-square-plus"></i> Employee Status</a><?php endif; ?>
+        <?php if(wd_can($ar,'eoval')): ?><a class="wd-nav<?php echo wd_on('eovalidation',$wd_active); ?>" href="maintenance?eovalidation"><i class="fa-solid fa-square-plus"></i> EO Validation</a><?php endif; ?>
+        <a class="wd-nav<?php echo wd_on('parentalfamilydetails',$wd_active); ?>" href="maintenance?parentalfamilydetails"><i class="fa-solid fa-square-plus"></i> Family Details for Parental</a>
+        <?php if(wd_can($ar,'hmo')): ?><a class="wd-nav<?php echo wd_on('hmo',$wd_active); ?>" href="maintenance?hmo"><i class="fa-solid fa-square-plus"></i> HMOs</a><?php endif; ?>
+        <?php if(wd_can($ar,'hldy')): ?><a class="wd-nav<?php echo wd_on('holiday',$wd_active); ?>" href="maintenance?holiday"><i class="fa-solid fa-square-plus"></i> Holiday Logger</a><?php endif; ?>
+        <?php if(wd_can($ar,'jl')): ?><a class="wd-nav<?php echo wd_on('joblevel',$wd_active); ?>" href="maintenance?joblevel"><i class="fa-solid fa-square-plus"></i> Job Levels</a><?php endif; ?>
+        <?php if(wd_can($ar,'lval')): ?><a class="wd-nav<?php echo wd_on('leavevalidation',$wd_active); ?>" href="maintenance?leavevalidation"><i class="fa-solid fa-square-plus"></i> Leave Validation</a><?php endif; ?>
+        <?php if(wd_can($ar,'gprdv')): ?><a class="wd-nav<?php echo wd_on('lilovalidation',$wd_active); ?>" href="maintenance?lilovalidation"><i class="fa-solid fa-square-plus"></i> Lilo Validation</a><?php endif; ?>
+        <?php if(wd_can($ar,'obval')): ?><a class="wd-nav<?php echo wd_on('obvalidation',$wd_active); ?>" href="maintenance?obvalidation"><i class="fa-solid fa-square-plus"></i> OB Validation</a><?php endif; ?>
+        <?php if(wd_can($ar,'otfs')): ?><a class="wd-nav<?php echo wd_on('otfsm',$wd_active); ?>" href="maintenance?otfsm"><i class="fa-solid fa-square-plus"></i> OT Filing System Maintenance</a><?php endif; ?>
+        <?php if(wd_can($ar,'SPPContrib')): ?><a class="wd-nav<?php echo wd_on('pagibig',$wd_active); ?>" href="maintenance?pagibig"><i class="fa-solid fa-square-plus"></i> Pagibig Contribution</a><?php endif; ?>
+        <?php if(wd_can($ar,'SPPContrib')): ?><a class="wd-nav<?php echo wd_on('philhealth',$wd_active); ?>" href="maintenance?philhealth"><i class="fa-solid fa-square-plus"></i> PhilHealth Contribution</a><?php endif; ?>
+        <?php if(wd_can($ar,'pos')): ?><a class="wd-nav<?php echo wd_on('position',$wd_active); ?>" href="maintenance?position"><i class="fa-solid fa-square-plus"></i> Positions</a><?php endif; ?>
+        <?php if(wd_can($ar,'rel')): ?><a class="wd-nav<?php echo wd_on('relationship',$wd_active); ?>" href="maintenance?relationship"><i class="fa-solid fa-square-plus"></i> Relationships</a><?php endif; ?>
+        <?php if(wd_can($ar,'SPPContrib')): ?><a class="wd-nav<?php echo wd_on('silloan',$wd_active); ?>" href="maintenance?silloan"><i class="fa-solid fa-square-plus"></i> SIL LOAN</a><?php endif; ?>
+        <?php if(wd_can($ar,'SPPContrib')): ?><a class="wd-nav<?php echo wd_on('sss',$wd_active); ?>" href="maintenance?sss"><i class="fa-solid fa-square-plus"></i> SSS Contribution</a><?php endif; ?>
+        <?php if(wd_can($ar,'tlv')): ?><a class="wd-nav<?php echo wd_on('typesofleave',$wd_active); ?>" href="maintenance?typesofleave"><i class="fa-solid fa-square-plus"></i> Types of Leaves</a><?php endif; ?>
+        <?php if(wd_can($ar,'ur')): ?><a class="wd-nav<?php echo wd_on('userrole',$wd_active); ?>" href="maintenance?userrole"><i class="fa-solid fa-square-plus"></i> User Roles</a><?php endif; ?>
+        <?php if(wd_can($ar,'wt')): ?><a class="wd-nav<?php echo wd_on('worktime',$wd_active); ?>" href="maintenance?worktime"><i class="fa-solid fa-square-plus"></i> Work Shifts</a><?php endif; ?>
       </div>
     </div>
     <?php endif; ?>
@@ -202,13 +208,16 @@ function wd_can($ar, $k) { return isset($ar[$k]) && $ar[$k] == 2; }
     </header>
     <script>
       if(window.innerWidth<=900){var a=document.querySelector('.wd-app');if(a)a.classList.add('is-collapsed');}
-      // keep the active page's section (and any parent section, e.g. Maintenance
-      // inside Management) expanded on load, so navigating within a group doesn't
-      // collapse it and force a re-click.
+      // keep the active page's section (and any parent section, if nested)
+      // expanded on load, so navigating within a group doesn't collapse it and
+      // force a re-click. Also flag it is-current so the section header stays lit
+      // ("you are in Management") even after the user collapses the group — so
+      // clicking a group never leaves them wondering where they are.
       (function(){
         var active = document.querySelector('.wd-sidebar .wd-nav.is-active');
         for(var sec = active && active.closest('.wd-navsection'); sec; sec = sec.parentElement && sec.parentElement.closest('.wd-navsection')){
           sec.classList.remove('is-collapsed');
+          sec.classList.add('is-current');
         }
       })();
       // full label as a hover tooltip, so ellipsis-truncated menu items stay readable

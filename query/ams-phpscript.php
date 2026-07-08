@@ -52,9 +52,9 @@ if (isset($_GET['viewall'])){
 
 
 if (isset($_GET['amssearch'])){
-        $query=$_GET['query']; 
-        $getemployee = $pdo->prepare("Select * from amsarchive as a INNER JOIN employees as b on (a.verifiedby=b.EmpID) where a.lname like '%$query%' order by a.lname asc");
-        $getemployee->execute();
+        $query=$_GET['query'];
+        $getemployee = $pdo->prepare("Select * from amsarchive as a INNER JOIN employees as b on (a.verifiedby=b.EmpID) where a.lname like :q order by a.lname asc");
+        $getemployee->execute([':q' => '%' . $query . '%']);
         $count = $getemployee->rowCount();
         while ($getrow = $getemployee->fetch()) {
             $empdata[]=$getrow;

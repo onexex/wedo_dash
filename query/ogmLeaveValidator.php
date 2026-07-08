@@ -18,9 +18,9 @@ if ($_SESSION['UserType'] == 1) {
    
     if (isset($_GET['validate'])) {
         try {
-            $sql = "SELECT * FROM hleaves as a where a.LeaveID=" . $_POST['idOf'] . " order by LStart";
+            $sql = "SELECT * FROM hleaves as a where a.LeaveID = :lid order by LStart";
             $stmt = $pdo->prepare($sql);
-            $stmt->execute();
+            $stmt->execute([':lid' => $_POST['idOf']]);
             $rowh = $stmt->fetch();
             $rowhcount = $stmt->rowCount();
             

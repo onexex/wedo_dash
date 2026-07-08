@@ -90,7 +90,7 @@
                             <td><?php if ($row[4]==0) { echo "Yes";  }else{ echo "No"; } ?></td>
                             <td><?php echo $row[5] ?></td>
                             <td><?php if ($row[6]==0) { echo "Yes";  }else{ echo "No"; } ?></td>
-                            <td><?php if ($row[7]==0) { echo "Yes";  }else{ echo "No"; } ?>dfdf</td>
+                            <td><?php if ($row[7]==0) { echo "Yes";  }else{ echo "No"; } ?></td>
                             <td><?php echo $row[8] ?></td>
                             <td><button class="btn btn-info" data-toggle="modal" data-target="#newform"><i class="fa fa-pencil-square-o" aria-hidden="true"></i></button></td>
                           </tr>

@@ -11,17 +11,17 @@
           die("ERROR: Could not connect. " . $e->getMessage());
              }
 
-          /* Themed status pill (guarded — same helper used on migrated pages). */
+          /* Themed status pill (guarded — same helper used on migrated pages).
+             Tests "disapprove" BEFORE "approve": "Disapproved" contains the
+             substring "approve", so the approve branch must come second. */
           if (!function_exists('wd_status_pill')) {
               function wd_status_pill($desc) {
                   $d = strtolower((string) $desc);
-                  if (strpos($d, 'approve') !== false)                                     { $c = 'ok'; }
-                  elseif (strpos($d, 'reject') !== false || strpos($d, 'cancel') !== false
-                       || strpos($d, 'disapprove') !== false || strpos($d, 'deny') !== false
-                       || strpos($d, 'decline') !== false)                                 { $c = 'danger'; }
-                  elseif (strpos($d, 'pending') !== false || strpos($d, 'file') !== false
-                       || strpos($d, 'process') !== false || strpos($d, 'review') !== false){ $c = 'warn'; }
-                  else                                                                     { $c = 'info'; }
+                  if (strpos($d, 'disapprove') !== false || strpos($d, 'reject') !== false || strpos($d, 'cancel') !== false
+                   || strpos($d, 'deny') !== false || strpos($d, 'decline') !== false)         { $c = 'danger'; }
+                  elseif (strpos($d, 'pending') !== false)                                      { $c = 'warn'; }
+                  elseif (strpos($d, 'approve') !== false || strpos($d, 'released') !== false)  { $c = 'ok'; }
+                  else                                                                          { $c = 'info'; }
                   return '<span class="wd-pill wd-pill--' . $c . '">' . htmlspecialchars($desc) . '</span>';
               }
           }
@@ -114,20 +114,20 @@
 
                   ?>
                      <tr>
-                       <?php if ($id=="all"){
+                       <?php if ($id=="All"){
                       ?>
-                        <td><?php echo $row2["Employees_ID"]; ?></td>
+                        <td><?php echo htmlspecialchars($row2["Employees_ID"]); ?></td>
                       <?php
                     }else{
                       ?>
-                          <td><?php echo $id; ?></td>
+                          <td><?php echo htmlspecialchars($id); ?></td>
                     <?php
                     } ?>
                             <td style="text-align: left;"><?php echo $ids; ?></td>
-                            <td style="text-align: left;"><?php echo $row2["LastName"] . ',  '. $row2["FirstName"] ; ?></td>
+                            <td style="text-align: left;"><?php echo htmlspecialchars($row2["LastName"] . ',  '. $row2["FirstName"]); ?></td>
                             <td style="text-align: left;"><?php  echo date("F j, Y h:i:s A", strtotime($row2['Date_Time'])); ?></td>
-                            <td style="text-align: left;"><?php echo $row2["Activity"]; ?></td>
-                      
+                            <td style="text-align: left;"><?php echo htmlspecialchars($row2["Activity"]); ?></td>
+
                         </tr>
 
                         <?php
@@ -203,10 +203,10 @@
                     } ?>
                 
                     <td><?php echo $ids ; ?></td>
-                    <td><?php echo $row2["LastName"] . ',  '. $row2["FirstName"] ; ?></td>
-                    <td><?php  echo date("F j, Y h:i:s A", strtotime($row2["DateInput"])); ?></td>
-                    <td><?php echo $row2["Purpose"]; ?></td>
-                    <td style="text-align:center;"><?php echo $row2["Status"]; ?></td>
+                    <td><?php echo htmlspecialchars($row2["LastName"] . ',  ' . $row2["FirstName"]); ?></td>
+                    <td><?php echo date("F j, Y h:i:s A", strtotime($row2["DateInput"])); ?></td>
+                    <td><?php echo htmlspecialchars($row2["Purpose"]); ?></td>
+                    <td style="text-align:center;"><?php echo wd_status_pill($row2["Status"]); ?></td>
 
               
                 </tr>
@@ -445,19 +445,19 @@
                             ?>
                                   <tr>
                                 <td><?php echo $ids; ?> </td>
-                                <td><?php echo $row2["LastName"]. ' '.$row2["FirstName"].' '.$row2["MiddleName"]; ?> </td>
+                                <td><?php echo htmlspecialchars($row2["LastName"]. ' '.$row2["FirstName"].' '.$row2["MiddleName"]); ?> </td>
                                 <td><?php  echo date("F j, Y", strtotime($row2["Filing_Date"])); ?> </td>
                                 <td><?php  echo date("F j, Y", strtotime($row2["OBDateFrom"])); ?> </td>
                                 <td><?php  echo date("F j, Y", strtotime($row2["OBDateTo"])); ?> </td>
-                                <td><?php echo $row2["Itinerary_From"]; ?> </td>  
-                                <td><?php echo $row2["Itinerary_To"]; ?> </td>
+                                <td><?php echo htmlspecialchars($row2["Itinerary_From"]); ?> </td>
+                                <td><?php echo htmlspecialchars($row2["Itinerary_To"]); ?> </td>
                                 <td><?php echo date("h:i:s A", strtotime($row2["Time_From"])); ?> </td>
                                 <td><?php echo date("h:i:s A", strtotime($row2["Time_To"])); ?> </td>
-                                <td><?php echo $row2["Purpose"]; ?> </td>
+                                <td><?php echo htmlspecialchars($row2["Purpose"]); ?> </td>
                                 <td><?php echo number_format($row2["Cash_Advance"], 2); ?> </td>
-                                <td><?php echo $row2["CA_Purpose"]; ?> </td>
-                                <td><?php echo $row2["Status"]; ?> </td>
-                          
+                                <td><?php echo htmlspecialchars($row2["CA_Purpose"]); ?> </td>
+                                <td><?php echo wd_status_pill($row2["Status"]); ?> </td>
+
                             </tr>
                             <?php        $ids=$ids+1;
                           }
@@ -494,19 +494,19 @@
                             ?>
                                   <tr>
                                 <td><?php echo $ids; ?> </td>
-                                <td><?php echo $row2["LastName"]. ' '.$row2["FirstName"].' '.$row2["MiddleName"]; ?> </td>
+                                <td><?php echo htmlspecialchars($row2["LastName"]. ' '.$row2["FirstName"].' '.$row2["MiddleName"]); ?> </td>
                                 <td><?php  echo date("F j, Y", strtotime($row2["Filing_Date"])); ?> </td>
                                 <td><?php  echo date("F j, Y", strtotime($row2["OBDateFrom"])); ?> </td>
                                 <td><?php  echo date("F j, Y", strtotime($row2["OBDateTo"])); ?> </td>
-                                <td><?php echo $row2["Itinerary_From"]; ?> </td>  
-                                <td><?php echo $row2["Itinerary_To"]; ?> </td>
+                                <td><?php echo htmlspecialchars($row2["Itinerary_From"]); ?> </td>
+                                <td><?php echo htmlspecialchars($row2["Itinerary_To"]); ?> </td>
                                 <td><?php echo date("h:i:s A", strtotime($row2["Time_From"])); ?> </td>
                                 <td><?php echo date("h:i:s A", strtotime($row2["Time_To"])); ?> </td>
-                                <td><?php echo $row2["Purpose"]; ?> </td>
+                                <td><?php echo htmlspecialchars($row2["Purpose"]); ?> </td>
                                 <td><?php echo number_format($row2["Cash_Advance"], 2); ?> </td>
-                                <td><?php echo $row2["CA_Purpose"]; ?> </td>
-                                <td><?php echo $row2["Status"]; ?> </td>
-                          
+                                <td><?php echo htmlspecialchars($row2["CA_Purpose"]); ?> </td>
+                                <td><?php echo wd_status_pill($row2["Status"]); ?> </td>
+
                             </tr>
                             <?php        $ids=$ids+1;
                           }

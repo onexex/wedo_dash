@@ -114,16 +114,26 @@ $targetPath="assets/images/profiles/" . $_POST['empidn'] . ".jpg" ;
       $stmt->bindParam(':empide2', $_POST['empidn']);
       $stmt->execute();
    
-      $roleid="3"; 
+      $roleid="3";
       $statID="2";
-      $us = ucfirst($_POST['empfn'][0]) . ucfirst($_POST['empln']);
+      /* Username is auto-generated on the form (first initial + last name) and
+         editable by the admin. Fall back to the generated value here if it ever
+         arrives blank, so EmpUN — the login handle — is never empty. */
+      require __DIR__ . '/../includes/username.php';
+      $fn = isset($_POST['empfn']) ? $_POST['empfn'] : '';
+      $ln = isset($_POST['empln']) ? $_POST['empln'] : '';
+      $uname = (isset($_POST['uname']) && trim($_POST['uname']) !== '')
+                 ? trim($_POST['uname'])
+                 : wd_unique_username($pdo, $fn, $ln);
+      /* final guarantee: never store a duplicate login handle (RGemana → RGemana2) */
+      $uname = wd_free_username($pdo, $uname);
       $pass=ucfirst("p@zzword");
       $epass=password_hash($pass, PASSWORD_DEFAULT);
 
       $sql = "INSERT INTO empdetails (EmpID,EmpUN,EmpPW,EmpRoleID,EmpISID,EmpdepID,EmpCompID,EmpDateHired,EmpDateResigned,EmpStatID,AgencyID,HMO_ID) VALUES (:empid,:empun,:emppw,:id,:empis,:emddid,:empcompid,:empdth,:empdtr,:empclassification,:agency,:hmo)";
       $stmt = $pdo->prepare($sql);
       $stmt->bindParam(':empid', $_POST['empidn']);
-      $stmt->bindParam(':empun', $_POST['uname']);
+      $stmt->bindParam(':empun', $uname);
       $stmt->bindParam(':emppw', $epass);
       $stmt->bindParam(':id', $roleid); 
       $stmt->bindParam(':empis', $_POST['empis']); 
@@ -135,63 +145,12 @@ $targetPath="assets/images/profiles/" . $_POST['empidn'] . ".jpg" ;
       $stmt->bindParam(':agency', $_POST['empagency']);
       $stmt->bindParam(':hmo', $_POST['emphmoprovider']);
       // $stmt->bindParam(':username', $_POST['uname']);
-      $stmt->execute();  
-
-      $mn="Monday";
-      $sql = "INSERT INTO workdays (empid,Day_s,SchedTime) VALUES (:empide2,:empday,:empmon)";
-      $stmt = $pdo->prepare($sql);
-      $stmt->bindParam(':empide2', $_POST['empidn']);
-      $stmt->bindParam(':empday',  $mn);
-      $stmt->bindParam(':empmon', $_POST['wrkschmon']);
       $stmt->execute();
 
-      $mn="Tuesday";
-      $sql = "INSERT INTO workdays (empid,Day_s,SchedTime) VALUES (:empide2,:empday,:empmon)";
-      $stmt = $pdo->prepare($sql);
-      $stmt->bindParam(':empide2', $_POST['empidn']);
-      $stmt->bindParam(':empday',  $mn);
-      $stmt->bindParam(':empmon', $_POST['wrkschtues']);
-      $stmt->execute();
-
-      $mn="Wednesday";
-      $sql = "INSERT INTO workdays (empid,Day_s,SchedTime) VALUES (:empide2,:empday,:empmon)";
-      $stmt = $pdo->prepare($sql);
-      $stmt->bindParam(':empide2', $_POST['empidn']);
-      $stmt->bindParam(':empday',  $mn);
-      $stmt->bindParam(':empmon', $_POST['wrkschwed']);
-      $stmt->execute();
-
-      $mn="Thursday";
-      $sql = "INSERT INTO workdays (empid,Day_s,SchedTime) VALUES (:empide2,:empday,:empmon)";
-      $stmt = $pdo->prepare($sql);
-      $stmt->bindParam(':empide2', $_POST['empidn']);
-      $stmt->bindParam(':empday',  $mn);
-      $stmt->bindParam(':empmon', $_POST['wrkschthu']);
-      $stmt->execute();
-
-      $mn="Friday";
-      $sql = "INSERT INTO workdays (empid,Day_s,SchedTime) VALUES (:empide2,:empday,:empmon)";
-      $stmt = $pdo->prepare($sql);
-      $stmt->bindParam(':empide2', $_POST['empidn']);
-      $stmt->bindParam(':empday',  $mn);
-      $stmt->bindParam(':empmon', $_POST['wrkschfri']);
-      $stmt->execute();
-
-      $mn="Saturday";
-      $sql = "INSERT INTO workdays (empid,Day_s,SchedTime) VALUES (:empide2,:empday,:empmon)";
-      $stmt = $pdo->prepare($sql);
-      $stmt->bindParam(':empide2', $_POST['empidn']);
-      $stmt->bindParam(':empday',  $mn);
-      $stmt->bindParam(':empmon', $_POST['wrkschsat']);
-      $stmt->execute();
-
-      $mn="Sunday";
-      $sql = "INSERT INTO workdays (empid,Day_s,SchedTime) VALUES (:empide2,:empday,:empmon)";
-      $stmt = $pdo->prepare($sql);
-      $stmt->bindParam(':empide2', $_POST['empidn']);
-      $stmt->bindParam(':empday',  $mn);
-      $stmt->bindParam(':empmon', $_POST['wrkschsun']);
-      $stmt->execute();
+      /* Work schedule is created in the dedicated Scheduler module (with an
+         effectivity period), not here. The old per-day workdays inserts wrote
+         EFID-less rows that the clock-in read could never match, so they are
+         removed — enrollment no longer touches the schedule tables. */
    print 201;
        $id=$_SESSION['id'];
          $ch="Enroll Employee : " .  $_POST['empfn'] . " " . $_POST['empln'] ;

@@ -1,6 +1,6 @@
 <?php if (session_status() === PHP_SESSION_NONE) { session_start(); }
   if (isset($_SESSION['id']) && $_SESSION['id']!="0"){}
-  else{ header ('location: login.php'); }
+  else{ header ('location: login.php'); exit; }
 ?>
 <?php
 $filename = $_FILES['file']['name'];
@@ -8,6 +8,9 @@ $filename = $_FILES['file']['name'];
   	{
    $id=$_GET['q'];
    }
+// sanitize the employee id used in the filename (no path traversal)
+$id = preg_replace('/[^A-Za-z0-9._-]/', '', basename(isset($id) ? $id : ''));
+if ($id === '') { echo 0; exit; }
 
 /* Location */
 $location = "assets/images/profiles/". $id . ".jpg";

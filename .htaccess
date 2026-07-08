@@ -37,6 +37,14 @@ RewriteEngine On
 RewriteCond %{REQUEST_URI} ^/fileauth\.txt$ [NC]
 RewriteRule ^ - [L]
 
+# 1b. 🔒 Security hardening — block source-disclosure & VCS files
+#     Backups / source dumps (e.g. login.php.bak, *.secbak, *.sql, *.log)
+RewriteRule \.(bak|secbak|orig|save|swp|swo|sql|log)$ - [F,L]
+#     Version-control metadata (/.git/…), PHP ini overrides, credential override
+RewriteRule (^|/)\.git(/|$) - [F,L]
+RewriteRule (^|/)\.user\.ini$ - [F,L]
+RewriteRule (^|/)config\.local\.php$ - [F,L]
+
 # 2. ✅ TAMA NA REDIRECT: I-force ang HTTP papuntang HTTPS
 RewriteCond %{HTTPS} off
 RewriteRule ^(.*)$ https://%{HTTP_HOST}%{REQUEST_URI} [L,R=301]

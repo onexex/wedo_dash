@@ -88,7 +88,7 @@
             die("ERROR: Could not connect. " . $e->getMessage());
                }
             $statement = $pdo->prepare("select * from holidays ");
-            $statement->execute(array(':name' => ""));
+            $statement->execute();
             while ($row = $statement->fetch()){
             ?>
               <tr>

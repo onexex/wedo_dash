@@ -21,7 +21,7 @@
                 $statement->execute();
 
                 while ($row = $statement->fetch()) {
-                    if (password_verify($row['EmpID'], $_COOKIE["WeDoID"])) {
+                    if ((!empty($row['remember_hash']) && password_verify($_COOKIE["WeDoID"], $row['remember_hash']) && (empty($row['remember_expiry']) || strtotime($row['remember_expiry']) > time()))) {
                         $_SESSION['id'] = $row['EmpID'];
 
                         $statement = $pdo->prepare("select * from empdetails where EmpID = :un");
