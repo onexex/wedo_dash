@@ -12,8 +12,10 @@
  *  - Lookback: every scheduled work day within the last 15 days (a fixed
  *    rolling window, NOT anchored to last attendance, so an absence before a
  *    later attendance day is still caught) up to today.
- *  - A PENDING filing is enough to clear a day (leave LStatus IN (1,2,4,9),
- *    OB OBStatus IN (1,2,4)); only disapproved/deleted statuses don't count.
+ *  - ANY filing on the day clears it regardless of approval outcome — pending,
+ *    approved, OR disapproved (leave/OB status 3,5,6) all count as accounted.
+ *    Only a deleted/cancelled filing (status 7, set by query/deleteeo.php) does
+ *    NOT count, so LStatus/OBStatus <> 7 is the sole exclusion.
  *  - One-day grace: the single most recent scheduled work day before today is
  *    exempt; only an absence OLDER than that blocks.
  *  - Caller decides who to run this for. Intended for regular employees only
@@ -53,8 +55,8 @@ if (!function_exists('getUnaccountedAbsences')) {
             );
             $holSt = $pdo->prepare("SELECT 1 FROM holidays WHERE Hdate = :d AND HCompID = :cmp LIMIT 1");
             $attSt = $pdo->prepare("SELECT 1 FROM attendancelog WHERE EmpID = :id AND WSFrom = :d LIMIT 1");
-            $lvSt  = $pdo->prepare("SELECT 1 FROM hleavesbd WHERE EmpID = :id AND :d BETWEEN LStart AND LEnd AND LStatus IN (1,2,4,8,9) LIMIT 1");
-            $obSt  = $pdo->prepare("SELECT 1 FROM obshbd   WHERE EmpID = :id AND :d BETWEEN OBDateFrom AND OBDateTo AND OBStatus IN (1,2,4) LIMIT 1");
+            $lvSt  = $pdo->prepare("SELECT 1 FROM hleavesbd WHERE EmpID = :id AND :d BETWEEN LStart AND LEnd AND LStatus <> 7 LIMIT 1");
+            $obSt  = $pdo->prepare("SELECT 1 FROM obshbd   WHERE EmpID = :id AND :d BETWEEN OBDateFrom AND OBDateTo AND OBStatus <> 7 LIMIT 1");
 
             // True only for a scheduled, non-holiday work day for this employee.
             $isWorkDay = function ($ds) use ($schedSt, $holSt, $empID, $compID) {
