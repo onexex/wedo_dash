@@ -36,7 +36,7 @@
                 $sql="SELECT a.OBID as mid,'OB' as st,a.OBDateFrom as dateattend from 
                     obshbd as a 
                     INNER JOIN employees as b ON a.EmpID=b.EmpID 
-                    INNER JOIN empdetails as d ON b.EmpID=d.EmpID where a.EmpID=:id and (OBStatus=1 or OBStatus=2 or OBStatus=4) and (day(a.OBDateFrom)=:dytod and year(a.OBDateFrom)=:yrtod and month(a.OBDateFrom)=:mnth)
+                    INNER JOIN empdetails as d ON b.EmpID=d.EmpID where a.EmpID=:id and (OBStatus=1 or OBStatus=2 or OBStatus=4 or OBStatus=3) and (day(a.OBDateFrom)=:dytod and year(a.OBDateFrom)=:yrtod and month(a.OBDateFrom)=:mnth)
                     
                   UNION ALL 
 
@@ -49,7 +49,7 @@
                   SELECT a.LeaveID as mid,'Leave' as st,LEnd as dateattend from 
                     hleavesbd as a 
                     INNER JOIN employees as b ON a.EmpID=b.EmpID 
-                    INNER JOIN empdetails as d ON b.EmpID=d.EmpID where a.EmpID=:id and (LStatus=1 or LStatus=2 or LStatus=4) and (day(LEnd)=:dytod and year(LEnd)=:yrtod and month(LEnd)=:mnth)
+                    INNER JOIN empdetails as d ON b.EmpID=d.EmpID where a.EmpID=:id and (LStatus=1 or LStatus=2 or LStatus=4 or LStatus=3) and (day(LEnd)=:dytod and year(LEnd)=:yrtod and month(LEnd)=:mnth)
                   
                    UNION ALL 
 
@@ -197,7 +197,7 @@
                       ?>
                        
                         <?php
-                              $attendancelog2 = $pdo->prepare("select * from obs where OBID = :id");
+                              $attendancelog2 = $pdo->prepare("select * from obs inner join status on obs.OBStatus=status.StatusID where OBID = :id");
                               $attendancelog2->bindParam(':id' , $row2['mid']);
                               $attendancelog2->execute();
                               $rowcenar = $attendancelog2->fetch();
@@ -216,8 +216,8 @@
                         
                         <td class="darth">  <?php   echo  date("h:i:s A", strtotime($rowcenar['OBTimeTo']));?></td>
                           <td class="darth">
-                        <?php 
-                            echo  $row2['st'];
+                        <?php
+                            echo  $row2['st'] . "/" . $rowcenar['StatusDesc'];
                         ?>
                         </td>
                         <td class="darth">  <?php   echo  $rowcenar['OBDuration'];?></td>
@@ -249,8 +249,11 @@
                     }
                     // leave attendance
                     elseif ($row2['st']=="Leave"){
-                              
-                             
+                              $attendancelogL = $pdo->prepare("select * from hleavesbd inner join status on hleavesbd.LStatus=status.StatusID where LeaveID = :id");
+                              $attendancelogL->bindParam(':id' , $row2['mid']);
+                              $attendancelogL->execute();
+                              $rowleave = $attendancelogL->fetch();
+                              $leaveStatus = $rowleave['StatusDesc'];
                         ?>
                               <tr>
                                       <td class="darth"><?php  echo date("F j, Y", strtotime($dt2)); ?></td>
@@ -258,7 +261,7 @@
                                       <td class="darth"><?php  echo  $row['TimeFrom'] . " - " . $row['TimeTo'];?></td>
                                       <td class="darth">Leave</td>
                                       <td class="darth">Leave</td>
-                                      <td class="darth"><?php echo  $row2['st'];  ?></td>
+                                      <td class="darth"><?php echo  $row2['st'] . "/" . $leaveStatus;  ?></td>
                                       <td class="darth">0</td>
                               </tr>
                         <?php
