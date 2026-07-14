@@ -214,8 +214,11 @@ try {
       $today  = date('Y-m-d');
 
       /* scope predicate for any query that JOINs `employees e` + `empdetails d`
-         and only wants ACTIVE (employed, not resigned) people. */
-      $activeWhere = "e.EmpStatusID=1 AND (d.EmpDateResigned IS NULL OR d.EmpDateResigned='' OR d.EmpDateResigned='0000-00-00')";
+         and only wants ACTIVE (employed, not resigned) people. "Active" is the
+         status flag e.EmpStatusID=1 (1=active, 2=resigned) — NOT the resignation
+         DATE, which the seed leaves populated on active staff (21/22 have one), so
+         a date test collapses the headcount to ~1. Mirrors $resignAnd below. */
+      $activeWhere = "e.EmpStatusID=1";
       $scopeJoinWhere = $activeWhere;
       if     ($scope==='team') { $scopeJoinWhere .= " AND d.EmpISID = :uid"; }
       elseif ($scope==='self') { $scopeJoinWhere .= " AND e.EmpID = :uid"; }
@@ -327,11 +330,14 @@ try {
       /* ---- pending approvals (scope-adaptive) ---- */
       // per-table meta: status col + immediate-superior col
       $ptbl = [
-        'hl' => ['t'=>'hleaves',         'st'=>'LStatus',  'sup'=>'EmpSID',  'label'=>'Leave',     'icon'=>'fa-calendar-check'],
-        'ob' => ['t'=>'obs',             'st'=>'OBStatus', 'sup'=>'EmpSID',  'label'=>'OB',        'icon'=>'fa-briefcase'],
-        'eo' => ['t'=>'earlyout',        'st'=>'Status',   'sup'=>'EmpISID', 'label'=>'Early-out', 'icon'=>'fa-calendar-minus'],
-        'ot' => ['t'=>'otattendancelog', 'st'=>'Status',   'sup'=>'EmpISID', 'label'=>'Overtime',  'icon'=>'fa-business-time'],
+        'hl' => ['t'=>'hleaves',         'st'=>'LStatus',  'sup'=>'EmpSID',  'fd'=>'LFDate',          'label'=>'Leave',     'icon'=>'fa-calendar-check'],
+        'ob' => ['t'=>'obs',             'st'=>'OBStatus', 'sup'=>'EmpSID',  'fd'=>'OBInputDate',     'label'=>'OB',        'icon'=>'fa-briefcase'],
+        'eo' => ['t'=>'earlyout',        'st'=>'Status',   'sup'=>'EmpISID', 'fd'=>'DateTimeInputed', 'label'=>'Early-out', 'icon'=>'fa-calendar-minus'],
+        'ot' => ['t'=>'otattendancelog', 'st'=>'Status',   'sup'=>'EmpISID', 'fd'=>'DateFiling',      'label'=>'Overtime',  'icon'=>'fa-business-time'],
       ];
+      // pending approvals are limited to a rolling window: only filings submitted in
+      // the last 14 days are counted/listed (older ones drop off as they age out).
+      $pendCutoff = date('Y-m-d', strtotime('-14 days'));
       // scope predicate (without status) for a table alias `a`
       $pendScope = function($m) use ($scope) {
           if ($scope==='team') return "a.{$m['sup']}=:uid AND a.{$m['st']}=1";      // awaiting me as superior
@@ -340,9 +346,9 @@ try {
       };
       $pendCount = ['hl'=>0,'ob'=>0,'eo'=>0,'ot'=>0]; $awaitIS = 0; $awaitHR = 0; $pendTotal = 0;
       foreach ($ptbl as $k => $m) {
-          $w = $pendScope($m);
+          $w = $pendScope($m)." AND DATE(a.{$m['fd']}) >= :cutoff";
           try {
-              $r = $q("SELECT SUM(a.{$m['st']}=1) a1, SUM(a.{$m['st']}=2) a2 FROM {$m['t']} a WHERE $w")
+              $r = $q("SELECT SUM(a.{$m['st']}=1) a1, SUM(a.{$m['st']}=2) a2 FROM {$m['t']} a WHERE $w", [':cutoff'=>$pendCutoff])
                    ->fetch(PDO::FETCH_ASSOC);
               $a1 = (int)($r['a1'] ?? 0); $a2 = (int)($r['a2'] ?? 0);
               $pendCount[$k] = $a1 + $a2; $awaitIS += $a1; $awaitHR += $a2; $pendTotal += $a1 + $a2;
@@ -364,6 +370,8 @@ try {
               if     ($scope==='team') { $w = "a.{$m['sup']}=:u_$k AND a.{$m['st']}=1";  $pp[":u_$k"]=$uid; }
               elseif ($scope==='self') { $w = "a.EmpID=:u_$k AND a.{$m['st']} IN (1,2)"; $pp[":u_$k"]=$uid; }
               else                     { $w = "a.{$m['st']} IN (1,2)"; }
+              // same rolling 14-day window as the counts (per-subquery placeholder)
+              $w .= " AND DATE(a.{$m['fd']}) >= :c_$k"; $pp[":c_$k"] = $pendCutoff;
               $parts[] = $sel[$k].$w;
           }
           $ustmt = $wdpdo->prepare(implode(" UNION ALL ", $parts)." ORDER BY filed ASC LIMIT 12");
