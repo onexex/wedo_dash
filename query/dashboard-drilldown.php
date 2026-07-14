@@ -49,7 +49,10 @@ if ($dept === '') { echo '<div class="dd-none">No department specified.</div>'; 
 $scopeAnd  = ($scope === 'team') ? " AND d.EmpISID = :uid" : "";
 // Match dashboard.php: current workforce only — not resigned (active flag
 // e.EmpStatusID=1, not the resignation date) and not OJT (EmpStatID 4).
-$resignAnd = " AND e.EmpStatusID = 1 AND d.EmpStatID <> 4";
+// Also exempt from tardiness/absence: HR/admin (EmpRoleID=1) and the General
+// Manager, who don't clock in and must not add to the department totals.
+$resignAnd = " AND e.EmpStatusID = 1 AND d.EmpStatID <> 4 AND d.EmpRoleID <> 1"
+           . " AND COALESCE(p.PositionDesc,'') <> 'General Manager'";
 
 // Gemana (WeDoinc-0010) works a fixed 7 AM–7 PM schedule but is TARDY ONLY from
 // 8 AM onward. His tardiness is recomputed from an 08:00 baseline off the actual
