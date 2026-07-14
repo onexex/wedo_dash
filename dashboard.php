@@ -278,7 +278,7 @@ try {
                     LEFT JOIN positions p ON e.PosID=p.PSID
                     LEFT JOIN departments dp ON p.DepartmentID=dp.DepartmentID
                     LEFT JOIN holidays h ON h.Hdate=:ad3 AND h.HCompID=d.EmpCompID
-                    WHERE h.SID IS NULL AND $attScope", [':ad1'=>$attnDate, ':ad2'=>$attnDate, ':ad3'=>$attnDate]);
+                    WHERE h.SID IS NULL AND d.EmpRoleID <> 1 AND $attScope", [':ad1'=>$attnDate, ':ad2'=>$attnDate, ':ad3'=>$attnDate]);
           while ($r = $ss->fetch(PDO::FETCH_ASSOC)) { $scheduledEmp[$r['EmpID']] = $r; }
       } catch (Exception $e) {}
       $scheduledCount = count($scheduledEmp);
@@ -438,7 +438,9 @@ try {
       // the resignation DATE, which the local seed leaves populated on active staff
       // (21/22 actives have one), so a date test would hide almost everyone. OJT is
       // empdetails.EmpStatID=4 ("On-the Job Training", see includes/loginabsencegate.php).
-      $resignAnd = " AND e.EmpStatusID = 1 AND d.EmpStatID <> 4";
+      // EmpRoleID=1 (Super User / HR / admin) is also excluded: they don't clock in,
+      // so counting them as scheduled would inflate absences with people who never log.
+      $resignAnd = " AND e.EmpStatusID = 1 AND d.EmpStatID <> 4 AND d.EmpRoleID <> 1";
       $deptPat = [];
       $patT = ['logs'=>0,'late'=>0,'expected'=>0,'absences'=>0];
       if ($showDept) {
