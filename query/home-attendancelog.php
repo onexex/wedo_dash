@@ -36,7 +36,7 @@
                 $sql="SELECT a.OBID as mid,'OB' as st,a.OBDateFrom as dateattend from 
                     obshbd as a 
                     INNER JOIN employees as b ON a.EmpID=b.EmpID 
-                    INNER JOIN empdetails as d ON b.EmpID=d.EmpID where a.EmpID=:id and (OBStatus=1 or OBStatus=2 or OBStatus=4 or OBStatus=3) and (day(a.OBDateFrom)=:dytod and year(a.OBDateFrom)=:yrtod and month(a.OBDateFrom)=:mnth)
+                    INNER JOIN empdetails as d ON b.EmpID=d.EmpID where a.EmpID=:id and (OBStatus=1 or OBStatus=2 or OBStatus=4 or OBStatus=3 or OBStatus=5 or OBStatus=6) and (day(a.OBDateFrom)=:dytod and year(a.OBDateFrom)=:yrtod and month(a.OBDateFrom)=:mnth)
                     
                   UNION ALL 
 
@@ -49,7 +49,7 @@
                   SELECT a.LeaveID as mid,'Leave' as st,LEnd as dateattend from 
                     hleavesbd as a 
                     INNER JOIN employees as b ON a.EmpID=b.EmpID 
-                    INNER JOIN empdetails as d ON b.EmpID=d.EmpID where a.EmpID=:id and (LStatus=1 or LStatus=2 or LStatus=4 or LStatus=3) and (day(LEnd)=:dytod and year(LEnd)=:yrtod and month(LEnd)=:mnth)
+                    INNER JOIN empdetails as d ON b.EmpID=d.EmpID where a.EmpID=:id and (LStatus=1 or LStatus=2 or LStatus=4 or LStatus=3 or LStatus=5 or LStatus=6) and (day(LEnd)=:dytod and year(LEnd)=:yrtod and month(LEnd)=:mnth)
                   
                    UNION ALL 
 
