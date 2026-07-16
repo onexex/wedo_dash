@@ -204,28 +204,34 @@
                     <tbody id="darviewer">
                         <?php
                             try {
+                                /* Rows come from obshbd (the per-scheduled-day breakdown), not obs
+                                   (the one-row-per-filing summary), so a multi-day OB lists each
+                                   day it actually covers. */
                                 $sql = " SELECT employees.EmpID as Employee_ID,
                                     employees.EmpLN as LastName,
                                     employees.EmpFN as FirstName,
                                     employees.EmpMN as MiddleName,
-                                    obs.OBFD as Filing_Date,
-                                    obs.OBDateFrom as OBDateFrom,
-                                    obs.OBDateTo as OBDateTo,
-                                    obs.OBIFrom as Itinerary_From,
-                                    obs.OBITo as Itinerary_To,
-                                    obs.OBTimeFrom as Time_From,
-                                    obs.OBTimeTo as Time_To,
-                                    obs.OBISReason as IS_Reason,
-                                    obs.OBHRReason as HR_Reason,
-                                    obs.OBPurpose as Purpose,
-                                    obs.OBUpdated as DTUpdated,
-                                    obs.OBCAAmt as Cash_Advance,
-                                    obs.OBCAPurpose as CA_Purpose,
+                                    obshbd.OBFD as Filing_Date,
+                                    obshbd.OBDateFrom as OBDateFrom,
+                                    obshbd.OBDateTo as OBDateTo,
+                                    obshbd.OBIFrom as Itinerary_From,
+                                    obshbd.OBITo as Itinerary_To,
+                                    obshbd.OBTimeFrom as Time_From,
+                                    obshbd.OBTimeTo as Time_To,
+                                    obshbd.OBISReason as IS_Reason,
+                                    obshbd.OBHRReason as HR_Reason,
+                                    obshbd.OBPurpose as Purpose,
+                                    obshbd.OBUpdated as DTUpdated,
+                                    obshbd.OBCAAmt as Cash_Advance,
+                                    obshbd.OBCAPurpose as CA_Purpose,
+                                    (obshbd.OBIDHBD = (SELECT h2.OBIDHBD FROM obshbd h2
+                                        WHERE h2.OBID=obshbd.OBID
+                                        ORDER BY h2.OBDateFrom, h2.OBIDHBD LIMIT 1)) as Is_First_Day,
                                     status.StatusDesc as Status,
-                                    obs.OBInputDate as DateTimeInputed FROM employees
-                                    INNER JOIN obs ON employees.EmpID=obs.EmpID
-                                    INNER JOIN status ON obs.OBStatus=status.StatusID
-                                    WHERE obs.OBStatus=4 ORDER BY obs.OBTimeFrom desc";
+                                    obshbd.OBInputDate as DateTimeInputed FROM obshbd
+                                    INNER JOIN employees ON employees.EmpID=obshbd.EmpID
+                                    INNER JOIN status ON obshbd.OBStatus=status.StatusID
+                                    WHERE obshbd.OBStatus=4 ORDER BY obshbd.OBDateFrom desc, obshbd.OBTimeFrom desc";
                                 $statement = $pdo->prepare($sql);
                                 $statement->execute();
                             } catch (Exception $e) {
@@ -248,8 +254,11 @@
                             <td><?php echo date("h:i:s A", strtotime($row["Time_From"])); ?></td>
                             <td><?php echo date("h:i:s A", strtotime($row["Time_To"])); ?></td>
                             <td><?php echo htmlspecialchars($row["Purpose"]); ?></td>
-                            <td><?php echo number_format($row["Cash_Advance"], 2); ?></td>
-                            <td><?php echo htmlspecialchars($row["CA_Purpose"]); ?></td>
+                            <?php /* A cash advance is filed once for the whole OB but obshbd copies it
+                                     onto every day-row, so show it on the first day only — otherwise a
+                                     multi-day trip repeats the amount and the Excel export overcounts. */ ?>
+                            <td><?php echo $row["Is_First_Day"] ? number_format($row["Cash_Advance"], 2) : ''; ?></td>
+                            <td><?php echo $row["Is_First_Day"] ? htmlspecialchars($row["CA_Purpose"]) : ''; ?></td>
                             <td><?php echo wd_status_pill($row["Status"]); ?></td>
                         </tr>
                         <?php
