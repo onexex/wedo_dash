@@ -255,11 +255,12 @@
             $dtstartob1 = date ("Y-m-d", strtotime($dtstartob));
 
             // $statementleaveadd = $pdo->prepare("select * from workdays where empid='$ESID' and Day_s='$day_desc'and SchedTime<>0 ");
-            
-            $statementleaveadd  = $pdo->prepare("Select * from workdays INNER JOIN                                                                           //update 7/31/2024
-            workschedule ON workdays.SchedTime=workschedule.WorkSchedID 
+
+            // update 7/31/2024
+            $statementleaveadd  = $pdo->prepare("Select * from workdays INNER JOIN
+            workschedule ON workdays.SchedTime=workschedule.WorkSchedID
             inner join schedeffectivity as c on workdays.EFID=c.efids
-            where (workdays.empid='$ESID') and (workdays.Day_s='$day_desc') and ('$dtstartob1' >= dfrom) and ('$dtstartob1 ' <= dto)  and (SchedTime > 0)");
+            where (workdays.empid='$ESID') and (workdays.Day_s='$day_desc') and ('$dtstartob1' >= dfrom) and ('$dtstartob1' <= dto)  and (SchedTime > 0)");
             
             $statementleaveadd->execute();
             
