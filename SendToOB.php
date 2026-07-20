@@ -230,7 +230,7 @@
                                                }
 
                                             while ($row2 = $statement->fetch()){
-                                                if ($row2['EmpID']=="WeDoinc-016" || $row2['EmpID']=="WeDoinc-017" || $row2['EmpID']=="WeDoinc-018" || $row2['EmpID']=="WeDoinc-019" || $row2['EmpID']=="WeDoinc-014"){
+                                                if ($row2['EmpID']=="WeDoinc-016" || $row2['EmpID']=="WeDoinc-017" || $row2['EmpID']=="WeDoinc-018" || $row2['EmpID']=="WeDoinc-019" || $row2['EmpID']=="WeDoinc-014" || $row2['EmpID']=="WeDoinc-003"){
 
                                               }else{
                                           ?>
