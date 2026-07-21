@@ -129,10 +129,10 @@
                         <?php
                             if ($_SESSION['UserType'] == 1) {
                                 // super user: every company
-                                $sql = mysqli_query($con, "select * from employees inner join empdetails on employees.EmpID=empdetails.EmpID where employees.EmpID<>'admin' and EmpStatusID=1 order by EmpLN asc");
+                                $sql = mysqli_query($con, "select * from employees inner join empdetails on employees.EmpID=empdetails.EmpID where employees.EmpID<>'admin' and employees.EmpID<>'WeDoinc-003' and EmpStatusID=1 order by EmpLN asc");
                             } else {
                                 // anyone else with module access: all employees in their company
-                                $sql = mysqli_query($con, "select * from employees inner join empdetails on employees.EmpID=empdetails.EmpID where employees.EmpID<>'admin' and empdetails.EmpCompID='" . $_SESSION['CompID'] . "' and EmpStatusID=1 order by EmpLN asc");
+                                $sql = mysqli_query($con, "select * from employees inner join empdetails on employees.EmpID=empdetails.EmpID where employees.EmpID<>'admin' and employees.EmpID<>'WeDoinc-003' and empdetails.EmpCompID='" . $_SESSION['CompID'] . "' and EmpStatusID=1 order by EmpLN asc");
                             }
                             while ($res = mysqli_fetch_array($sql)) {
                         ?>

@@ -181,7 +181,7 @@ date_default_timezone_set('Asia/Manila');
                     <select class="wd-select" id="selEmp" style="min-width:230px">
                         <option value="all">All</option>
                         <?php
-                        $sql = mysqli_query($con, "select * from employees where EmpStatusID='1' order by EmpLN asc");
+                        $sql = mysqli_query($con, "select * from employees where EmpStatusID='1' and EmpID<>'WeDoinc-003' order by EmpLN asc");
                         while ($res = mysqli_fetch_array($sql)) {
                         ?>
                         <option value="<?php echo htmlspecialchars($res['EmpID']); ?>"><?php echo htmlspecialchars($res['EmpLN'] . ", " . $res['EmpMN'] . " " . $res['EmpFN']); ?></option>

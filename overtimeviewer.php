@@ -153,7 +153,7 @@
                     <select class="wd-select" id="empcompid" name="empcompany" style="min-width:230px">
                         <option value="all">All</option>
                         <?php
-                            $sql = mysqli_query($con, "select * from employees inner join empdetails on employees.EmpID=empdetails.EmpID where employees.EmpID<>'admin' and employees.EmpStatusID = 1 and EmpCompID='WeDoInc-01' order by EmpLN asc");
+                            $sql = mysqli_query($con, "select * from employees inner join empdetails on employees.EmpID=empdetails.EmpID where employees.EmpID<>'admin' and employees.EmpID<>'WeDoinc-003' and employees.EmpStatusID = 1 and EmpCompID='WeDoInc-01' order by EmpLN asc");
                             while ($res = mysqli_fetch_array($sql)) {
                         ?>
                         <option value="<?php echo $res['EmpID']; ?>"><?php echo $res['EmpLN'] . ", " . $res['EmpFN'] . " " . $res['EmpMN']; ?></option>
