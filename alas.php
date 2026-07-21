@@ -276,10 +276,13 @@
                     // Active status is determined by em.EmpStatusID = 1. EmpDateResigned is
                     // NOT a reliable resignation flag in this data (active staff carry real
                     // dates there), so it must not be used to filter the direct-reports list.
+                    // WeDoinc-003 (Tadique) is hardcode-excluded from the on-behalf
+                    // filing list at the user's request, regardless of reporting line.
                     $reportsStmt = $pdo->prepare("SELECT em.EmpID, em.EmpLN, em.EmpFN, em.EmpMN
                         FROM empdetails e
                         INNER JOIN employees em ON e.EmpID = em.EmpID
                         WHERE e.EmpISID = :sid AND e.EmpCompID = :cid AND em.EmpStatusID = 1
+                          AND em.EmpID <> 'WeDoinc-003'
                         ORDER BY em.EmpLN ASC");
                     $reportsStmt->execute([':sid' => $id, ':cid' => $_SESSION['CompID']]);
                     $reports = $reportsStmt->fetchAll();
