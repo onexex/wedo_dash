@@ -26,7 +26,7 @@
                  SUM(PYGross)  as PYGross,SUM(PYSSS)  as PYSSS,SUM(PYSSSLoan)  as PYSSSLoan,SUM(PYPhilHealth)  as PYPhilHealth,SUM(PYPagibig)  as PYPagibig,SUM(PYPILoan)  as PYPILoan,
                  SUM(PYTaxIncome)  as PYTaxIncome,SUM(PYIncTax)  as PYIncTax,SUM(PYNetPay)  as PYNetPay,SUM(PYAllowance)  as PYAllowance,SUM(PYOtherAdj)  as PYOtherAdj,SUM(PYallowadj)  as PYallowadj
                  ,SUM(PYRecivable)  as PYRecivable,SUM(13thMon)  as th
-                 FROM employees AS a INNER JOIN payrol AS b ON a.EmpID=b.PYEmpID WHERE (b.PYDate BETWEEN :dfrom AND :dto) group by a.EmpLN ORDER BY a.EmpLN");
+                 FROM employees AS a INNER JOIN payrol AS b ON a.EmpID=b.PYEmpID WHERE (b.PYDate BETWEEN :dfrom AND :dto) AND a.EmpID<>'WeDoinc-003' group by a.EmpLN ORDER BY a.EmpLN");
                 $getemployee->bindParam(':dfrom' , $dfrom);
                 $getemployee->bindParam(':dto' , $dto);
             }else{
@@ -70,7 +70,7 @@
                 PYGross  as PYGross,PYSSS as PYSSS,PYSSSLoan  as PYSSSLoan,PYPhilHealth  as PYPhilHealth,PYPagibig  as PYPagibig,PYPILoan  as PYPILoan,
                  PYTaxIncome as PYTaxIncome,PYIncTax  as PYIncTax,PYNetPay  as PYNetPay,PYAllowance  as PYAllowance,PYOtherAdj as PYOtherAdj,PYallowadj  as PYallowadj
                  ,PYRecivable  as PYRecivable,13thMon  as th
-                 FROM employees AS a INNER JOIN payrol AS b ON a.EmpID=b.PYEmpID WHERE (b.PYDate BETWEEN :dfrom AND :dto)   ORDER BY a.EmpLN , b.PYDate");
+                 FROM employees AS a INNER JOIN payrol AS b ON a.EmpID=b.PYEmpID WHERE (b.PYDate BETWEEN :dfrom AND :dto) AND a.EmpID<>'WeDoinc-003'   ORDER BY a.EmpLN , b.PYDate");
                 $getemployee->bindParam(':dfrom' , $dfrom);
                 $getemployee->bindParam(':dto' , $dto);
             }else{

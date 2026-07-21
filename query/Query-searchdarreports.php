@@ -73,7 +73,7 @@
                     
                     FROM dars INNER JOIN employees ON dars.EMPID=employees.EmpID
                     
-                    WHERE dars.DarDateTime BETWEEN :dfr AND :dto ORDER BY LastName,DarDateTime desc");
+                    WHERE dars.DarDateTime BETWEEN :dfr AND :dto AND employees.EmpID<>'WeDoinc-003' ORDER BY LastName,DarDateTime desc");
                                                            $statement = $pdo->prepare($resultdata);
                   $statement->bindParam(':dfr' , $dtf);
                   $statement->bindParam(':dto' , $dtt);
@@ -156,7 +156,7 @@
 
                   FROM employees
                   INNER JOIN earlyout ON employees.EmpID=earlyout.EMPID 
-                  INNER JOIN status ON earlyout.Status=status.StatusID where earlyout.FDate BETWEEN :dfr AND :dto order by LastName,earlyout.FDate  desc"); 
+                  INNER JOIN status ON earlyout.Status=status.StatusID where earlyout.FDate BETWEEN :dfr AND :dto and employees.EmpID<>'WeDoinc-003' order by LastName,earlyout.FDate  desc");
                    $statement = $pdo->prepare($resultdata);
                   $statement->bindParam(':dfr' , $dtf);
                   $statement->bindParam(':dto' , $dtt);
@@ -227,7 +227,7 @@
                                     --  INNER JOIN leaves_validation ON hleavesbd.LType=leaves_validation.sid
                                      INNER JOIN leaves ON hleavesbd.LType=leaves.LeaveID
                                      INNER JOIN employees ON hleavesbd.EmpID=employees.EmpID 
-                                     INNER JOIN status ON status.StatusID=hleavesbd.LStatus   WHERE LStatus<>7 and hleavesbd.LStart BETWEEN :dfr AND :dto order by hleavesbd.LStart  desc
+                                     INNER JOIN status ON status.StatusID=hleavesbd.LStatus   WHERE LStatus<>7 and employees.EmpID<>'WeDoinc-003' and hleavesbd.LStart BETWEEN :dfr AND :dto order by hleavesbd.LStart  desc
                                      ");
                   $statement = $pdo->prepare($resultdata);
                     $statement->bindParam(':dfr' , $dtf);
@@ -353,7 +353,7 @@
                           status.StatusDesc as Status,
                           obshbd.OBInputDate as DateTimeInputed FROM obshbd
                           INNER JOIN employees ON employees.EmpID=obshbd.EmpID
-                          INNER JOIN status ON obshbd.OBStatus=status.StatusID WHERE  obshbd.OBDateFrom BETWEEN :dfr AND :dto order by employees.EmpLN,obshbd.OBDateFrom desc");
+                          INNER JOIN status ON obshbd.OBStatus=status.StatusID WHERE  obshbd.OBDateFrom BETWEEN :dfr AND :dto and employees.EmpID<>'WeDoinc-003' order by employees.EmpLN,obshbd.OBDateFrom desc");
                          $statement = $pdo->prepare($resultdata);
                           $statement->bindParam(':dfr' , $dtf);
                           $statement->bindParam(':dto' , $dtt);
@@ -382,7 +382,7 @@
                           status.StatusDesc as Status,
                           obshbd.OBInputDate as DateTimeInputed FROM obshbd
                           INNER JOIN employees ON employees.EmpID=obshbd.EmpID
-                          INNER JOIN status ON obshbd.OBStatus=status.StatusID WHERE obshbd.OBDateFrom BETWEEN :dfr AND :dto order by employees.EmpLN,obshbd.OBDateFrom desc");
+                          INNER JOIN status ON obshbd.OBStatus=status.StatusID WHERE obshbd.OBDateFrom BETWEEN :dfr AND :dto and employees.EmpID<>'WeDoinc-003' order by employees.EmpLN,obshbd.OBDateFrom desc");
                          $statement = $pdo->prepare($resultdata);
                           $statement->bindParam(':dfr' , $dtf);
                           $statement->bindParam(':dto' , $dtt);
@@ -442,7 +442,7 @@
                           status.StatusDesc as Status,
                           obshbd.OBInputDate as DateTimeInputed FROM obshbd
                           INNER JOIN employees ON employees.EmpID=obshbd.EmpID
-                          INNER JOIN status ON obshbd.OBStatus=status.StatusID WHERE obshbd.OBDateFrom BETWEEN :dfr AND :dto order by employees.EmpLN,obshbd.OBDateFrom desc");
+                          INNER JOIN status ON obshbd.OBStatus=status.StatusID WHERE obshbd.OBDateFrom BETWEEN :dfr AND :dto and employees.EmpID<>'WeDoinc-003' order by employees.EmpLN,obshbd.OBDateFrom desc");
                          $statement = $pdo->prepare($resultdata);
                           $statement->bindParam(':dfr' , $dtf);
                           $statement->bindParam(':dto' , $dtt);
@@ -552,7 +552,7 @@
 
                                           FROM otattendancelog as a 
                                           INNER JOIN employees as b ON a.EmpID=b.EmpID
-                                          INNER JOIN status as c ON a.Status=c.StatusID  WHERE  a.TimeIn BETWEEN :dfr AND :dto and (StatusID=1 or StatusID=2 or StatusID=4  or StatusID=5) ORDER BY b.EmpLN ASC, b.EmpFN ASC");
+                                          INNER JOIN status as c ON a.Status=c.StatusID  WHERE  a.TimeIn BETWEEN :dfr AND :dto and b.EmpID<>'WeDoinc-003' and (StatusID=1 or StatusID=2 or StatusID=4  or StatusID=5) ORDER BY b.EmpLN ASC, b.EmpFN ASC");
                                             $statement = $pdo->prepare($resultdata);
                                             $statement->bindParam(':dfr' , $dtf);
                                             $statement->bindParam(':dto' , $dtt);

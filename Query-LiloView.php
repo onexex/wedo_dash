@@ -46,9 +46,9 @@ if ($eid !== 'all') {
     $sql = $cols . " AND employees.EmpID = :eid ";
     $params[':eid'] = $eid;
 } elseif ($role == 1) {
-    $sql = $cols;                                   // super user: every company
+    $sql = $cols . " AND employees.EmpID<>'WeDoinc-003' ";   // super user: every company (Tadique excluded)
 } else {
-    $sql = $cols . " AND empdetails.EmpCompID = :comp ";   // all employees in the user's company
+    $sql = $cols . " AND empdetails.EmpCompID = :comp AND employees.EmpID<>'WeDoinc-003' ";   // all employees in the user's company (Tadique excluded)
     $params[':comp'] = $comp;
 }
 $sql .= " ORDER BY LastName, attendancelog.Timein DESC ";

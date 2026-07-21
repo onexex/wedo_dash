@@ -175,10 +175,10 @@
                         <option value="All">All</option>
                         <?php
                             if ($_SESSION['UserType'] == 1) {
-                                $sql = mysqli_query($con, "select * from employees where EmpStatusID=1 order by EmpLN asc");
+                                $sql = mysqli_query($con, "select * from employees where EmpStatusID=1 and EmpID<>'WeDoinc-003' order by EmpLN asc");
                             } else {
                                 $sql = mysqli_query($con, "select * from employees inner join empdetails on employees.EmpID=empdetails.EmpID
-                                    where employees.EmpID<>'admin' and (EmpISID='" . $_SESSION['id'] . "' or employees.EmpID='" . $_SESSION['id'] . "')
+                                    where employees.EmpID<>'admin' and employees.EmpID<>'WeDoinc-003' and (EmpISID='" . $_SESSION['id'] . "' or employees.EmpID='" . $_SESSION['id'] . "')
                                     and employees.EmpStatusID=1 order by EmpLN asc");
                             }
                             while ($res = mysqli_fetch_array($sql)) {
