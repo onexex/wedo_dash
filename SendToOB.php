@@ -98,6 +98,79 @@
     <!-- WeDo design system (loaded AFTER bootstrap so it wins) -->
     <link rel="stylesheet" href="assets/css/wedo-theme.css">
 
+    <style>
+        /* ===== Send to OB Trip Form modal — larger, more readable controls ===== */
+        #newform .modal-dialog {
+            width: 92%;
+            max-width: 940px;
+            margin: 30px auto;
+        }
+        #newform .modal-content { border-radius: 10px; overflow: hidden; }
+        #newform .modal-header { padding: 16px 22px; }
+        #newform .modal-title { font-size: 20px; font-weight: 600; }
+        #newform .modal-body.ob-body { padding: 26px 28px; }
+        #newform .modal-footer { padding: 14px 22px; }
+
+        /* Labels: readable and consistently spaced */
+        #newform label {
+            font-size: 14px;
+            font-weight: 600;
+            color: var(--text-2, #444);
+            margin-bottom: 6px;
+        }
+        #newform h6 {
+            font-size: 13px;
+            font-weight: 700;
+            letter-spacing: .5px;
+            color: var(--text-3, #666);
+            margin: 4px 0 12px;
+        }
+
+        /* Inputs: bigger hit area and legible text */
+        #newform .form-control {
+            height: 44px;
+            font-size: 15px;
+            padding: 10px 14px;
+            border-radius: 8px;
+            box-shadow: none;
+        }
+        #newform select.form-control { height: 44px; }
+        #newform textarea.form-control {
+            height: auto;
+            min-height: 92px;
+            line-height: 1.4;
+        }
+        #newform .form-control:focus {
+            border-color: #f93627;
+            box-shadow: 0 0 0 3px rgba(249, 54, 39, .15);
+        }
+        #newform .form-control[disabled],
+        #newform .form-control[readonly] {
+            background: #f1f2f4;
+            color: #555;
+            cursor: not-allowed;
+        }
+
+        /* Consistent vertical rhythm between fields */
+        #newform .form-group { margin-bottom: 18px; }
+
+        /* Time/date inputs shouldn't clip their native icons */
+        #newform input[type="time"],
+        #newform input[type="date"] { padding-right: 10px; }
+
+        #newform .btnsendtoob {
+            height: 48px;
+            font-size: 16px;
+            font-weight: 600;
+            margin-top: 8px;
+        }
+
+        @media (max-width: 767px) {
+            #newform .modal-dialog { width: 96%; margin: 16px auto; }
+            #newform .modal-body.ob-body { padding: 18px; }
+        }
+    </style>
+
     <script type="text/javascript" src="assets/js/script.js"></script>
     <script src="assets/js/script-reports.js"></script>
     <script type="text/javascript" src="assets/js/script-modules.js"></script>
@@ -193,7 +266,7 @@
 
     <!-- ===== Send to OB Trip Form modal (hooks preserved for script-modules.js) ===== -->
     <div class="modal" id="newform">
-        <div class="modal-dialog" style="max-width:1000px">
+        <div class="modal-dialog">
             <div class="modal-content">
 
                 <!-- Modal Header -->

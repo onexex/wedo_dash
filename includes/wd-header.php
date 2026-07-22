@@ -222,6 +222,25 @@ function wd_can($ar, $k) { return isset($ar[$k]) && $ar[$k] == 2; }
       })();
       // full label as a hover tooltip, so ellipsis-truncated menu items stay readable
       document.querySelectorAll('.wd-sidebar .wd-nav').forEach(function(n){ if(!n.title) n.title = n.textContent.trim(); });
+
+      // Accordion: opening one section collapses the others, so expanding a group
+      // never pushes the rest of the menu far down / forces a long scroll.
+      (function(){
+        var groups = document.querySelectorAll('.wd-sidebar .wd-navgroup');
+        groups.forEach(function(btn){
+          btn.addEventListener('click', function(){
+            var sec = btn.closest('.wd-navsection');
+            // the inline onclick has just toggled `sec`; if it is now open, close siblings
+            if(sec && !sec.classList.contains('is-collapsed')){
+              document.querySelectorAll('.wd-sidebar .wd-navsection').forEach(function(other){
+                if(other !== sec) other.classList.add('is-collapsed');
+              });
+              // bring the just-opened section into view within the sidebar
+              sec.scrollIntoView({block:'nearest'});
+            }
+          });
+        });
+      })();
     </script>
     <main class="wd-content">
       <div class="wd-content-inner">
