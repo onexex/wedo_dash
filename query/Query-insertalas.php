@@ -164,7 +164,12 @@
       return;
     }
     
-    if (empty($_POST['leavepay']) || $_POST['leavepay'] == 0) {
+    // Leave kind is a fixed, server-controlled value: Paid (1) is the only supported kind, the
+    // Unpaid option being intentionally disabled in the form. Whitelist it rather than only
+    // rejecting 0/empty — a forged POST of any other value (2, 99, "x") would otherwise pass
+    // this check, skip the entire filing validation below (which is gated on ==1), and be
+    // written straight into hleaves.LPaid.
+    if ((string)($_POST['leavepay'] ?? '') !== '1') {
         echo "Missing Schedule. Please contact your systems administrator.";
         return;
     }
@@ -227,26 +232,25 @@
 
       // Leave Timing Logic
       if ($today>=$dtd){
-          $date1=date_create($today); $date2=date_create($dateend);
-          $diff=date_diff($date1,$date2);
-          $DaysAL = floatval($diff->format('%a')); 
-          $cnt=0; $DaysLogin=0;
-          while ($today>$dateend){
-            $day_desc = date ("l", strtotime($dateend));
-            $statement = $pdo->prepare("SELECT * FROM workdays INNER JOIN workschedule ON workdays.SchedTime=workschedule.WorkSchedID INNER JOIN 
-            schedeffectivity AS c ON workdays.EFID=c.efids WHERE (workdays.empid='$id') AND (workdays.Day_s='$day_desc') AND ('$today' >= dfrom) AND ('$today' <= dto) AND SchedTime <> 0 ");
-            $statement->execute();
-            $dateend = date ("Y-m-d", strtotime($dateend. "+1 day"));
-            if ($statement->rowCount()>0 && $today>=$dateend){
-              $cnt=$cnt+1;
-              $dy=date("d", strtotime($dateend)); $mnth=date("m", strtotime($dateend)); $yr=date("Y", strtotime($dateend));
-              $sql = "SELECT * FROM attendancelog WHERE EmpID=:id AND day(TimeIn)=:dy AND year(TimeIn)=:yr AND month(TimeIn)=:mnth";
-              $stmt = $pdo->prepare($sql);
-              $stmt->execute([':id'=>$id, ':dy'=>$dy, ':mnth'=>$mnth, ':yr'=>$yr]); 
-              if ($stmt->rowCount()>0){ $DaysLogin=$DaysLogin+1; }
-            }
+          // Days late = the employee's own scheduled working days that have elapsed since the
+          // last day of the leave. Rest days (SchedTime=0) and days with no effective schedule
+          // don't count against the filing deadline.
+          // This used to count only the days the employee had an attendancelog record, so an
+          // employee who never clocked in after the leave measured as 0 days late and the
+          // filing deadline below could never elapse.
+          $sqlwd = "SELECT 1 FROM workdays
+            INNER JOIN workschedule ON workdays.SchedTime=workschedule.WorkSchedID
+            INNER JOIN schedeffectivity AS c ON workdays.EFID=c.efids
+            WHERE workdays.empid=:id AND workdays.Day_s=:dy AND :dfr >= c.dfrom AND :dto <= c.dto AND workdays.SchedTime <> 0";
+          $stmtwd = $pdo->prepare($sqlwd);
+
+          $WDaysAL = 0;
+          $dchk = date("Y-m-d", strtotime($dateend." +1 day"));
+          while ($dchk <= $today){
+            $stmtwd->execute([':id'=>$id, ':dy'=>date("l", strtotime($dchk)), ':dfr'=>$dchk, ':dto'=>$dchk]);
+            if ($stmtwd->rowCount()>0){ $WDaysAL=$WDaysAL+1; }
+            $dchk = date("Y-m-d", strtotime($dchk." +1 day"));
           }
-          $WDaysAL=$DaysLogin;
       }else{
           $date1=date_create($today); $date2=date_create($dtd);
           $diff=date_diff($date2,$date1);
