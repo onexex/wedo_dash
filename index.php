@@ -158,7 +158,6 @@
       ?>
       <section class="wd-stats">
         <div class="wd-stat"><div class="wd-stat__label"><i class="fa-solid fa-calendar-day"></i> Today</div><div class="wd-stat__value"><?php echo date('M j'); ?></div></div>
-        <div class="wd-stat"><div class="wd-stat__label"><i class="fa-solid fa-bell"></i> Notifications</div><div class="wd-stat__value"><?php echo (int)$nrow; ?></div></div>
         <div class="wd-stat"><div class="wd-stat__label"><i class="fa-solid fa-wallet"></i> Leave credits</div><div class="wd-stat__value"><?php echo $wdct; ?></div></div>
       </section>
 
