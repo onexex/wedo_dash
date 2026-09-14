@@ -492,32 +492,46 @@ try {
           // mirror of includes/loginabsencegate.php — "scheduled" honors each employee's
           // work-schedule effectivity (workdays + workschedule + schedeffectivity,
           // non-rest, date within se.dfrom..se.dto) and excludes company holidays.
+          //
+          // Shape (matches query/dashboard-drilldown.php): build the per-employee
+          // (weekday, effectivity range) rows FIRST, pruned to effectivities that
+          // overlap the window, then STRAIGHT_JOIN the date series into them and test
+          // attendance/leave/OB with NOT EXISTS. Letting the optimizer start from the
+          // 365-row date series instead re-scanned every employee's workdays once per
+          // day and multiplied rows through the LEFT JOINs (~1.2 s YTD → ~5 ms).
           try {
               $st = $wdpdo->prepare(
                   "WITH RECURSIVE dts AS (
-                       SELECT DATE(:pf1) dt UNION ALL SELECT dt + INTERVAL 1 DAY FROM dts WHERE dt < :pt1
+                       SELECT DATE(:pf1) dt, DAYNAME(DATE(:pf3)) dn
+                       UNION ALL SELECT dt + INTERVAL 1 DAY, DAYNAME(dt + INTERVAL 1 DAY) FROM dts WHERE dt < :pt1
                    ),
-                   att AS (SELECT DISTINCT EmpID FROM attendancelog WHERE WSFrom BETWEEN :pf2 AND :pt2)
-                   SELECT COALESCE(dp.DepartmentDesc,'Unassigned') dept,
-                          COUNT(DISTINCT CASE WHEN h.SID IS NULL THEN CONCAT(e.EmpID,'|',dts.dt) END) expected,
-                          COUNT(DISTINCT CASE WHEN h.SID IS NULL AND a.LogID IS NULL AND lv.EmpID IS NULL AND ob.EmpID IS NULL
-                                              THEN CONCAT(e.EmpID,'|',dts.dt) END) absences
-                   FROM dts
-                   JOIN att ON 1=1
-                   JOIN employees e ON e.EmpID = att.EmpID
-                   JOIN empdetails d ON e.EmpID = d.EmpID
-                   JOIN workdays wd ON wd.empid = e.EmpID AND wd.Day_s = DAYNAME(dts.dt)
-                   JOIN workschedule ws ON wd.SchedTime = ws.WorkSchedID AND ws.WorkSchedID <> 0
-                   JOIN schedeffectivity se ON wd.EFID = se.efids AND dts.dt BETWEEN se.dfrom AND se.dto
-                   LEFT JOIN positions p ON e.PosID = p.PSID
-                   LEFT JOIN departments dp ON p.DepartmentID = dp.DepartmentID
-                   LEFT JOIN holidays h ON h.Hdate = dts.dt AND h.HCompID = d.EmpCompID
-                   LEFT JOIN attendancelog a ON a.EmpID = e.EmpID AND a.WSFrom = dts.dt
-                   LEFT JOIN hleavesbd lv ON lv.EmpID = e.EmpID AND dts.dt BETWEEN lv.LStart AND lv.LEnd AND lv.LStatus <> 7
-                   LEFT JOIN obshbd ob ON ob.EmpID = e.EmpID AND dts.dt BETWEEN ob.OBDateFrom AND ob.OBDateTo AND ob.OBStatus <> 7
-                   WHERE 1=1$scopeAnd$resignAnd
-                   GROUP BY dept");
-              $pr = [':pf1'=>$patFrom, ':pt1'=>$patTo, ':pf2'=>$patFrom, ':pt2'=>$patTo];
+                   att AS (SELECT DISTINCT EmpID FROM attendancelog WHERE WSFrom BETWEEN :pf2 AND :pt2),
+                   rng AS (
+                       SELECT DISTINCT e.EmpID, d.EmpCompID, COALESCE(dp.DepartmentDesc,'Unassigned') dept,
+                              wd.Day_s, se.dfrom, se.dto
+                       FROM att
+                       JOIN employees e ON e.EmpID = att.EmpID
+                       JOIN empdetails d ON e.EmpID = d.EmpID
+                       LEFT JOIN positions p ON e.PosID = p.PSID
+                       LEFT JOIN departments dp ON p.DepartmentID = dp.DepartmentID
+                       JOIN workdays wd ON wd.empid = e.EmpID AND wd.SchedTime <> 0
+                       JOIN schedeffectivity se ON se.efids = CAST(wd.EFID AS UNSIGNED)
+                                               AND se.dto >= :pf4 AND se.dfrom <= :pt4
+                       WHERE 1=1$scopeAnd$resignAnd
+                   ),
+                   sched AS (
+                       SELECT DISTINCT r.EmpID, r.dept, dts.dt
+                       FROM rng r STRAIGHT_JOIN dts ON dts.dn = r.Day_s AND dts.dt BETWEEN r.dfrom AND r.dto
+                       WHERE NOT EXISTS (SELECT 1 FROM holidays h WHERE h.Hdate = dts.dt AND h.HCompID = r.EmpCompID)
+                   )
+                   SELECT s.dept, COUNT(*) expected,
+                          SUM(NOT EXISTS (SELECT 1 FROM attendancelog a WHERE a.EmpID = s.EmpID AND a.WSFrom = s.dt)
+                          AND NOT EXISTS (SELECT 1 FROM hleavesbd lv WHERE lv.EmpID = s.EmpID AND s.dt BETWEEN lv.LStart AND lv.LEnd AND lv.LStatus <> 7)
+                          AND NOT EXISTS (SELECT 1 FROM obshbd ob WHERE ob.EmpID = s.EmpID AND s.dt BETWEEN ob.OBDateFrom AND ob.OBDateTo AND ob.OBStatus <> 7)) absences
+                   FROM sched s
+                   GROUP BY s.dept");
+              $pr = [':pf1'=>$patFrom, ':pt1'=>$patTo, ':pf2'=>$patFrom, ':pt2'=>$patTo,
+                     ':pf3'=>$patFrom, ':pf4'=>$patFrom, ':pt4'=>$patTo];
               if ($scope==='team') { $pr[':uid']=$uid; }
               $st->execute($pr);
               while ($r = $st->fetch(PDO::FETCH_ASSOC)) {

@@ -110,33 +110,42 @@ try {
     }
 } catch (Exception $e) {}
 
-/* ---- absences: one row per scheduled day with no attendance/leave/OB ---- */
+/* ---- absences: one row per scheduled day with no attendance/leave/OB ----
+   Same shape as dashboard.php: per-employee (weekday, effectivity range) rows
+   first, pruned to effectivities overlapping the window, then STRAIGHT_JOIN the
+   date series in and test attendance/leave/OB with NOT EXISTS. ---- */
 $abs = [];
 try {
     $st = $pdo->prepare(
         "WITH RECURSIVE dts AS (
-             SELECT DATE(:pf1) dt UNION ALL SELECT dt + INTERVAL 1 DAY FROM dts WHERE dt < :pt1
+             SELECT DATE(:pf1) dt, DAYNAME(DATE(:pf3)) dn
+             UNION ALL SELECT dt + INTERVAL 1 DAY, DAYNAME(dt + INTERVAL 1 DAY) FROM dts WHERE dt < :pt1
          ),
-         att AS (SELECT DISTINCT EmpID FROM attendancelog WHERE WSFrom BETWEEN :pf2 AND :pt2)
-         SELECT e.EmpLN, e.EmpFN, dts.dt d
-         FROM dts
-         JOIN att ON 1=1
-         JOIN employees e ON e.EmpID = att.EmpID
-         JOIN empdetails d ON e.EmpID = d.EmpID
-         JOIN workdays wd ON wd.empid = e.EmpID AND wd.Day_s = DAYNAME(dts.dt)
-         JOIN workschedule ws ON wd.SchedTime = ws.WorkSchedID AND ws.WorkSchedID <> 0
-         JOIN schedeffectivity se ON wd.EFID = se.efids AND dts.dt BETWEEN se.dfrom AND se.dto
-         LEFT JOIN positions p ON e.PosID = p.PSID
-         LEFT JOIN departments dp ON p.DepartmentID = dp.DepartmentID
-         LEFT JOIN holidays h ON h.Hdate = dts.dt AND h.HCompID = d.EmpCompID
-         LEFT JOIN attendancelog a ON a.EmpID = e.EmpID AND a.WSFrom = dts.dt
-         LEFT JOIN hleavesbd lv ON lv.EmpID = e.EmpID AND dts.dt BETWEEN lv.LStart AND lv.LEnd AND lv.LStatus NOT IN (3,5,6,7)
-         LEFT JOIN obshbd ob ON ob.EmpID = e.EmpID AND dts.dt BETWEEN ob.OBDateFrom AND ob.OBDateTo AND ob.OBStatus NOT IN (3,5,6,7)
-         WHERE COALESCE(dp.DepartmentDesc,'Unassigned') = :dept
-           AND h.SID IS NULL AND a.LogID IS NULL AND lv.EmpID IS NULL AND ob.EmpID IS NULL$scopeAnd$resignAnd
-         GROUP BY e.EmpID, e.EmpLN, e.EmpFN, dts.dt
-         ORDER BY e.EmpLN, e.EmpFN, dts.dt");
-    $pr = [':pf1'=>$pf, ':pt1'=>$pt, ':pf2'=>$pf, ':pt2'=>$pt, ':dept'=>$dept];
+         att AS (SELECT DISTINCT EmpID FROM attendancelog WHERE WSFrom BETWEEN :pf2 AND :pt2),
+         rng AS (
+             SELECT DISTINCT e.EmpID, e.EmpLN, e.EmpFN, d.EmpCompID, wd.Day_s, se.dfrom, se.dto
+             FROM att
+             JOIN employees e ON e.EmpID = att.EmpID
+             JOIN empdetails d ON e.EmpID = d.EmpID
+             LEFT JOIN positions p ON e.PosID = p.PSID
+             LEFT JOIN departments dp ON p.DepartmentID = dp.DepartmentID
+             JOIN workdays wd ON wd.empid = e.EmpID AND wd.SchedTime <> 0
+             JOIN schedeffectivity se ON se.efids = CAST(wd.EFID AS UNSIGNED)
+                                     AND se.dto >= :pf4 AND se.dfrom <= :pt4
+             WHERE COALESCE(dp.DepartmentDesc,'Unassigned') = :dept$scopeAnd$resignAnd
+         ),
+         sched AS (
+             SELECT DISTINCT r.EmpID, r.EmpLN, r.EmpFN, dts.dt
+             FROM rng r STRAIGHT_JOIN dts ON dts.dn = r.Day_s AND dts.dt BETWEEN r.dfrom AND r.dto
+             WHERE NOT EXISTS (SELECT 1 FROM holidays h WHERE h.Hdate = dts.dt AND h.HCompID = r.EmpCompID)
+         )
+         SELECT s.EmpLN, s.EmpFN, s.dt d
+         FROM sched s
+         WHERE NOT EXISTS (SELECT 1 FROM attendancelog a WHERE a.EmpID = s.EmpID AND a.WSFrom = s.dt)
+           AND NOT EXISTS (SELECT 1 FROM hleavesbd lv WHERE lv.EmpID = s.EmpID AND s.dt BETWEEN lv.LStart AND lv.LEnd AND lv.LStatus <> 7)
+           AND NOT EXISTS (SELECT 1 FROM obshbd ob WHERE ob.EmpID = s.EmpID AND s.dt BETWEEN ob.OBDateFrom AND ob.OBDateTo AND ob.OBStatus <> 7)
+         ORDER BY s.EmpLN, s.EmpFN, s.dt");
+    $pr = [':pf1'=>$pf, ':pt1'=>$pt, ':pf2'=>$pf, ':pt2'=>$pt, ':pf3'=>$pf, ':pf4'=>$pf, ':pt4'=>$pt, ':dept'=>$dept];
     if ($scope==='team') { $pr[':uid']=$uid; }
     $st->execute($pr);
     while ($r = $st->fetch(PDO::FETCH_ASSOC)) {
