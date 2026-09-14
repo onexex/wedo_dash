@@ -170,7 +170,7 @@ die("ERROR: Could not connect. " . $e->getMessage());
                                     $todayDT = date("Y-m-d H:i:s");
                                     $creatorName='admin';
                                     $ann='Announcement';
-                                    $message= ' Happy Birthday '. $empRow['EmpFN'] . "  ". $empRow['EmpLN'] . ' '. " <i class='fa fa-birthday-cake'></i>"  ;
+                                    $message= 'Happy Birthday ' . $empRow['EmpFN'] . ' ' . $empRow['EmpLN'] . " <i class='fa fa-birthday-cake'></i>";
                                     $sql = "INSERT INTO announcements (EmpID,Title,ADesc,ADate) 
                                        VALUES (:id,:AnnT,:announ,:dtte)";
                                         $stmt = $pdo->prepare($sql);
