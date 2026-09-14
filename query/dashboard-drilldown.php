@@ -45,6 +45,245 @@ $pt = $vd($_GET['pt'] ?? '', date('Y-m-d'));
 $pf = $vd($_GET['pf'] ?? '', date('Y-01-01', strtotime($pt)));
 if ($pf > $pt) { $t = $pf; $pf = $pt; $pt = $t; }
 if (strtotime($pt) - strtotime($pf) > 366 * 86400) { $pf = date('Y-m-d', strtotime($pt . ' -366 days')); }
+/* ==========================================================================
+   KPI / tile drill-downs (?kind=...) — the people behind each dashboard number.
+   Same session-derived scope + access gate as the department drill-down above.
+   `ad` = the attendance date the dashboard displayed (today, or the latest
+   attendance day when today has no clock-ins); validated, never trusted for scope.
+   ========================================================================== */
+$kind = isset($_GET['kind']) ? preg_replace('/[^a-z]/', '', (string) $_GET['kind']) : '';
+if ($kind !== '') {
+    $hh  = function ($s) { return htmlspecialchars((string) $s, ENT_QUOTES); };
+    $fmt = function ($d) { return $d ? date('M j', strtotime($d)) : ''; };
+    $nm  = function ($ln, $fn) { return trim($ln . ', ' . $fn, ', '); };
+    $ad  = $vd($_GET['ad'] ?? '', date('Y-m-d'));
+    $scopeWhere = "e.EmpStatusID = 1" . ($scope === 'team' ? " AND d.EmpISID = :uid" : "");   // mirrors $scopeJoinWhere
+    $attScope   = ($scope === 'team') ? "d.EmpISID = :uid" : "1=1";                          // mirrors $attScope
+    $bind = function (array $p) use ($scope, $uid) { if ($scope === 'team') { $p[':uid'] = $uid; } return $p; };
+
+    /* employees SCHEDULED on $ad — identical to dashboard.php's $scheduledEmp query */
+    $scheduled = function () use ($pdo, $ad, $attScope, $bind) {
+        $st = $pdo->prepare(
+            "SELECT DISTINCT e.EmpID, e.EmpLN, e.EmpFN, p.PositionDesc, COALESCE(dp.DepartmentDesc,'Unassigned') dept
+             FROM employees e
+             JOIN empdetails d ON e.EmpID=d.EmpID
+             JOIN workdays wd ON wd.empid=e.EmpID AND wd.Day_s=DAYNAME(:ad1)
+             JOIN workschedule ws ON wd.SchedTime=ws.WorkSchedID AND ws.WorkSchedID<>0
+             JOIN schedeffectivity se ON wd.EFID=se.efids AND :ad2 BETWEEN se.dfrom AND se.dto
+             LEFT JOIN positions p ON e.PosID=p.PSID
+             LEFT JOIN departments dp ON p.DepartmentID=dp.DepartmentID
+             LEFT JOIN holidays h ON h.Hdate=:ad3 AND h.HCompID=d.EmpCompID
+             WHERE h.SID IS NULL AND d.EmpRoleID <> 1 AND COALESCE(p.PositionDesc,'') NOT LIKE '%Manager%' AND $attScope
+             ORDER BY e.EmpLN, e.EmpFN");
+        $st->execute($bind([':ad1'=>$ad, ':ad2'=>$ad, ':ad3'=>$ad]));
+        $out = []; while ($r = $st->fetch(PDO::FETCH_ASSOC)) { $out[$r['EmpID']] = $r; } return $out;
+    };
+    $col = function ($sql, array $p = []) use ($pdo) { $st = $pdo->prepare($sql); $st->execute($p); return array_flip($st->fetchAll(PDO::FETCH_COLUMN)); };
+
+    /* render helpers — a column name starting with '#' is right-aligned */
+    $head  = function ($title, $sub) use ($hh) { return '<div class="dd-head">' . $hh($title) . ' <span class="dd-period">&middot; ' . $hh($sub) . '</span></div>'; };
+    $table = function (array $cols, array $rows, $empty) use ($hh) {
+        if (!$rows) { return '<div class="dd-none">' . $hh($empty) . '</div>'; }
+        $h = '<table class="dd-tbl"><thead><tr>';
+        foreach ($cols as $c) { $h .= '<th' . (substr($c, 0, 1) === '#' ? ' class="num"' : '') . '>' . $hh(ltrim($c, '#')) . '</th>'; }
+        $h .= '</tr></thead><tbody>';
+        foreach ($rows as $r) {
+            $h .= '<tr>';
+            foreach ($r as $i => $cell) {   // cells are pre-escaped by the caller
+                $num = substr($cols[$i] ?? '', 0, 1) === '#';
+                $h .= '<td class="' . ($i === 0 ? 'dd-emp' : '') . ($num ? ' num' : '') . '">' . $cell . '</td>';
+            }
+            $h .= '</tr>';
+        }
+        return $h . '</tbody></table>';
+    };
+    $pill = function ($cls, $txt) use ($hh) { return '<span class="wd-pill wd-pill--' . $cls . '">' . $hh($txt) . '</span>'; };
+    $adLbl = date('M j, Y', strtotime($ad));
+
+    try {
+        switch ($kind) {
+
+        /* ---- Active employees / Direct reports ---- */
+        case 'active':
+            $st = $pdo->prepare(
+                "SELECT e.EmpLN, e.EmpFN, p.PositionDesc, COALESCE(dp.DepartmentDesc,'Unassigned') dept, d.EmpDateHired
+                 FROM employees e JOIN empdetails d ON e.EmpID=d.EmpID
+                 LEFT JOIN positions p ON e.PosID=p.PSID LEFT JOIN departments dp ON p.DepartmentID=dp.DepartmentID
+                 WHERE $scopeWhere ORDER BY dept, e.EmpLN, e.EmpFN");
+            $st->execute($bind([]));
+            $rows = [];
+            while ($r = $st->fetch(PDO::FETCH_ASSOC)) {
+                $rows[] = [$hh($nm($r['EmpLN'], $r['EmpFN'])), $hh($r['PositionDesc'] ?: '—'), $hh($r['dept']),
+                           $hh($r['EmpDateHired'] && $r['EmpDateHired'] !== '0000-00-00' ? date('M j, Y', strtotime($r['EmpDateHired'])) : '—')];
+            }
+            echo $head($scope === 'team' ? 'Direct reports' : 'Active employees', count($rows) . ' people');
+            echo $table(['Employee', 'Position', 'Department', 'Date hired'], $rows, 'No active employees in scope.');
+            break;
+
+        /* ---- Present on $ad (scheduled + clocked in), with time-in and lateness ---- */
+        case 'present':
+            $sch = $scheduled();
+            $st = $pdo->prepare("SELECT EmpID, MIN(TimeIn) ti, MAX(MinsLack) ml FROM attendancelog WHERE WSFrom=:ad GROUP BY EmpID");
+            $st->execute([':ad' => $ad]);
+            $att = []; while ($r = $st->fetch(PDO::FETCH_ASSOC)) { $att[$r['EmpID']] = $r; }
+            $rows = []; $late = 0;
+            foreach ($sch as $eid => $r) {
+                if (!isset($att[$eid])) { continue; }
+                $ml = (int) round($att[$eid]['ml']); if ($ml > 0) { $late++; }
+                $rows[] = [$hh($nm($r['EmpLN'], $r['EmpFN'])), $hh($r['PositionDesc'] ?: $r['dept']),
+                           $hh($att[$eid]['ti'] ? date('g:i A', strtotime($att[$eid]['ti'])) : '—'),
+                           $ml > 0 ? $pill('warn', $ml . ' min late') : $pill('ok', 'On time')];
+            }
+            echo $head('Present', $adLbl . ' · ' . count($rows) . ' of ' . count($sch) . ' scheduled' . ($late ? " · $late late" : ''));
+            echo $table(['Employee', 'Position', '#Time in', '#Status'], $rows, 'No one scheduled has clocked in on ' . $adLbl . '.');
+            break;
+
+        /* ---- On leave / OB on $ad (scheduled, not clocked in, filing on file) ---- */
+        case 'leave':
+            $sch = $scheduled();
+            $present = $col("SELECT DISTINCT EmpID FROM attendancelog WHERE WSFrom=:ad", [':ad' => $ad]);
+            $st = $pdo->prepare(
+                "SELECT 'Leave' typ, lv.EmpID, COALESCE(l.LeaveDesc,'Leave') what, lv.LStart f, lv.LEnd t, lv.LStatus stt
+                 FROM hleavesbd lv LEFT JOIN leaves l ON lv.LType=l.LeaveID
+                 WHERE :ad1 BETWEEN lv.LStart AND lv.LEnd AND lv.LStatus <> 7
+                 UNION ALL
+                 SELECT 'OB', ob.EmpID, COALESCE(ob.OBPurpose,'Official business'), ob.OBDateFrom, ob.OBDateTo, ob.OBStatus
+                 FROM obshbd ob WHERE :ad2 BETWEEN ob.OBDateFrom AND ob.OBDateTo AND ob.OBStatus <> 7");
+            $st->execute([':ad1' => $ad, ':ad2' => $ad]);
+            // leave filings take precedence over OB for the same person (dashboard partition
+            // order: present → leave → OB); ?mod=leave restricts to leave only (KPI tile).
+            $onlyLeave = (($_GET['mod'] ?? '') === 'leave');
+            $fil = [];
+            while ($r = $st->fetch(PDO::FETCH_ASSOC)) {
+                if ($onlyLeave && $r['typ'] !== 'Leave') { continue; }
+                $fil[$r['EmpID']] = $fil[$r['EmpID']] ?? [];
+                if ($r['typ'] === 'Leave') { array_unshift($fil[$r['EmpID']], $r); } else { $fil[$r['EmpID']][] = $r; }
+            }
+            $stMap = [1=>'Pending', 2=>'Approved by IS', 3=>'Disapproved by IS', 4=>'Approved by HR', 5=>'Disapproved by HR', 6=>'Disapproved', 8=>'Approved w/o pay', 9=>'Processed', 10=>'Released'];
+            $rows = [];
+            foreach ($sch as $eid => $r) {
+                if (isset($present[$eid]) || empty($fil[$eid])) { continue; }
+                $f = $fil[$eid][0];   // leave first (UNION order), then OB — matches the dashboard partition
+                $sc = (int) $f['stt']; $cls = in_array($sc, [3,5,6]) ? 'danger' : ($sc === 1 ? 'warn' : ($sc === 2 ? 'info' : 'ok'));
+                $rows[] = [$hh($nm($r['EmpLN'], $r['EmpFN'])), $hh($f['typ']) . ' <span class="dpat-sub">· ' . $hh(mb_strimwidth($f['what'], 0, 40, '…')) . '</span>',
+                           $hh($fmt($f['f']) . ($f['t'] !== $f['f'] ? ' – ' . $fmt($f['t']) : '')), $pill($cls, $stMap[$sc] ?? ('Status ' . $sc))];
+            }
+            echo $head($onlyLeave ? 'On leave' : 'On leave / OB', $adLbl . ' · ' . count($rows) . ' people');
+            echo $table(['Employee', 'Filing', 'Dates', '#Status'], $rows, 'No one scheduled is on ' . ($onlyLeave ? 'leave' : 'leave or OB') . ' on ' . $adLbl . '.');
+            break;
+
+        /* ---- Scheduled but not clocked in and no filing on $ad ---- */
+        case 'notin':
+            $sch = $scheduled();
+            $present = $col("SELECT DISTINCT EmpID FROM attendancelog WHERE WSFrom=:ad", [':ad' => $ad]);
+            $lv = $col("SELECT DISTINCT EmpID FROM hleavesbd WHERE :ad BETWEEN LStart AND LEnd AND LStatus <> 7", [':ad' => $ad]);
+            $ob = $col("SELECT DISTINCT EmpID FROM obshbd WHERE :ad BETWEEN OBDateFrom AND OBDateTo AND OBStatus <> 7", [':ad' => $ad]);
+            $rows = [];
+            foreach ($sch as $eid => $r) {
+                if (isset($present[$eid]) || isset($lv[$eid]) || isset($ob[$eid])) { continue; }
+                $rows[] = [$hh($nm($r['EmpLN'], $r['EmpFN'])), $hh($r['PositionDesc'] ?: '—'), $hh($r['dept']), $pill('danger', 'No time-in')];
+            }
+            echo $head('Not clocked in', $adLbl . ' · ' . count($rows) . ' of ' . count($sch) . ' scheduled');
+            echo $table(['Employee', 'Position', 'Department', '#Status'], $rows, 'Everyone scheduled on ' . $adLbl . ' is present or accounted for.');
+            break;
+
+        /* ---- Pending approvals (all four modules, rolling 14-day window, no LIMIT) ---- */
+        case 'pending':
+            $ptbl = [
+              'hl' => ['t'=>'hleaves',         'st'=>'LStatus',  'sup'=>'EmpSID',  'fd'=>'LFDate',          'label'=>'Leave',     'what'=>"COALESCE(l.LeaveDesc,'Leave')", 'xj'=>' LEFT JOIN leaves l ON a.LType=l.LeaveID', 'from'=>'a.LStart',     'to'=>'a.LEnd'],
+              'ob' => ['t'=>'obs',             'st'=>'OBStatus', 'sup'=>'EmpSID',  'fd'=>'OBInputDate',     'label'=>'OB',        'what'=>"COALESCE(a.OBPurpose,'')",       'xj'=>'', 'from'=>'a.OBDateFrom', 'to'=>'a.OBDateTo'],
+              'eo' => ['t'=>'earlyout',        'st'=>'Status',   'sup'=>'EmpISID', 'fd'=>'DateTimeInputed', 'label'=>'Early-out', 'what'=>"COALESCE(a.Purpose,'')",         'xj'=>'', 'from'=>'a.DFile',      'to'=>'a.DFile'],
+              'ot' => ['t'=>'otattendancelog', 'st'=>'Status',   'sup'=>'EmpISID', 'fd'=>'DateFiling',      'label'=>'Overtime',  'what'=>"COALESCE(a.Purpose,'')",         'xj'=>'', 'from'=>'DATE(a.TimeIn)', 'to'=>'DATE(a.TimeOut)'],
+            ];
+            $mod = isset($_GET['mod']) && isset($ptbl[$_GET['mod']]) ? $_GET['mod'] : '';
+            $cutoff = date('Y-m-d', strtotime('-14 days'));
+            $parts = []; $pp = [];
+            foreach ($ptbl as $k => $m) {
+                if ($mod !== '' && $k !== $mod) { continue; }
+                if ($scope === 'team') { $w = "a.{$m['sup']}=:u_$k AND a.{$m['st']}=1"; $pp[":u_$k"] = $uid; }
+                else                   { $w = "a.{$m['st']} IN (1,2)"; }
+                $w .= " AND DATE(a.{$m['fd']}) >= :c_$k"; $pp[":c_$k"] = $cutoff;
+                $parts[] = "SELECT '{$m['label']}' typ, CONCAT(b.EmpLN,', ',b.EmpFN) emp, {$m['what']} what, {$m['from']} f, {$m['to']} t, a.{$m['fd']} filed, a.{$m['st']} stt
+                            FROM {$m['t']} a JOIN employees b ON a.EmpID=b.EmpID{$m['xj']} WHERE $w";
+            }
+            $rows = [];
+            if ($parts) {
+                $st = $pdo->prepare(implode(' UNION ALL ', $parts) . ' ORDER BY filed ASC');
+                $st->execute($pp);
+                while ($r = $st->fetch(PDO::FETCH_ASSOC)) {
+                    $stt = (int) $r['stt'];
+                    $rows[] = [$hh(trim($r['emp'], ', ')),
+                               $hh($r['typ']) . ($r['what'] !== '' ? ' <span class="dpat-sub">· ' . $hh(mb_strimwidth($r['what'], 0, 40, '…')) . '</span>' : ''),
+                               $hh($r['f'] ? $fmt($r['f']) . ($r['t'] && $r['t'] !== $r['f'] ? ' – ' . $fmt($r['t']) : '') : '—'),
+                               $hh($r['filed'] ? date('M j', strtotime($r['filed'])) : '—'),
+                               $stt === 1 ? $pill('warn', 'Awaiting superior') : $pill('info', 'Awaiting HR')];
+                }
+            }
+            $ttl = $mod !== '' ? 'Pending ' . strtolower($ptbl[$mod]['label']) . ' approvals' : 'Pending approvals';
+            echo $head($ttl, 'filed in the last 14 days · ' . count($rows) . ' pending');
+            echo $table(['Employee', 'Request', 'For', 'Filed', '#Status'], $rows, 'Nothing awaiting action.');
+            break;
+
+        /* ---- Workforce: everyone on file (org only) ---- */
+        case 'onfile':
+            if ($scope !== 'org') { echo '<div class="dd-none">Not available for team scope.</div>'; break; }
+            $st = $pdo->query(
+                "SELECT e.EmpLN, e.EmpFN, e.EmpStatusID, p.PositionDesc, COALESCE(dp.DepartmentDesc,'Unassigned') dept
+                 FROM employees e LEFT JOIN positions p ON e.PosID=p.PSID LEFT JOIN departments dp ON p.DepartmentID=dp.DepartmentID
+                 ORDER BY e.EmpStatusID, e.EmpLN, e.EmpFN");
+            $rows = [];
+            while ($r = $st->fetch(PDO::FETCH_ASSOC)) {
+                $rows[] = [$hh($nm($r['EmpLN'], $r['EmpFN'])), $hh($r['PositionDesc'] ?: '—'), $hh($r['dept']),
+                           (int) $r['EmpStatusID'] === 1 ? $pill('ok', 'Active') : $pill('danger', 'Resigned/Inactive')];
+            }
+            echo $head('Employees on file', count($rows) . ' records');
+            echo $table(['Employee', 'Position', 'Department', '#Status'], $rows, 'No employee records.');
+            break;
+
+        /* ---- Workforce: resigned / inactive (org only) ---- */
+        case 'inactive':
+            if ($scope !== 'org') { echo '<div class="dd-none">Not available for team scope.</div>'; break; }
+            $st = $pdo->query(
+                "SELECT e.EmpLN, e.EmpFN, p.PositionDesc, COALESCE(dp.DepartmentDesc,'Unassigned') dept, d.EmpDateResigned
+                 FROM employees e LEFT JOIN empdetails d ON e.EmpID=d.EmpID
+                 LEFT JOIN positions p ON e.PosID=p.PSID LEFT JOIN departments dp ON p.DepartmentID=dp.DepartmentID
+                 WHERE e.EmpStatusID <> 1 ORDER BY d.EmpDateResigned DESC, e.EmpLN, e.EmpFN");
+            $rows = [];
+            while ($r = $st->fetch(PDO::FETCH_ASSOC)) {
+                $rd = ($r['EmpDateResigned'] && $r['EmpDateResigned'] !== '0000-00-00') ? date('M j, Y', strtotime($r['EmpDateResigned'])) : '—';
+                $rows[] = [$hh($nm($r['EmpLN'], $r['EmpFN'])), $hh($r['PositionDesc'] ?: '—'), $hh($r['dept']), $hh($rd)];
+            }
+            echo $head('Resigned / inactive', count($rows) . ' people');
+            echo $table(['Employee', 'Position', 'Department', 'Resigned'], $rows, 'No resigned or inactive employees.');
+            break;
+
+        /* ---- Workforce: left within the reporting period ---- */
+        case 'left':
+            $st = $pdo->prepare(
+                "SELECT e.EmpLN, e.EmpFN, p.PositionDesc, COALESCE(dp.DepartmentDesc,'Unassigned') dept, d.EmpDateResigned
+                 FROM employees e JOIN empdetails d ON e.EmpID=d.EmpID
+                 LEFT JOIN positions p ON e.PosID=p.PSID LEFT JOIN departments dp ON p.DepartmentID=dp.DepartmentID
+                 WHERE d.EmpDateResigned IS NOT NULL AND d.EmpDateResigned <> '' AND d.EmpDateResigned <> '0000-00-00'
+                   AND d.EmpDateResigned BETWEEN :rd AND :rt" . ($scope === 'team' ? " AND d.EmpISID=:uid" : "") . "
+                 ORDER BY d.EmpDateResigned DESC, e.EmpLN, e.EmpFN");
+            $st->execute($bind([':rd' => $pf, ':rt' => $pt]));
+            $rows = [];
+            while ($r = $st->fetch(PDO::FETCH_ASSOC)) {
+                $rows[] = [$hh($nm($r['EmpLN'], $r['EmpFN'])), $hh($r['PositionDesc'] ?: '—'), $hh($r['dept']), $hh(date('M j, Y', strtotime($r['EmpDateResigned'])))];
+            }
+            echo $head('Left in period', $fmt($pf) . ' – ' . date('M j, Y', strtotime($pt)) . ' · ' . count($rows) . ' people');
+            echo $table(['Employee', 'Position', 'Department', 'Resigned'], $rows, 'No resignations in this period.');
+            break;
+
+        default:
+            echo '<div class="dd-none">Unknown detail.</div>';
+        }
+    } catch (Exception $e) {
+        echo '<div class="dd-none">Could not load details.</div>';
+    }
+    exit;
+}
+
 if ($dept === '') { echo '<div class="dd-none">No department specified.</div>'; exit; }
 
 $scopeAnd  = ($scope === 'team') ? " AND d.EmpISID = :uid" : "";
