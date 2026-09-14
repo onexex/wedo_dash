@@ -159,6 +159,12 @@ try {
       table.dpat tbody tr{cursor:pointer}
       .dpat-drill{color:var(--text-3);font-size:10px;margin-left:6px;opacity:.45;transition:opacity .15s,transform .15s}
       table.dpat tbody tr:hover .dpat-drill{opacity:1;transform:translateX(2px);color:var(--brand)}
+      /* clickable KPI tiles / snapshot cells / pending chips → drill-down modal */
+      .dash-drill{cursor:pointer;position:relative;transition:border-color .15s,box-shadow .15s,background .15s}
+      .dash-drill:hover,.dash-drill:focus-visible{border-color:var(--brand);box-shadow:0 0 0 3px var(--brand-tint);outline:none}
+      .dash-drill::after{content:"\f054";font-family:"Font Awesome 6 Free";font-weight:900;position:absolute;right:12px;top:12px;font-size:10px;color:var(--text-3);opacity:.45;transition:opacity .15s,transform .15s,color .15s}
+      .dash-drill:hover::after,.dash-drill:focus-visible::after{opacity:1;transform:translateX(2px);color:var(--brand)}
+      .dash-att__cell.dash-drill::after,.dash-chip.dash-drill::after{right:8px;top:8px}
       .dd-modalhead{background:#f93627;color:#fff;border:0}
       .dd-modalhead .modal-title{color:#fff;font-family:var(--font-head);font-weight:700}
       .dd-modalhead .close{color:#fff;opacity:.9;text-shadow:none;font-size:26px}
@@ -579,19 +585,19 @@ try {
 
       <!-- ===== KPI STATS ===== -->
       <section class="wd-stats">
-        <div class="wd-stat">
+        <div class="wd-stat dash-drill" data-drill="active" data-title="<?php echo $scope==='team'?'Direct reports':'Active employees'; ?>" role="button" tabindex="0" title="Click to see who">
           <div class="wd-stat__label"><i class="fa-solid fa-users"></i> <?php echo $scope==='team'?'Direct reports':'Active employees'; ?></div>
           <div class="wd-stat__value"><?php echo (int)$activeCount; ?></div>
         </div>
-        <div class="wd-stat">
+        <div class="wd-stat dash-drill" data-drill="present" data-title="Present" role="button" tabindex="0" title="Click to see who">
           <div class="wd-stat__label"><i class="fa-solid fa-user-check"></i> Present <?php echo $attnStale?'(latest)':'today'; ?></div>
           <div class="wd-stat__value"><?php echo (int)$presentCount; ?> <span style="font-size:14px;color:var(--text-3);font-weight:600"><?php echo $scheduledCount?('· '.$attnRate.'%'):''; ?></span></div>
         </div>
-        <div class="wd-stat">
+        <div class="wd-stat dash-drill" data-drill="leave" data-mod="leave" data-title="On leave" role="button" tabindex="0" title="Click to see who">
           <div class="wd-stat__label"><i class="fa-solid fa-plane-departure"></i> On leave today</div>
           <div class="wd-stat__value"><?php echo (int)$leaveCount; ?></div>
         </div>
-        <div class="wd-stat">
+        <div class="wd-stat dash-drill" data-drill="pending" data-title="Pending approvals" role="button" tabindex="0" title="Click to see the list">
           <div class="wd-stat__label"><i class="fa-solid fa-clipboard-check"></i> <?php echo $scope==='self'?'My pending requests':'Pending approvals'; ?></div>
           <div class="wd-stat__value"><?php echo (int)$pendTotal; ?></div>
         </div>
@@ -662,7 +668,7 @@ try {
           <div class="dash-body">
             <div class="dash-chips">
               <?php foreach ($ptbl as $k => $m): ?>
-                <div class="dash-chip">
+                <div class="dash-chip dash-drill" data-drill="pending" data-mod="<?php echo $k; ?>" data-title="Pending <?php echo strtolower($m['label']); ?> approvals" role="button" tabindex="0" title="Click to see the list">
                   <div class="dash-chip__n <?php echo $pendCount[$k]>0?'is-hot':''; ?>"><?php echo (int)$pendCount[$k]; ?></div>
                   <div class="dash-chip__l"><i class="fa-solid <?php echo $m['icon']; ?>"></i> <?php echo $m['label']; ?></div>
                 </div>
@@ -704,9 +710,9 @@ try {
               <div class="dash-empty"><i class="fa-solid fa-calendar-xmark"></i>No employees are scheduled to work on <?php echo date('M j, Y', strtotime($attnDate)); ?>.</div>
             <?php else: ?>
             <div class="dash-att">
-              <div class="dash-att__cell"><div class="dash-att__n n-present"><?php echo (int)$presentCount; ?></div><div class="dash-att__l">Present</div></div>
-              <div class="dash-att__cell"><div class="dash-att__n n-leave"><?php echo (int)($leaveCount + $obCount); ?></div><div class="dash-att__l">Leave / OB</div></div>
-              <div class="dash-att__cell"><div class="dash-att__n n-out"><?php echo (int)$notInCount; ?></div><div class="dash-att__l">Not clocked in</div></div>
+              <div class="dash-att__cell dash-drill" data-drill="present" data-title="Present" role="button" tabindex="0" title="Click to see who"><div class="dash-att__n n-present"><?php echo (int)$presentCount; ?></div><div class="dash-att__l">Present</div></div>
+              <div class="dash-att__cell dash-drill" data-drill="leave" data-title="On leave / OB" role="button" tabindex="0" title="Click to see who"><div class="dash-att__n n-leave"><?php echo (int)($leaveCount + $obCount); ?></div><div class="dash-att__l">Leave / OB</div></div>
+              <div class="dash-att__cell dash-drill" data-drill="notin" data-title="Not clocked in" role="button" tabindex="0" title="Click to see who"><div class="dash-att__n n-out"><?php echo (int)$notInCount; ?></div><div class="dash-att__l">Not clocked in</div></div>
             </div>
 
             <?php
@@ -754,12 +760,12 @@ try {
           </div>
           <div class="dash-body">
             <div class="dash-att">
-              <div class="dash-att__cell"><div class="dash-att__n" style="color:var(--text)"><?php echo (int)$activeCount; ?></div><div class="dash-att__l">Active</div></div>
+              <div class="dash-att__cell dash-drill" data-drill="active" data-title="<?php echo $scope==='team'?'Direct reports':'Active employees'; ?>" role="button" tabindex="0" title="Click to see who"><div class="dash-att__n" style="color:var(--text)"><?php echo (int)$activeCount; ?></div><div class="dash-att__l">Active</div></div>
               <?php if ($scope==='org'): ?>
-              <div class="dash-att__cell"><div class="dash-att__n" style="color:var(--text-2)"><?php echo (int)$totalOnFile; ?></div><div class="dash-att__l">On file</div></div>
-              <div class="dash-att__cell"><div class="dash-att__n" style="color:var(--text-3)"><?php echo (int)$inactiveCount; ?></div><div class="dash-att__l">Resigned/Inactive</div></div>
+              <div class="dash-att__cell dash-drill" data-drill="onfile" data-title="Employees on file" role="button" tabindex="0" title="Click to see who"><div class="dash-att__n" style="color:var(--text-2)"><?php echo (int)$totalOnFile; ?></div><div class="dash-att__l">On file</div></div>
+              <div class="dash-att__cell dash-drill" data-drill="inactive" data-title="Resigned / inactive" role="button" tabindex="0" title="Click to see who"><div class="dash-att__n" style="color:var(--text-3)"><?php echo (int)$inactiveCount; ?></div><div class="dash-att__l">Resigned/Inactive</div></div>
               <?php endif; ?>
-              <div class="dash-att__cell"><div class="dash-att__n n-out"><?php echo (int)$recentResigned; ?></div><div class="dash-att__l">Left (YTD)</div></div>
+              <div class="dash-att__cell dash-drill" data-drill="left" data-title="Left in period" role="button" tabindex="0" title="Click to see who"><div class="dash-att__n n-out"><?php echo (int)$recentResigned; ?></div><div class="dash-att__l">Left (YTD)</div></div>
             </div>
 
             <?php if ($deptDist): $maxD = max($deptDist); ?>
@@ -857,7 +863,7 @@ try {
         <div class="modal-content">
           <div class="modal-header dd-modalhead">
             <button type="button" class="close" data-dismiss="modal" aria-label="Close">&times;</button>
-            <h4 class="modal-title"><i class="fa-solid fa-magnifying-glass-chart"></i> <span id="ddTitle">Department detail</span></h4>
+            <h4 class="modal-title"><i class="fa-solid fa-magnifying-glass-chart"></i> <span id="ddTitle">Detail</span></h4>
           </div>
           <div class="modal-body" id="ddBody"></div>
         </div>
@@ -865,19 +871,33 @@ try {
     </div>
     <script>
       (function(){
+        if (!window.jQuery) return;
         var tbl = document.querySelector('table.dpat');
-        if (!tbl || !window.jQuery) return;
-        var pf = tbl.getAttribute('data-pf'), pt = tbl.getAttribute('data-pt');
-        tbl.querySelectorAll('tbody tr').forEach(function(tr){
+        var pf = <?php echo json_encode($patFrom); ?>, pt = <?php echo json_encode($patTo); ?>, ad = <?php echo json_encode($attnDate); ?>;
+        function open(title, params){
+          document.getElementById('ddTitle').textContent = title;
+          document.getElementById('ddBody').innerHTML = '<div class="dd-loading"><i class="fa-solid fa-spinner fa-spin"></i> Loading&hellip;</div>';
+          jQuery('#dpatDrill').modal('show');
+          jQuery.get('query/dashboard-drilldown.php', params)
+            .done(function(html){ document.getElementById('ddBody').innerHTML = html; })
+            .fail(function(){ document.getElementById('ddBody').innerHTML = '<div class="dd-none">Could not load details. Please try again.</div>'; });
+        }
+        // department rows: who was late / absent, and on which dates
+        if (tbl) tbl.querySelectorAll('tbody tr').forEach(function(tr){
           tr.addEventListener('click', function(){
             var dept = tr.getAttribute('data-dept'); if (!dept) return;
-            document.getElementById('ddTitle').textContent = dept;
-            document.getElementById('ddBody').innerHTML = '<div class="dd-loading"><i class="fa-solid fa-spinner fa-spin"></i> Loading&hellip;</div>';
-            jQuery('#dpatDrill').modal('show');
-            jQuery.get('query/dashboard-drilldown.php', { dept: dept, pf: pf, pt: pt })
-              .done(function(html){ document.getElementById('ddBody').innerHTML = html; })
-              .fail(function(){ document.getElementById('ddBody').innerHTML = '<div class="dd-none">Could not load details. Please try again.</div>'; });
+            open(dept, { dept: dept, pf: pf, pt: pt });
           });
+        });
+        // KPI tiles / snapshot cells / pending chips: the people behind the number
+        document.querySelectorAll('.dash-drill[data-drill]').forEach(function(el){
+          function go(){
+            var p = { kind: el.getAttribute('data-drill'), ad: ad, pf: pf, pt: pt };
+            if (el.getAttribute('data-mod')) p.mod = el.getAttribute('data-mod');
+            open(el.getAttribute('data-title') || 'Detail', p);
+          }
+          el.addEventListener('click', go);
+          el.addEventListener('keydown', function(e){ if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); go(); } });
         });
       })();
     </script>
