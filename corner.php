@@ -137,6 +137,20 @@ if (isset($_SESSION['id']) && $_SESSION['id'] != "0") {
         }
     } catch (Exception $e) { /* non-fatal: badge simply persists until next view */ }
 }
+
+/* Announcement bodies are escaped so user-typed HTML stays inert. The one
+   exception is the birthday cake icon that query-login.php embeds when it
+   auto-posts "Happy Birthday" announcements; that exact tag is allowed back
+   through after escaping so it renders as an icon instead of literal text. */
+function wd_announcement_body($text) {
+    $safe = htmlspecialchars($text);
+    $safe = preg_replace(
+        '/&lt;i class=(?:&#039;|&quot;)fa fa-birthday-cake(?:&#039;|&quot;)&gt;&lt;\/i&gt;/',
+        '<i class="fa-solid fa-cake-candles cn__cake" aria-label="birthday"></i>',
+        $safe
+    );
+    return $safe;
+}
 ?>
 <!DOCTYPE html>
 <html lang="en">
@@ -154,20 +168,16 @@ if (isset($_SESSION['id']) && $_SESSION['id'] != "0") {
 
     <!-- WeDo design system (loaded AFTER bootstrap so it wins) -->
     <link rel="stylesheet" href="assets/css/wedo-theme.css">
-    <link rel="stylesheet" type="text/css" href="assets/css/style-cal.css">
+    <link rel="stylesheet" type="text/css" href="assets/css/wedo-calendar.css">
 
     <script type="text/javascript" src="assets/js/script.js"></script>
 
     <style>
-      /* style-cal.css (loaded above for the calendar widget) sets a global
-         body{font-family:tahoma} and a :focus reset that leak onto the themed
-         shell. Re-assert the theme here so the sidebar/topbar match the other
-         migrated pages. */
-      body{font-family:var(--font-body)}
-      .wd-app :focus{outline:revert;background:revert}
-
-      .corner-grid{display:grid;grid-template-columns:minmax(0,1fr) 360px;gap:18px;align-items:start}
+      .corner-grid{display:grid;grid-template-columns:minmax(0,1fr) 380px;gap:18px;align-items:start}
       @media (max-width:992px){.corner-grid{grid-template-columns:1fr}}
+      .corner-card__body{padding:16px 18px}
+      .corner-grid .wd-card{min-width:0}
+      @media (min-width:993px){.corner-grid .wd-card--cal{position:sticky;top:calc(var(--topbar-h) + 16px)}}
 
       .ann{display:flex;flex-direction:column;gap:12px;max-height:640px;overflow-y:auto;padding-right:4px}
       .cn{background:var(--surface-2);border:1px solid var(--border);border-radius:var(--radius-lg);padding:14px}
@@ -177,12 +187,13 @@ if (isset($_SESSION['id']) && $_SESSION['id'] != "0") {
       .cn__title .fa-bullhorn{color:var(--brand)}
       .cn__author{color:var(--text-3);font-size:12px;margin:0}
       .cn__body{color:var(--text-2);margin:10px 0 8px;white-space:pre-wrap;word-break:break-word;font-size:14px}
+      .cn__cake{color:var(--brand);margin-left:4px}
       .cn__date{color:var(--text-3);font-size:12px;margin:0;display:flex;align-items:center;gap:6px}
       .cn__edit{margin-left:auto;color:var(--text-3);cursor:pointer;flex:0 0 auto}
       .cn__edit:hover{color:var(--brand)}
       .ann-empty{color:var(--text-3);text-align:center;padding:30px 10px}
 
-      .corner-legend{display:flex;gap:16px;align-items:center;flex-wrap:wrap;margin-bottom:12px}
+      .corner-legend{display:flex;gap:14px;align-items:center;flex-wrap:wrap}
       .corner-legend span{display:inline-flex;align-items:center;gap:6px;color:var(--text-2);font-size:12px}
       .corner-legend i{width:14px;height:14px;border-radius:3px;display:inline-block}
 
@@ -196,31 +207,63 @@ if (isset($_SESSION['id']) && $_SESSION['id'] != "0") {
 
         $('#myModal').on('shown.bs.modal', function () { $('#desc').focus(); });
 
-        // Holiday day-cell click → reveal that day's holiday detail
-        $(document).on("click", ".clckday", function () {
-          var ddi = $(this).attr("id");
-          $(".hldviewer").hide();
-          $("." + ddi).show();
+        // Any day cell click (or Enter/Space) → select it and fill the day detail panel
+        function esc(s) { return $("<div>").text(s == null ? "" : String(s)).html(); }
+        function showDay($cell) {
+          var day = $cell.data("day");
+          var holiday = $cell.data("holiday");
+          $(".wd-cal .clckday, .wd-cal__hitem").removeClass("is-active");
+          $cell.addClass("is-active");
+          $(".wd-cal__hitem[data-day='" + day + "']").addClass("is-active");
+
+          var tags = "";
+          if ($cell.hasClass("is-today"))  tags += '<span class="wd-cal__tag wd-cal__tag--today">Today</span>';
+          if (holiday)                     tags += '<span class="wd-cal__tag wd-cal__tag--holiday">Holiday</span>';
+          if ($cell.hasClass("is-sunday")) tags += '<span class="wd-cal__tag wd-cal__tag--rest">Sunday</span>';
+
+          $("#calDayDetail").html(
+            '<div class="wd-cal__detail-date">' + esc($cell.data("label")) + '</div>' +
+            '<div class="wd-cal__detail-tags">' + tags + '</div>' +
+            '<div class="wd-cal__detail-body' + (holiday ? ' is-holiday' : '') + '">' +
+              (holiday ? esc(holiday) : 'No holiday on this day.') + '</div>'
+          );
+        }
+        $(document).on("click", ".wd-cal .clckday", function () { showDay($(this)); });
+        $(document).on("keydown", ".wd-cal .clckday", function (e) {
+          if (e.key === "Enter" || e.key === " ") { e.preventDefault(); showDay($(this)); }
+        });
+        // Clicking a holiday in the list selects that day on the grid
+        $(document).on("click", ".wd-cal__hitem", function () {
+          showDay($(".wd-cal .clckday[data-day='" + $(this).data("day") + "']"));
         });
 
         $('[data-toggle="popover"]').popover();
 
-        // Calendar month navigation (AJAX)
-        $(document).on("click", '.prev', function () { getCalendar($(this).data("prev-month"), $(this).data("prev-year")); });
-        $(document).on("click", '.next', function () { getCalendar($(this).data("next-month"), $(this).data("next-year")); });
-        $(document).on("blur", '#currentYear', function () { getCalendar($('#currentMonth').text(), $('#currentYear').text()); });
+        // Calendar month navigation (AJAX): arrows, Today, and the month/year pickers
+        $(document).on("click", ".wd-cal .prev, .wd-cal .next, .wd-cal .today", function () {
+          getCalendar($(this).data("month"), $(this).data("year"));
+        });
+        $(document).on("change", "#currentMonth, #currentYear", function () {
+          getCalendar($("#currentMonth").val(), $("#currentYear").val());
+        });
+        // Left/right arrow keys flip months when the calendar has focus
+        $(document).on("keydown", "#calendar-html-output", function (e) {
+          if ($(e.target).is("select")) return;
+          if (e.key === "ArrowLeft")  { $(".wd-cal .prev").trigger("click"); e.preventDefault(); }
+          if (e.key === "ArrowRight") { $(".wd-cal .next").trigger("click"); e.preventDefault(); }
+        });
 
+        var calRequest = null;
         function getCalendar(month, year) {
-          $("#body-overlay").show();
-          $.ajax({
+          if (calRequest) { calRequest.abort(); }
+          $("#calendar-outer").addClass("is-loading");
+          calRequest = $.ajax({
             url: "includes/calendar-ajax.php",
             type: "POST",
-            data: 'month=' + month + '&year=' + year,
-            success: function (response) {
-              setTimeout(function () { $("#body-overlay").hide(); }, 500);
-              $("#calendar-html-output").html(response);
-            },
-            error: function () {}
+            data: { month: month, year: year },
+            success: function (response) { $("#calendar-html-output").html(response); },
+            error: function (xhr, status) { if (status !== "abort") { $("#calendar-outer").removeClass("is-loading"); } },
+            complete: function () { calRequest = null; }
           });
         }
 
@@ -279,7 +322,7 @@ if (isset($_SESSION['id']) && $_SESSION['id'] != "0") {
         <!-- ===== Announcements ===== -->
         <section class="wd-card">
             <div class="wd-card__head"><h3>Announcements</h3></div>
-            <div class="ann">
+            <div class="ann corner-card__body">
                 <?php
                     try{
                         include 'w_conn.php';
@@ -341,7 +384,7 @@ if (isset($_SESSION['id']) && $_SESSION['id'] != "0") {
                         </div>
                     </div>
 
-                    <div class="cn__body" id="rdv<?php echo $row2[0]; ?>"><?php echo nl2br(htmlspecialchars($row2['ADesc'])); ?></div>
+                    <div class="cn__body" id="rdv<?php echo $row2[0]; ?>"><?php echo nl2br(wd_announcement_body($row2['ADesc'])); ?></div>
                     <p class="cn__date"><i class="fa-regular fa-clock" aria-hidden="true"></i> <?php echo date("F d, Y h:i:s A", strtotime($row2['ADate'])); ?></p>
 
                     <!-- Edit announcement modal -->
@@ -380,14 +423,18 @@ if (isset($_SESSION['id']) && $_SESSION['id'] != "0") {
         </section>
 
         <!-- ===== Calendar ===== -->
-        <section class="wd-card">
-            <div class="wd-card__head"><h3>Calendar</h3></div>
-            <div class="corner-legend">
-                <span><i style="background:#000"></i> Current day</span>
-                <span><i style="background:red"></i> Holiday</span>
+        <section class="wd-card wd-card--cal">
+            <div class="wd-card__head">
+                <h3>Calendar</h3>
+                <div class="corner-legend">
+                    <span><i style="background:var(--navy)"></i> Today</span>
+                    <span><i style="background:var(--danger-bg);border:1px solid var(--danger-text)"></i> Holiday</span>
+                </div>
             </div>
-            <div id="calendar-html-output">
-                <?php echo $phpCalendar->getCalendarHTML(); ?>
+            <div class="corner-card__body">
+                <div id="calendar-html-output" tabindex="0" aria-label="Company calendar">
+                    <?php echo $phpCalendar->getCalendarHTML(); ?>
+                </div>
             </div>
         </section>
 
