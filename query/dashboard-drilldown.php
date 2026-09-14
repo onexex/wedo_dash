@@ -8,8 +8,9 @@
    and the individual ABSENCES (who / date) for that department.
 
    Mirrors dashboard.php exactly: scope from session role, employed-during-window
-   resignation filter, and the schedule-aware absence accounting (ALAS/OB with a
-   status NOT IN (3,5,6,7) excuse the day). Scope + access are derived from the
+   resignation filter, and the schedule-aware absence accounting (any ALAS/OB with
+   status <> 7, i.e. not cancelled, excuses the day — same as the login gate).
+   Scope + access are derived from the
    SESSION, never from the client, so a team lead can't drill outside their team.
    ========================================================================== */
 if (session_status() === PHP_SESSION_NONE) { session_start(); }
