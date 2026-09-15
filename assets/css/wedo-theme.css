@@ -55,6 +55,9 @@ a{color:var(--brand);text-decoration:none}
   padding:18px 14px;display:flex;flex-direction:column;gap:2px;height:100vh;overflow-y:auto;
   transition:margin-left .2s ease}
 .wd-app.is-collapsed .wd-sidebar{margin-left:calc(-1 * var(--sidebar-w))}
+/* the sidebar is a fixed-height flex column; without this, expanding a long group
+   (e.g. Maintenance) makes flexbox squash the other rows instead of scrolling */
+.wd-sidebar > *{flex-shrink:0}
 .wd-brand{display:flex;align-items:center;justify-content:center;gap:10px;padding:8px 6px 4px}
 .wd-brand img{display:block}
 .wd-brand__logo{width:34px;height:34px;border-radius:9px;background:var(--brand);color:#fff;
