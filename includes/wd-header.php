@@ -89,7 +89,8 @@ function wd_can($ar, $k) { return isset($ar[$k]) && $ar[$k] == 2; }
       $wd_show_maint = wd_can($ar,'agncy')||wd_can($ar,'comp')||wd_can($ar,'dep')
                     ||wd_can($ar,'pos')||wd_can($ar,'jl')||wd_can($ar,'hmo')||wd_can($ar,'est')||wd_can($ar,'rel')||wd_can($ar,'classf')
                     ||wd_can($ar,'wt')||wd_can($ar,'tlv')||wd_can($ar,'lval')||wd_can($ar,'ur')||wd_can($ar,'otfs')||wd_can($ar,'hldy')
-                    ||wd_can($ar,'gprdv')||wd_can($ar,'obval')||wd_can($ar,'eoval')||wd_can($ar,'SPPContrib');
+                    ||wd_can($ar,'gprdv')||wd_can($ar,'obval')||wd_can($ar,'eoval')||wd_can($ar,'SPPContrib')
+                    ||wd_can($ar,'logintheme');
     ?>
 
     <div class="wd-navsection is-collapsed">
@@ -159,6 +160,7 @@ function wd_can($ar, $k) { return isset($ar[$k]) && $ar[$k] == 2; }
         <?php if(wd_can($ar,'hmo')): ?><a class="wd-nav<?php echo wd_on('hmo',$wd_active); ?>" href="maintenance?hmo"><i class="fa-solid fa-square-plus"></i> HMOs</a><?php endif; ?>
         <?php if(wd_can($ar,'hldy')): ?><a class="wd-nav<?php echo wd_on('holiday',$wd_active); ?>" href="maintenance?holiday"><i class="fa-solid fa-square-plus"></i> Holiday Logger</a><?php endif; ?>
         <?php if(wd_can($ar,'jl')): ?><a class="wd-nav<?php echo wd_on('joblevel',$wd_active); ?>" href="maintenance?joblevel"><i class="fa-solid fa-square-plus"></i> Job Levels</a><?php endif; ?>
+        <?php if(wd_can($ar,'logintheme')): ?><a class="wd-nav<?php echo wd_on('logintheme',$wd_active); ?>" href="logintheme"><i class="fa-solid fa-wand-magic-sparkles"></i> Login Theme</a><?php endif; ?>
         <?php if(wd_can($ar,'lval')): ?><a class="wd-nav<?php echo wd_on('leavevalidation',$wd_active); ?>" href="maintenance?leavevalidation"><i class="fa-solid fa-square-plus"></i> Leave Validation</a><?php endif; ?>
         <?php if(wd_can($ar,'gprdv')): ?><a class="wd-nav<?php echo wd_on('lilovalidation',$wd_active); ?>" href="maintenance?lilovalidation"><i class="fa-solid fa-square-plus"></i> Lilo Validation</a><?php endif; ?>
         <?php if(wd_can($ar,'obval')): ?><a class="wd-nav<?php echo wd_on('obvalidation',$wd_active); ?>" href="maintenance?obvalidation"><i class="fa-solid fa-square-plus"></i> OB Validation</a><?php endif; ?>
