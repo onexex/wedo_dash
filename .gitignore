@@ -7,3 +7,6 @@ error_log
 config.local.php
 *.bak
 .claude/
+
+# Login Theme banner uploads (Maintenance > Login Theme) — server data, not code
+assets/images/login-themes/
