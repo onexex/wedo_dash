@@ -10,6 +10,7 @@ date_default_timezone_set("Asia/Manila");
  *   .prev / .next / .today       -> data-month / data-year of the month to load
  *   #currentMonth / #currentYear -> <select>s; change loads that month
  *   li.clckday.is-holiday        -> data-day; click highlights .wd-cal__hitem[data-day]
+ *   .is-special (with is-holiday) -> special holiday (Htype 2, blue); without it -> regular (red)
  */
 class PHPCalendar {
 	private $weekDayName = array ("MON","TUE","WED","THU","FRI","SAT","SUN");
@@ -21,6 +22,7 @@ class PHPCalendar {
 	private $currentMonthStart = null;
 	private $currentMonthDaysLength = null;
 	private $holidays = null; // [day => [desc, ...]] for the displayed month
+	private $htype = array();  // [day => 1 regular | 2 special]; regular wins if a day has both
 
 	function __construct() {
 		$this->currentYear = date ( "Y", time () );
@@ -110,10 +112,10 @@ class PHPCalendar {
 			$html .= '<div class="wd-cal__detail-date">' . date('l, F j, Y') . '</div>';
 			$html .= '<div class="wd-cal__detail-tags">';
 			$html .= '<span class="wd-cal__tag wd-cal__tag--today">Today</span>';
-			if ($descs)    { $html .= '<span class="wd-cal__tag wd-cal__tag--holiday">Holiday</span>'; }
+			if ($descs)    { $html .= $this->holidayTag($d); }
 			if ($isSunday) { $html .= '<span class="wd-cal__tag wd-cal__tag--rest">Sunday</span>'; }
 			$html .= '</div>';
-			$html .= '<div class="wd-cal__detail-body' . ($descs ? ' is-holiday' : '') . '">'
+			$html .= '<div class="wd-cal__detail-body' . ($descs ? ' is-holiday' . ($this->isSpecial($d) ? ' is-special' : '') : '') . '">'
 			       . ($descs ? htmlspecialchars(implode(' / ', $descs)) : 'No holiday on this day.') . '</div>';
 		} else {
 			$html .= '<div class="wd-cal__detail-empty"><i class="fa-regular fa-hand-pointer" aria-hidden="true"></i> Select a date to see its details.</div>';
@@ -131,14 +133,25 @@ class PHPCalendar {
 			$M = date ( 'M', strtotime ( $this->currentMonthStart ) );
 			foreach ($this->holidays as $day => $descs) {
 				$dow = date('D', strtotime($this->currentYear . '-' . $this->currentMonth . '-' . str_pad($day, 2, '0', STR_PAD_LEFT)));
-				$html .= '<div class="wd-cal__hitem hldviewer" data-day="' . (int) $day . '">'
+				$html .= '<div class="wd-cal__hitem hldviewer' . ($this->isSpecial($day) ? ' is-special' : '') . '" data-day="' . (int) $day . '">'
 				       . '<b>' . $M . ' ' . (int) $day . '</b>'
-				       . '<span><em class="wd-cal__hdow">' . $dow . '</em>' . htmlspecialchars(implode(' / ', $descs)) . '</span>'
+				       . '<span><em class="wd-cal__hdow">' . $dow . '</em>' . htmlspecialchars(implode(' / ', $descs))
+				       . ' <em class="wd-cal__htype">' . ($this->isSpecial($day) ? 'Special' : 'Regular') . '</em></span>'
 				       . '</div>';
 			}
 		}
 		$html .= '</div>';
 		return $html;
+	}
+
+	function isSpecial($day) {
+		return isset($this->htype[(int) $day]) && $this->htype[(int) $day] === 2;
+	}
+
+	function holidayTag($day) {
+		return $this->isSpecial($day)
+			? '<span class="wd-cal__tag wd-cal__tag--special">Special holiday</span>'
+			: '<span class="wd-cal__tag wd-cal__tag--holiday">Regular holiday</span>';
 	}
 
 	function getWeekDayName() {
@@ -161,12 +174,15 @@ class PHPCalendar {
 			include 'w_conn.php';
 			$pdo = new PDO("mysql:host=$servername;dbname=$db", $username, $password);
 			$pdo->setAttribute(PDO::ATTR_ERRMODE, PDO::ERRMODE_EXCEPTION);
-			$stmt = $pdo->prepare("SELECT DAY(Hdate) AS d, Hdescription FROM holidays
+			$stmt = $pdo->prepare("SELECT DAY(Hdate) AS d, Hdescription, Htype FROM holidays
 			                       WHERE MONTH(Hdate)=:dtm AND YEAR(Hdate)=:yr AND HCompID=:cid
 			                       ORDER BY Hdate");
 			$stmt->execute(array(':dtm' => $this->currentMonth, ':yr' => $this->currentYear, ':cid' => $_SESSION['CompID']));
 			while ($rw = $stmt->fetch(PDO::FETCH_ASSOC)) {
-				$this->holidays[(int) $rw['d']][] = $rw['Hdescription'];
+				$d = (int) $rw['d'];
+				$this->holidays[$d][] = $rw['Hdescription'];
+				$t = ((int) $rw['Htype'] === 1) ? 1 : 2;
+				$this->htype[$d] = isset($this->htype[$d]) ? min($this->htype[$d], $t) : $t;
 			}
 		} catch (Exception $e) {
 			/* calendar still renders, just without holiday markers */
@@ -207,6 +223,7 @@ class PHPCalendar {
 				if ($j == 7) { $cls[] = 'is-sunday'; }
 				if (isset($this->holidays[$cellValue])) {
 					$cls[] = 'is-holiday'; $cls[] = 'hldyac';
+					if ($this->isSpecial($cellValue)) { $cls[] = 'is-special'; }
 					$holidayAttr = ' data-holiday="' . htmlspecialchars(implode(' / ', $this->holidays[$cellValue])) . '"';
 				}
 				$isToday = ($isThisMonth && $cellValue == $today);
