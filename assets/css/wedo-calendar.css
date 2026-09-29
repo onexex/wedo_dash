@@ -50,6 +50,12 @@
   box-shadow:0 0 0 2px var(--surface),0 0 0 3.5px var(--brand)}
 .wd-cal .week-day-cell li.is-today:hover{background:var(--navy);border-color:var(--navy)}
 .wd-cal .week-day-cell li.is-today.is-holiday:hover{background:var(--brand);border-color:var(--brand)}
+/* special holiday (Htype 2) = blue; plain .is-holiday above = regular (red) */
+.wd-cal .week-day-cell li.is-holiday.is-special{background:var(--info-bg);color:var(--info-text);border-color:rgba(31,91,191,.2)}
+.wd-cal .week-day-cell li.is-holiday.is-special:hover{background:var(--info-bg)}
+.wd-cal .week-day-cell li.is-today.is-holiday.is-special,
+.wd-cal .week-day-cell li.is-today.is-holiday.is-special:hover{background:var(--info-text);border-color:var(--info-text);color:#fff;
+  box-shadow:0 0 0 2px var(--surface),0 0 0 3.5px var(--info-text)}
 
 /* --- day detail panel --- */
 .wd-cal__detail{margin-top:12px;padding:12px 14px;border-radius:var(--radius);background:var(--surface-2);border:1px solid var(--border)}
@@ -60,9 +66,11 @@
   background:var(--surface);color:var(--text-2);border:1px solid var(--border-2)}
 .wd-cal__tag--today{background:var(--navy);color:#fff;border-color:var(--navy)}
 .wd-cal__tag--holiday{background:var(--danger-bg);color:var(--danger-text);border-color:transparent}
+.wd-cal__tag--special{background:var(--info-bg);color:var(--info-text);border-color:transparent}
 .wd-cal__tag--rest{background:var(--warn-bg);color:var(--warn-text);border-color:transparent}
 .wd-cal__detail-body{margin-top:8px;font-size:13px;color:var(--text-3)}
 .wd-cal__detail-body.is-holiday{color:var(--danger-text);font-weight:600}
+.wd-cal__detail-body.is-holiday.is-special{color:var(--info-text)}
 .wd-cal__detail-empty{font-size:13px;color:var(--text-3);display:flex;align-items:center;gap:8px}
 
 /* --- footer: count + Today --- */
@@ -84,6 +92,10 @@
 .wd-cal__hitem > span{flex:1;min-width:0;word-break:break-word}
 .wd-cal__hdow{font-style:normal;font-size:11px;color:var(--text-3);margin-right:6px}
 .wd-cal__hitem.is-active{background:var(--danger-bg);color:var(--text)}
+.wd-cal__hitem.is-special b{color:var(--info-text)}
+.wd-cal__hitem.is-special.is-active{background:var(--info-bg)}
+.wd-cal__htype{font-style:normal;font-size:10.5px;font-weight:700;color:var(--danger-text);margin-left:4px}
+.wd-cal__hitem.is-special .wd-cal__htype{color:var(--info-text)}
 .wd-cal__hempty{margin:0;padding:6px 8px;font-size:13px;color:var(--text-3)}
 
 @media (max-width:420px){

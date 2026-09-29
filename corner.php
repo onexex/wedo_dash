@@ -168,7 +168,7 @@ function wd_announcement_body($text) {
 
     <!-- WeDo design system (loaded AFTER bootstrap so it wins) -->
     <link rel="stylesheet" href="assets/css/wedo-theme.css">
-    <link rel="stylesheet" type="text/css" href="assets/css/wedo-calendar.css">
+    <link rel="stylesheet" type="text/css" href="assets/css/wedo-calendar.css?v=<?php echo @filemtime(__DIR__ . '/assets/css/wedo-calendar.css'); ?>">
 
     <script type="text/javascript" src="assets/js/script.js"></script>
 
@@ -193,7 +193,7 @@ function wd_announcement_body($text) {
       .cn__edit:hover{color:var(--brand)}
       .ann-empty{color:var(--text-3);text-align:center;padding:30px 10px}
 
-      .corner-legend{display:flex;gap:14px;align-items:center;flex-wrap:wrap}
+      .corner-legend{display:flex;gap:12px;align-items:center;flex-wrap:wrap}
       .corner-legend span{display:inline-flex;align-items:center;gap:6px;color:var(--text-2);font-size:12px}
       .corner-legend i{width:14px;height:14px;border-radius:3px;display:inline-block}
 
@@ -218,13 +218,16 @@ function wd_announcement_body($text) {
 
           var tags = "";
           if ($cell.hasClass("is-today"))  tags += '<span class="wd-cal__tag wd-cal__tag--today">Today</span>';
-          if (holiday)                     tags += '<span class="wd-cal__tag wd-cal__tag--holiday">Holiday</span>';
+          var special = $cell.hasClass("is-special");
+          if (holiday)                     tags += special
+            ? '<span class="wd-cal__tag wd-cal__tag--special">Special holiday</span>'
+            : '<span class="wd-cal__tag wd-cal__tag--holiday">Regular holiday</span>';
           if ($cell.hasClass("is-sunday")) tags += '<span class="wd-cal__tag wd-cal__tag--rest">Sunday</span>';
 
           $("#calDayDetail").html(
             '<div class="wd-cal__detail-date">' + esc($cell.data("label")) + '</div>' +
             '<div class="wd-cal__detail-tags">' + tags + '</div>' +
-            '<div class="wd-cal__detail-body' + (holiday ? ' is-holiday' : '') + '">' +
+            '<div class="wd-cal__detail-body' + (holiday ? ' is-holiday' + (special ? ' is-special' : '') : '') + '">' +
               (holiday ? esc(holiday) : 'No holiday on this day.') + '</div>'
           );
         }
@@ -428,7 +431,8 @@ function wd_announcement_body($text) {
                 <h3>Calendar</h3>
                 <div class="corner-legend">
                     <span><i style="background:var(--navy)"></i> Today</span>
-                    <span><i style="background:var(--danger-bg);border:1px solid var(--danger-text)"></i> Holiday</span>
+                    <span title="Regular holiday"><i style="background:var(--danger-bg);border:1px solid var(--danger-text)"></i> Regular</span>
+                    <span title="Special holiday"><i style="background:var(--info-bg);border:1px solid var(--info-text)"></i> Special</span>
                 </div>
             </div>
             <div class="corner-card__body">

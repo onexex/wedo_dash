@@ -126,6 +126,44 @@
       .loadingarea img{width:60px}
       .loadingarea h2{display:inline-block}
       .flash.bg-danger{background:#fdebe9 !important;color:#b22a1d !important}
+
+      /* My year so far */
+      .ys-range{font-family:var(--font-body,inherit);font-weight:400;font-size:12.5px;color:var(--text-3);margin-left:6px}
+      .ys-nav{display:flex;align-items:center;gap:8px;font-weight:600;font-size:13px;color:var(--text-2)}
+      .ys-body{padding:16px 20px}
+      .ys-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:12px}
+      .ys-cell{border:1px solid var(--border);border-radius:12px;padding:12px 14px}
+      .ys-cell__l{display:flex;align-items:center;gap:7px;font-size:12px;color:var(--text-2)}
+      .ys-cell__l i{color:var(--brand)}
+      .ys-cell__n{font-family:var(--font-head);font-weight:700;font-size:26px;line-height:1;margin-top:10px;color:var(--text)}
+      .ys-cell__s{font-size:11.5px;color:var(--text-3);margin-top:6px}
+      .ys-credit{color:var(--text-2)}
+      .ys-credit i{color:var(--brand);margin-right:3px}
+      .ys-credit b{color:var(--text)}
+      .ys-foot{margin-top:16px}
+      .ys-foot__txt{display:flex;align-items:center;gap:10px;flex-wrap:wrap;font-size:13px;color:var(--text-2)}
+      .ys-foot__txt b{color:var(--text)}
+      .ys-track{height:8px;border-radius:6px;background:var(--surface-2);overflow:hidden;margin-top:8px}
+      .ys-fill{height:100%;background:var(--brand);border-radius:6px}
+      /* drill-down: clickable tiles/badges + modal (mirrors dashboard.php's dash-drill / dd-*) */
+      .ys-drill{cursor:pointer}
+      .ys-cell.ys-drill{position:relative;transition:border-color .15s,box-shadow .15s}
+      .ys-cell.ys-drill:hover,.ys-cell.ys-drill:focus-visible{border-color:var(--brand);box-shadow:0 0 0 3px var(--brand-tint);outline:none}
+      .ys-cell.ys-drill::after{content:"\f054";font-family:"Font Awesome 6 Free";font-weight:900;position:absolute;right:10px;top:10px;font-size:10px;color:var(--text-3);opacity:.45;transition:opacity .15s,transform .15s,color .15s}
+      .ys-cell.ys-drill:hover::after,.ys-cell.ys-drill:focus-visible::after{opacity:1;transform:translateX(2px);color:var(--brand)}
+      .wd-pill.ys-drill:hover,.wd-pill.ys-drill:focus-visible{filter:brightness(.95);box-shadow:0 0 0 2px currentColor;outline:none}
+      .ys-modalhead{background:#f93627;color:#fff;border:0}
+      .ys-modalhead .modal-title{color:#fff;font-family:var(--font-head);font-weight:700}
+      .ys-modalhead .close{color:#fff;opacity:.9;text-shadow:none;font-size:26px}
+      .ys-dd-period{font-size:12px;font-weight:600;color:var(--text-3);margin-bottom:12px}
+      .ys-dd-sec{margin-bottom:22px}
+      .ys-dd-sec__h{font-size:11px;text-transform:uppercase;letter-spacing:.04em;color:var(--text-2);font-weight:700;display:flex;align-items:center;gap:8px;margin-bottom:8px}
+      .ys-dd-count{margin-left:auto;background:var(--surface-2);color:var(--text-2);border-radius:var(--radius-pill);padding:1px 10px;font-size:12px}
+      .ys-dd-none{color:var(--text-3);text-align:center;padding:18px;font-size:13px}
+      table.ys-dd-tbl{width:100%;border-collapse:collapse;font-size:13px}
+      table.ys-dd-tbl th,table.ys-dd-tbl td{padding:8px 10px;text-align:left;border-bottom:1px solid var(--border);vertical-align:top}
+      table.ys-dd-tbl th{font-size:11px;text-transform:uppercase;letter-spacing:.04em;color:var(--text-3);font-weight:700;white-space:nowrap}
+      .ys-dd-date{font-weight:600;color:var(--text);white-space:nowrap}
     </style>
     <script type="text/javascript">
       document.onreadystatechange = function() {
@@ -148,17 +186,97 @@
       </div>
 
       <?php
-        $wdct = '&mdash;';
+        // Leave credits (balance + yearly cap) — shown on the leave tile below.
+        $wdCredit = null;
         try {
-          $cstmt = $wdpdo->prepare("SELECT CT FROM credit WHERE EmpID = :id");
+          $cstmt = $wdpdo->prepare("SELECT CT, CTH FROM credit WHERE EmpID = :id");
           $cstmt->execute([':id' => $_SESSION['id']]);
-          $cv = $cstmt->fetchColumn();
-          if ($cv !== false) { $wdct = number_format((float)$cv, 1); }
+          $cv = $cstmt->fetch(PDO::FETCH_ASSOC);
+          if ($cv) { $wdCredit = $cv; }
         } catch (Exception $e) {}
       ?>
-      <section class="wd-stats">
-        <div class="wd-stat"><div class="wd-stat__label"><i class="fa-solid fa-calendar-day"></i> Today</div><div class="wd-stat__value"><?php echo date('M j'); ?></div></div>
-        <div class="wd-stat"><div class="wd-stat__label"><i class="fa-solid fa-wallet"></i> Leave credits</div><div class="wd-stat__value"><?php echo $wdct; ?></div></div>
+
+      <?php
+        include_once 'includes/home-yearsummary.php';
+        $ysNow  = (int)date('Y');
+        $ysYear = isset($_GET['yr']) ? (int)$_GET['yr'] : $ysNow;
+        if ($ysYear < 2019 || $ysYear > $ysNow) { $ysYear = $ysNow; }
+        $ysFrom = $ysYear . '-01-01';
+        $ysTo   = ($ysYear === $ysNow) ? date('Y-m-d') : $ysYear . '-12-31';
+        $ys     = getYearSummary($wdpdo, $_SESSION['id'], $_SESSION['CompID'] ?? '', $ysFrom, $ysTo);
+        $ysNum  = function ($v) { return ($v == floor($v)) ? number_format($v) : number_format($v, 1); };
+        $ysPct  = ($ys && $ys['scheduledYear'] > 0) ? round($ys['accounted'] / $ys['scheduledYear'] * 100) : 0;
+        $ysTiles = array(
+          array('fa-right-to-bracket', 'Days timed in',     'timedin', ''),
+          array('fa-briefcase',        'Official business', 'ob',      'Approved'),
+          array('fa-flag',             'Regular holidays',  'regular', 'On scheduled days'),
+          array('fa-star',             'Special holidays',  'special', 'On scheduled days'),
+          array('fa-umbrella-beach',   'Leave (days)',      'leave',   'Approved'),
+        );
+      ?>
+      <section class="wd-card">
+        <div class="wd-card__head">
+          <h3>My year so far <span class="ys-range"><?php echo date('M j', strtotime($ysFrom)) . ' &ndash; ' . date('M j, Y', strtotime($ysYear . '-12-31')); ?></span></h3>
+          <div class="ys-nav">
+            <?php if ($ysYear > 2019): ?><a class="wd-btn wd-btn--ghost wd-btn--sm" href="?yr=<?php echo $ysYear - 1; ?>" title="Previous year"><i class="fa-solid fa-chevron-left"></i></a><?php endif; ?>
+            <span><?php echo $ysYear; ?></span>
+            <?php if ($ysYear < $ysNow): ?><a class="wd-btn wd-btn--ghost wd-btn--sm" href="?yr=<?php echo $ysYear + 1; ?>" title="Next year"><i class="fa-solid fa-chevron-right"></i></a><?php endif; ?>
+          </div>
+        </div>
+        <div class="ys-body">
+          <div class="ys-grid">
+            <?php foreach ($ysTiles as $t): ?>
+              <div class="ys-cell<?php echo $ys ? ' ys-drill' : ''; ?>" data-drill="<?php echo $t[2]; ?>" data-title="<?php echo $t[1]; ?>" role="button" tabindex="0" title="Click to see the days">
+                <div class="ys-cell__l"><i class="fa-solid <?php echo $t[0]; ?>"></i> <?php echo $t[1]; ?></div>
+                <div class="ys-cell__n"><?php echo $ys ? $ysNum($ys[$t[2]]) : '&mdash;'; ?></div>
+                <?php if ($t[2] === 'leave' && $wdCredit && $ysYear === $ysNow): ?>
+                  <div class="ys-cell__s ys-credit"><i class="fa-solid fa-wallet"></i> <b><?php echo $ysNum((float)$wdCredit['CT']); ?></b><?php if ((float)$wdCredit['CTH'] > 0) { echo ' of ' . $ysNum((float)$wdCredit['CTH']); } ?> credits left</div>
+                <?php endif; ?>
+                <div class="ys-cell__s">
+                  <?php
+                    if ($t[2] === 'leave' && $ys && ($ys['leaveUnpaid'] > 0 || $ys['leaveUpcoming'] > 0)) {
+                      $ysLv = array();
+                      if ($ys['leaveUnpaid'] > 0)   { $ysLv[] = $ysNum($ys['leaveUnpaid']) . ' unpaid'; }
+                      if ($ys['leaveUpcoming'] > 0) { $ysLv[] = '+' . $ysNum($ys['leaveUpcoming']) . ' upcoming'; }
+                      echo implode(' &middot; ', $ysLv);
+                    } else {
+                      echo $t[3] !== '' ? $t[3] : '&nbsp;';
+                    }
+                  ?>
+                </div>
+              </div>
+            <?php endforeach; ?>
+          </div>
+          <?php if ($ys && $ys['scheduled'] === 0): ?>
+            <div class="ys-foot"><div class="ys-foot__txt">No work schedule on file for this period.</div></div>
+          <?php elseif ($ys): ?>
+            <div class="ys-foot">
+              <div class="ys-foot__txt">
+                <b><?php echo number_format($ys['accounted']); ?></b> of <?php echo number_format($ys['scheduledYear']); ?> scheduled days accounted for
+                <?php if ($ys['unaccounted'] > 0): ?>
+                  <span class="wd-pill wd-pill--warn ys-drill" data-drill="unaccounted" data-title="Unaccounted days" role="button" tabindex="0" title="Click to see the days"><?php echo number_format($ys['unaccounted']); ?> unaccounted</span>
+                <?php endif; ?>
+                <?php if ($ys['absent'] > 0): ?>
+                  <span class="wd-pill wd-pill--danger ys-drill" data-drill="absent" data-title="Absent days" role="button" tabindex="0" title="Leave/OB filed for these days was disapproved or cancelled"><?php
+                    $ysWhy = $ys['absentWhy'];
+                    if (count($ysWhy) === 1) { $ysWhyTxt = key($ysWhy); }
+                    else { $ysWhyTxt = implode(', ', array_map(function ($w, $n) { return $n . ' ' . $w; }, array_keys($ysWhy), $ysWhy)); }
+                    echo number_format($ys['absent']) . ' absent &middot; ' . htmlspecialchars($ysWhyTxt);
+                  ?></span>
+                <?php endif; ?>
+                <?php if ($ys['pending'] > 0): ?>
+                  <span class="wd-pill ys-drill" data-drill="pending" data-title="Pending approval" role="button" tabindex="0" title="Leave/OB filed for these days is still awaiting approval"><?php echo number_format($ys['pending']); ?> pending</span>
+                <?php endif; ?>
+                <?php if ($ys['conflicts']): $ysC = count($ys['conflicts']); ?>
+                  <span class="wd-pill wd-pill--danger ys-drill" data-drill="conflicts" data-title="Conflicts" role="button" tabindex="0" title="Timed in on a whole-day approved leave: <?php echo htmlspecialchars(implode(', ', array_map(function ($d) { return date('M j', strtotime($d)); }, $ys['conflicts']))); ?>. Ask HR to cancel the leave or remove the time-in.">
+                    <i class="fa-solid fa-triangle-exclamation"></i> <?php echo $ysC . ' conflict' . ($ysC > 1 ? 's' : ''); ?>
+                  </span>
+                <?php endif; ?>
+              </div>
+              <div class="ys-track"><div class="ys-fill" style="width:<?php echo $ysPct; ?>%"></div></div>
+            </div>
+          <?php endif; ?>
+        </div>
       </section>
 
       <section class="wd-card">
@@ -202,6 +320,53 @@
       </section>
 
     <?php include 'includes/wd-footer.php'; ?>
+
+    <!-- My year so far: drill-down (rows come pre-built from getYearSummary) -->
+    <div class="modal" id="ysDrill" tabindex="-1" role="dialog">
+      <div class="modal-dialog modal-lg" role="document">
+        <div class="modal-content">
+          <div class="modal-header ys-modalhead">
+            <button type="button" class="close" data-dismiss="modal" aria-label="Close">&times;</button>
+            <h4 class="modal-title"><i class="fa-solid fa-magnifying-glass-chart"></i> <span id="ysDrillTitle">Detail</span></h4>
+          </div>
+          <div class="modal-body" id="ysDrillBody"></div>
+        </div>
+      </div>
+    </div>
+    <script>
+      (function(){
+        var data = <?php echo json_encode($ys ? $ys['detail'] : new stdClass(), JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT | JSON_INVALID_UTF8_SUBSTITUTE); ?>;
+        var period = <?php echo json_encode(date('M j', strtotime($ysFrom)) . ' – ' . date('M j, Y', strtotime($ysYear . '-12-31'))); ?>;
+        function esc(s){ return String(s == null ? '' : s).replace(/[&<>"']/g, function(c){ return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]; }); }
+        function render(secs){
+          var h = '<div class="ys-dd-period">' + esc(period) + '</div>';
+          (secs || []).forEach(function(s){
+            if (s.hideEmpty && !s.rows.length) return;
+            h += '<div class="ys-dd-sec"><div class="ys-dd-sec__h">' + esc(s.title) + '<span class="ys-dd-count">' + s.rows.length + '</span></div>';
+            if (!s.rows.length) { h += '<div class="ys-dd-none">Nothing in this period.</div></div>'; return; }
+            h += '<div class="wd-tablewrap"><table class="ys-dd-tbl"><thead><tr>';
+            s.cols.forEach(function(c){ h += '<th>' + esc(c) + '</th>'; });
+            h += '</tr></thead><tbody>';
+            s.rows.forEach(function(r){
+              h += '<tr>' + r.map(function(v, i){ return '<td' + (i === 0 ? ' class="ys-dd-date"' : '') + '>' + esc(v) + '</td>'; }).join('') + '</tr>';
+            });
+            h += '</tbody></table></div></div>';
+          });
+          return h;
+        }
+        document.querySelectorAll('.ys-drill[data-drill]').forEach(function(el){
+          function go(){
+            var k = el.getAttribute('data-drill');
+            if (!data[k] || !window.jQuery) return;
+            document.getElementById('ysDrillTitle').textContent = el.getAttribute('data-title') || 'Detail';
+            document.getElementById('ysDrillBody').innerHTML = render(data[k]);
+            jQuery('#ysDrill').modal('show');
+          }
+          el.addEventListener('click', go);
+          el.addEventListener('keydown', function(e){ if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); go(); } });
+        });
+      })();
+    </script>
 
     <!-- ===== Modals (Bootstrap; hooks preserved for script-home.js) ===== -->
     <div class="modal" id="newformd">
