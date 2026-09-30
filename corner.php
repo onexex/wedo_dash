@@ -109,47 +109,17 @@ if (isset($_GET['updateann'])){
            header("location: corner");
 }
 
-/* Opening the Corner marks every announcement this user hasn't seen yet as
-   seen, which clears the unseen-announcement badge in the sidebar. Runs only
-   on a normal page load (the handlers above exit on AJAX/redirect). */
+/* Opening the Corner marks every recent announcement this user hasn't seen
+   as seen, which clears the unseen badges (sidebar + floating bubble). Runs
+   only on a normal page load (the handlers above exit on AJAX/redirect). */
+require_once 'includes/corner-lib.php';
 if (isset($_SESSION['id']) && $_SESSION['id'] != "0") {
     try {
         include 'w_conn.php';
         $seenPdo = new PDO("mysql:host=$servername;dbname=$db", $username, $password);
         $seenPdo->setAttribute(PDO::ATTR_ERRMODE, PDO::ERRMODE_EXCEPTION);
-        date_default_timezone_set("Asia/Manila");
-        $seenNow = date("Y-m-d H:i:s"); // datetime column: 24h, no AM/PM
-        // recent announcements this user has not seen yet (same 30-day window
-        // the sidebar badge counts, so opening the Corner clears the badge)
-        $unseen = $seenPdo->prepare(
-            "SELECT a.aid FROM announcements a
-             LEFT JOIN annseen s ON s.aid = a.aid AND s.EmpID = :id
-             WHERE s.aid IS NULL AND a.ADate >= (NOW() - INTERVAL 30 DAY)");
-        $unseen->execute([':id' => $_SESSION['id']]);
-        $unseenAids = $unseen->fetchAll(PDO::FETCH_COLUMN);
-        if ($unseenAids) {
-            $markSeen = $seenPdo->prepare(
-                "INSERT INTO annseen (aid, EmpID, FSeenDate, LSeenDate, Status)
-                 VALUES (:aid, :id, :sd, :ld, 1)");
-            foreach ($unseenAids as $aid) {
-                $markSeen->execute([':aid' => $aid, ':id' => $_SESSION['id'], ':sd' => $seenNow, ':ld' => $seenNow]);
-            }
-        }
+        wd_corner_mark_seen($seenPdo, $_SESSION['id']);
     } catch (Exception $e) { /* non-fatal: badge simply persists until next view */ }
-}
-
-/* Announcement bodies are escaped so user-typed HTML stays inert. The one
-   exception is the birthday cake icon that query-login.php embeds when it
-   auto-posts "Happy Birthday" announcements; that exact tag is allowed back
-   through after escaping so it renders as an icon instead of literal text. */
-function wd_announcement_body($text) {
-    $safe = htmlspecialchars($text);
-    $safe = preg_replace(
-        '/&lt;i class=(?:&#039;|&quot;)fa fa-birthday-cake(?:&#039;|&quot;)&gt;&lt;\/i&gt;/',
-        '<i class="fa-solid fa-cake-candles cn__cake" aria-label="birthday"></i>',
-        $safe
-    );
-    return $safe;
 }
 ?>
 <!DOCTYPE html>
@@ -207,29 +177,15 @@ function wd_announcement_body($text) {
 
         $('#myModal').on('shown.bs.modal', function () { $('#desc').focus(); });
 
-        // Any day cell click (or Enter/Space) → select it and fill the day detail panel
-        function esc(s) { return $("<div>").text(s == null ? "" : String(s)).html(); }
+        // Any day cell click (or Enter/Space) → select it and show that day's
+        // detail (holiday + birthdays), pre-rendered by PHP as a <template>
         function showDay($cell) {
           var day = $cell.data("day");
-          var holiday = $cell.data("holiday");
           $(".wd-cal .clckday, .wd-cal__hitem").removeClass("is-active");
           $cell.addClass("is-active");
           $(".wd-cal__hitem[data-day='" + day + "']").addClass("is-active");
-
-          var tags = "";
-          if ($cell.hasClass("is-today"))  tags += '<span class="wd-cal__tag wd-cal__tag--today">Today</span>';
-          var special = $cell.hasClass("is-special");
-          if (holiday)                     tags += special
-            ? '<span class="wd-cal__tag wd-cal__tag--special">Special holiday</span>'
-            : '<span class="wd-cal__tag wd-cal__tag--holiday">Regular holiday</span>';
-          if ($cell.hasClass("is-sunday")) tags += '<span class="wd-cal__tag wd-cal__tag--rest">Sunday</span>';
-
-          $("#calDayDetail").html(
-            '<div class="wd-cal__detail-date">' + esc($cell.data("label")) + '</div>' +
-            '<div class="wd-cal__detail-tags">' + tags + '</div>' +
-            '<div class="wd-cal__detail-body' + (holiday ? ' is-holiday' + (special ? ' is-special' : '') : '') + '">' +
-              (holiday ? esc(holiday) : 'No holiday on this day.') + '</div>'
-          );
+          var tpl = $(".wd-cal .wd-cal__tpl[data-day='" + day + "']")[0];
+          if (tpl) { $("#calDayDetail").html(tpl.innerHTML); }
         }
         $(document).on("click", ".wd-cal .clckday", function () { showDay($(this)); });
         $(document).on("keydown", ".wd-cal .clckday", function (e) {
@@ -433,6 +389,7 @@ function wd_announcement_body($text) {
                     <span><i style="background:var(--navy)"></i> Today</span>
                     <span title="Regular holiday"><i style="background:var(--danger-bg);border:1px solid var(--danger-text)"></i> Regular</span>
                     <span title="Special holiday"><i style="background:var(--info-bg);border:1px solid var(--info-text)"></i> Special</span>
+                    <span title="Birthday of an active employee"><svg viewBox="0 0 24 24" aria-hidden="true" style="width:14px;height:14px;fill:none;stroke:var(--bday-text);stroke-width:2;stroke-linecap:round;stroke-linejoin:round"><path d="M4 21h16M5 21v-7a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2v7"/><path d="M5 16.5c1.5 1 3 1 4.5 0s3-1 4.5 0 3 1 4.5 0"/><path d="M12 12V8.5"/><path d="M12 6c.8 0 1.3-.6 1.3-1.3C13.3 3.8 12 2.5 12 2.5s-1.3 1.3-1.3 2.2c0 .7.5 1.3 1.3 1.3z"/></svg> Birthday</span>
                 </div>
             </div>
             <div class="corner-card__body">

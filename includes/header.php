@@ -558,6 +558,9 @@
       <div style="display: inline-block;padding: 0px 5px; background-color:#fff;" class="clckmin"><h1 style="display: inline-block; margin: 0px;" id="hr-mn2">00:00</h1><h6 style="display: inline-block; margin: 0px;" id="sec2">:00 AM</h6></div>
     </div>
   <?php
+    /* floating Corner bubble; legacy shell has no theme tokens, the include adds them */
+    $wdcb_legacy = true;
+    include __DIR__ . '/corner-bubble.php';
     }
     else{
       ?>

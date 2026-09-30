@@ -131,6 +131,31 @@
       .ys-range{font-family:var(--font-body,inherit);font-weight:400;font-size:12.5px;color:var(--text-3);margin-left:6px}
       .ys-nav{display:flex;align-items:center;gap:8px;font-weight:600;font-size:13px;color:var(--text-2)}
       .ys-body{padding:16px 20px}
+      /* collapsible card: the title is the toggle; body animates open/closed */
+      .ys-card .wd-card__head{gap:12px}
+      .ys-card .wd-card__head h3{flex:1;min-width:0;margin:0}
+      .ys-toggle{display:flex;align-items:center;gap:10px;width:100%;padding:0;border:0;background:none;text-align:left;cursor:pointer;
+        font:inherit;color:inherit;border-radius:8px}
+      .ys-toggle:focus{outline:none}
+      .ys-toggle:focus-visible{box-shadow:0 0 0 3px var(--brand-tint)}
+      .ys-toggle__chev{flex:0 0 26px;width:26px;height:26px;border-radius:50%;display:inline-flex;align-items:center;justify-content:center;
+        background:var(--surface-2);color:var(--text-2);font-size:11px;transition:transform .25s ease,background .15s,color .15s}
+      .ys-toggle:hover .ys-toggle__chev{background:var(--brand-tint);color:var(--brand)}
+      .ys-card.is-collapsed .ys-toggle__chev{transform:rotate(-90deg)}
+      .ys-toggle__txt{min-width:0;display:flex;align-items:baseline;flex-wrap:wrap;column-gap:6px}
+      .ys-toggle__txt .ys-range{margin-left:0}
+      /* one-line summary, only while collapsed */
+      .ys-mini{display:none;font-family:var(--font-body,inherit);font-size:12.5px;font-weight:400;color:var(--text-2)}
+      .ys-mini b{color:var(--text)}
+      .ys-mini .wd-pill{font-size:11px;padding:1px 8px;vertical-align:1px}
+      .ys-card.is-collapsed .ys-mini{display:inline}
+      .ys-card.is-collapsed .ys-range{display:none}
+      .ys-card.is-collapsed .wd-card__head{border-bottom-color:transparent}
+      .ys-collapse{display:grid;grid-template-rows:1fr;transition:grid-template-rows .25s ease,visibility 0s}
+      .ys-collapse > div{min-height:0;overflow:hidden}
+      .ys-card.is-collapsed .ys-collapse{grid-template-rows:0fr;visibility:hidden;transition:grid-template-rows .25s ease,visibility 0s linear .25s}
+      @media (max-width:600px){ .ys-card .wd-card__head{flex-wrap:wrap} .ys-card .ys-nav{margin-left:36px} }
+      @media (prefers-reduced-motion:reduce){ .ys-collapse,.ys-toggle__chev{transition:none !important} }
       .ys-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:12px}
       .ys-cell{border:1px solid var(--border);border-radius:12px;padding:12px 14px}
       .ys-cell__l{display:flex;align-items:center;gap:7px;font-size:12px;color:var(--text-2)}
@@ -214,15 +239,30 @@
           array('fa-umbrella-beach',   'Leave (days)',      'leave',   'Approved'),
         );
       ?>
-      <section class="wd-card">
+      <section class="wd-card ys-card" id="ysCard">
         <div class="wd-card__head">
-          <h3>My year so far <span class="ys-range"><?php echo date('M j', strtotime($ysFrom)) . ' &ndash; ' . date('M j, Y', strtotime($ysYear . '-12-31')); ?></span></h3>
+          <h3>
+            <button type="button" class="ys-toggle" id="ysToggle" aria-expanded="true" aria-controls="ysCollapse" title="Show or hide My year so far">
+              <span class="ys-toggle__chev" aria-hidden="true"><i class="fa-solid fa-chevron-down"></i></span>
+              <span class="ys-toggle__txt">
+                <span>My year so far</span>
+                <span class="ys-range"><?php echo date('M j', strtotime($ysFrom)) . ' &ndash; ' . date('M j, Y', strtotime($ysYear . '-12-31')); ?></span>
+                <?php if ($ys && $ys['scheduled'] > 0): ?>
+                  <span class="ys-mini"><b><?php echo number_format($ys['accounted']); ?></b> of <?php echo number_format($ys['scheduledYear']); ?> days accounted (<?php echo $ysPct; ?>%)<?php
+                    if ($ys['unaccounted'] > 0) { echo ' &middot; <span class="wd-pill wd-pill--warn">' . number_format($ys['unaccounted']) . ' unaccounted</span>'; }
+                    if ($ys['conflicts']) { echo ' <span class="wd-pill wd-pill--danger">' . count($ys['conflicts']) . ' conflict' . (count($ys['conflicts']) > 1 ? 's' : '') . '</span>'; }
+                  ?></span>
+                <?php endif; ?>
+              </span>
+            </button>
+          </h3>
           <div class="ys-nav">
             <?php if ($ysYear > 2019): ?><a class="wd-btn wd-btn--ghost wd-btn--sm" href="?yr=<?php echo $ysYear - 1; ?>" title="Previous year"><i class="fa-solid fa-chevron-left"></i></a><?php endif; ?>
             <span><?php echo $ysYear; ?></span>
             <?php if ($ysYear < $ysNow): ?><a class="wd-btn wd-btn--ghost wd-btn--sm" href="?yr=<?php echo $ysYear + 1; ?>" title="Next year"><i class="fa-solid fa-chevron-right"></i></a><?php endif; ?>
           </div>
         </div>
+        <div class="ys-collapse" id="ysCollapse"><div>
         <div class="ys-body">
           <div class="ys-grid">
             <?php foreach ($ysTiles as $t): ?>
@@ -277,7 +317,18 @@
             </div>
           <?php endif; ?>
         </div>
+        </div></div><!-- /.ys-collapse -->
       </section>
+      <script>
+        // always starts expanded; the toggle only collapses it for this view
+        (function () {
+          var card = document.getElementById('ysCard'), btn = document.getElementById('ysToggle');
+          btn.addEventListener('click', function () {
+            var closed = card.classList.toggle('is-collapsed');
+            btn.setAttribute('aria-expanded', closed ? 'false' : 'true');
+          });
+        })();
+      </script>
 
       <section class="wd-card">
         <div class="wd-card__head">

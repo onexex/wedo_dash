@@ -3,6 +3,8 @@
   </div>
 </div>
 
+<?php include __DIR__ . '/corner-bubble.php'; /* floating Corner bubble (announcements + calendar) */ ?>
+
 <!-- Change password modal (Bootstrap; handled by assets/js/script.js .btnchangepass) -->
 <div class="modal" id="changepass">
   <div class="modal-dialog">
