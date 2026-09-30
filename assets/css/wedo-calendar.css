@@ -103,3 +103,22 @@
   .wd-cal__select{font-size:13px;padding-left:10px}
   .wd-cal__select--year{width:78px}
 }
+
+/* --- birthdays (active employees; .is-mybday = the viewer's own) --- */
+:root{--bday-text:#b3276f;--bday-bg:#fdebf4}
+.wd-cal svg.wd-cal__cake{width:1em;height:1em;fill:none;stroke:currentColor;stroke-width:2;stroke-linecap:round;stroke-linejoin:round;flex:0 0 auto}
+.wd-cal .week-day-cell li .wd-cal__cake{position:absolute;top:4px;right:4px;font-size:11px;color:var(--bday-text);pointer-events:none}
+.wd-cal .week-day-cell li.is-today .wd-cal__cake,
+.wd-cal .week-day-cell li.is-today.is-holiday .wd-cal__cake{color:#fff}
+.wd-cal .week-day-cell li.is-mybday:not(.is-today):not(.is-holiday){background:var(--bday-bg);color:var(--bday-text);border-color:rgba(179,39,111,.28)}
+.wd-cal__tag--bday{background:var(--bday-bg);color:var(--bday-text);border-color:transparent}
+.wd-cal__bdays{list-style:none;margin:10px 0 0;padding:10px 0 0;border-top:1px dashed var(--border-2);display:flex;flex-direction:column;gap:6px}
+.wd-cal__bdays li{display:flex;align-items:center;gap:8px;font-size:13px;color:var(--text-2)}
+.wd-cal__bdays li .wd-cal__cake{color:var(--bday-text);font-size:15px}
+.wd-cal__bdays li b{color:var(--text)}
+.wd-cal__bdays li.is-me b{color:var(--bday-text)}
+.wd-cal__bitem b{color:var(--bday-text)}
+.wd-cal__bitem > .wd-cal__cake{align-self:center;color:var(--bday-text);font-size:14px;opacity:.8}
+.wd-cal__bitem.is-active{background:var(--bday-bg)}
+.wd-cal__bitem .wd-cal__you{flex:none;color:var(--bday-text);font-weight:700}
+@media (max-width:420px){ .wd-cal .week-day-cell li .wd-cal__cake{top:2px;right:2px;font-size:9px} }
