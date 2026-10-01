@@ -17,6 +17,7 @@
  * ========================================================================== */
 
 require_once __DIR__ . '/messages-lib.php';
+require_once __DIR__ . '/msg-mentions.php';
 
 const GRP_NAME_MAX    = 60;
 const GRP_MAX_MEMBERS = 50;
@@ -181,6 +182,7 @@ function grp_threads(PDO $pdo, string $me): array
             'lastSender' => ($r['last_kind'] === 'event' || $mine) ? '' : trim((string) $r['last_fn']),
             'at'         => (string) ($r['last_at'] ?: $r['created_at']),
             'unread'     => (int) $r['unread'],
+            'mentions'   => (int) $r['unread'] > 0 ? mn_unread($pdo, $me, (int) $r['id'], (int) $r['last_read']) : 0,
         ];
     }
     return $out;
@@ -191,9 +193,11 @@ function grp_messages(PDO $pdo, int $gid, string $me, int $after = 0): array
 {
     $st = $pdo->prepare("SELECT MSID, SenderID, Message, Kind, DateSent FROM messages WHERE MHID = :h AND MSID > :a ORDER BY MSID");
     $st->execute([':h' => grp_key($gid), ':a' => $after]);
+    $rows = $st->fetchAll(PDO::FETCH_ASSOC);
+    $mentionsMe = array_flip(mn_mentioning($pdo, $me, array_column($rows, 'MSID')));
     $people = [];
     $out = [];
-    foreach ($st->fetchAll(PDO::FETCH_ASSOC) as $r) {
+    foreach ($rows as $r) {
         $sid = $r['SenderID'];
         if (!array_key_exists($sid, $people)) {
             $p = msg_person($pdo, $sid);
@@ -207,6 +211,7 @@ function grp_messages(PDO $pdo, int $gid, string $me, int $after = 0): array
             'at'     => (string) $r['DateSent'],
             'kind'   => (string) $r['Kind'],
             'sender' => $people[$sid],
+            'mentionsMe' => isset($mentionsMe[(int) $r['MSID']]),
         ];
     }
     return $out;
@@ -255,7 +260,9 @@ function grp_send(PDO $pdo, int $gid, string $me, string $text): array
     $text = trim(str_replace("\r\n", "\n", $text));
     if ($text === '') { return ['ok' => false, 'error' => 'Write a message first.']; }
     if (mb_strlen($text) > MSG_MAX_LEN) { return ['ok' => false, 'error' => 'Messages are limited to ' . MSG_MAX_LEN . ' characters.']; }
-    return ['ok' => true, 'message' => grp_insert($pdo, $gid, $me, $text)];
+    $msg = grp_insert($pdo, $gid, $me, $text);
+    mn_record($pdo, $gid, $msg['id'], $me, $text);   // "@Ben Bautista" / "@everyone"
+    return ['ok' => true, 'message' => $msg];
 }
 
 /* ------------------------------------------------------------------ managing a group */

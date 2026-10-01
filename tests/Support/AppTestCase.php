@@ -22,7 +22,7 @@ abstract class AppTestCase extends TestCase
         'companies', 'departments', 'positions', 'joblevel', 'empstatus', 'estatus', 'hmo', 'agency',
         'workschedule', 'workdays', 'frelationship', 'employees', 'empdetails', 'empdetails2', 'empprofiles',
         'empeducationalbackground', 'fdetails', 'accessrights', 'dars', 'profile_change_requests',
-        'idcard_cards', 'idcard_print_log', 'idcard_settings', 'messageheader', 'messages', 'msg_presence', 'msg_calls', 'msg_call_members', 'msg_call_signals', 'msg_groups', 'msg_group_members',
+        'idcard_cards', 'idcard_print_log', 'idcard_settings', 'messageheader', 'messages', 'msg_presence', 'msg_calls', 'msg_call_members', 'msg_call_signals', 'msg_groups', 'msg_group_members', 'msg_reactions', 'msg_mentions',
     ];
 
     protected function setUp(): void

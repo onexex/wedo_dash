@@ -9,7 +9,8 @@
    GET  action=thread&with=KEY[&after=MSID]   messages (marks them read), receipts, first unread,
                                               presence / typing; for groups also members + call in progress
    GET  action=search&term=...                people I can start a conversation with / add to a group
-   POST action=send&with=KEY&text=...         send a message
+   POST action=send&with=KEY&text=...         send a message ("@Name" / "@everyone" in a group mentions people)
+   POST action=react&id=MSID&emoji=E          toggle my reaction (one per person; same emoji again removes it)
    POST action=typing&with=KEY|''             I'm typing there ('' = stopped)
    POST action=group_create&name=..&members[]=..      new group (me = admin)
    POST action=group_add&id=..&members[]=..           admins
@@ -45,6 +46,7 @@ include 'w_conn.php';
 require_once __DIR__ . '/../includes/messages-lib.php';
 require_once __DIR__ . '/../includes/msg-groups.php';
 require_once __DIR__ . '/../includes/msg-calls.php';
+require_once __DIR__ . '/../includes/msg-reactions.php';
 
 try {
     $pdo = new PDO("mysql:host=$servername;dbname=$db;charset=utf8mb4", $username, $password);
@@ -96,6 +98,14 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             if (!$res['ok']) { msg_out(422, ['status' => 'error', 'msg' => $res['error']]); }
             msg_touch($pdo, $me, '');   // sent = no longer typing
             msg_out(200, ['status' => 'ok', 'message' => $res['message'], 'today' => $today]);
+
+        case 'react':
+            if (!rx_ready($pdo)) {
+                msg_out(409, ['status' => 'error', 'code' => 'disabled', 'msg' => 'Reactions aren’t set up on this server yet.']);
+            }
+            $res = rx_toggle($pdo, $me, $id, (string) ($_POST['emoji'] ?? ''));
+            if (!$res['ok']) { msg_out(422, ['status' => 'error', 'msg' => $res['error']]); }
+            msg_out(200, ['status' => 'ok', 'id' => $id, 'reactions' => $res['reactions']]);
 
         case 'group_create':
             $res = grp_create($pdo, $me, (string) ($_POST['name'] ?? ''), msg_ids_param(), $userType);
@@ -174,6 +184,7 @@ switch ($action) {
                                                         array_filter($members, fn($m) => $m['id'] !== $me))),
                 'typing'      => grp_typing($pdo, $gid, $me),
                 'activeCall'  => $activeCall,
+                'reactions'   => rx_ready($pdo) ? (object) rx_for_thread($pdo, $me, grp_key($gid)) : null,
                 'canSend'     => true, 'today' => $today]);
         }
         $person = msg_person($pdo, $with);
@@ -181,10 +192,12 @@ switch ($action) {
         $firstUnread = $after === 0 ? msg_first_unread($pdo, $me, $with) : 0;   // before marking them read
         $msgs        = msg_messages($pdo, $me, $with, $after);
         msg_mark_read($pdo, $me, $with);
+        $mhid        = msg_thread_id($pdo, $me, $with);
         msg_out(200, ['status' => 'ok', 'kind' => 'dm', 'person' => $person, 'messages' => $msgs,
                       'firstUnread' => $firstUnread,
                       'seenUpTo'    => msg_seen_up_to($pdo, $me, $with),
                       'presence'    => msg_presence($pdo, $me, [$with])[$with],
+                      'reactions'   => rx_ready($pdo) ? (object) ($mhid ? rx_for_thread($pdo, $me, $mhid) : []) : null,
                       'canSend'     => msg_can_message($pdo, $me, $with, $userType), 'today' => $today]);
 
     case 'search':

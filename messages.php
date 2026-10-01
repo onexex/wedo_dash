@@ -98,6 +98,7 @@
       .msg-modal__x{border:0;background:none;font-size:18px;color:var(--text-3);cursor:pointer;width:32px;height:32px;border-radius:50%}
       .msg-modal__x:hover{background:var(--surface-2);color:var(--text)}
       .msg-modal__body{flex:1;overflow-y:auto;padding:14px 18px;display:flex;flex-direction:column;gap:12px}
+      .msg-modal__body > *{flex-shrink:0}   /* on short screens the body scrolls; the people list is never squeezed to 0px */
       .msg-modal__foot{display:flex;gap:8px;justify-content:flex-end;align-items:center;padding:12px 18px;border-top:1px solid var(--border)}
       .msg-modal__foot .grow{flex:1}
       .msg-modal label{font-size:12px;font-weight:700;color:var(--text-2);margin:0 0 5px;display:block}
@@ -109,7 +110,7 @@
       .msg-chip{display:inline-flex;align-items:center;gap:6px;background:var(--brand-tint);color:var(--brand-700);border-radius:var(--radius-pill);padding:3px 6px 3px 10px;font-size:12px;font-weight:600}
       .msg-chip button{border:0;background:none;color:inherit;cursor:pointer;font-size:12px;width:18px;height:18px;border-radius:50%;padding:0}
       .msg-chip button:hover{background:rgba(0,0,0,.08)}
-      .msg-pick{display:flex;flex-direction:column;gap:2px;max-height:260px;overflow-y:auto}
+      .msg-pick{display:flex;flex-direction:column;gap:2px;min-height:44px;max-height:260px;overflow-y:auto}
       .msg-pick .msg-item{padding:8px}
       .msg-pick .msg-item.is-on{background:var(--brand-tint)}
       .msg-pick__tick{flex:none;width:20px;height:20px;border-radius:50%;border:2px solid var(--border-2);display:flex;align-items:center;justify-content:center;color:#fff;font-size:10px}
@@ -154,7 +155,7 @@
       .msg-new{display:flex;align-items:center;gap:10px;margin:14px 0 8px;color:var(--brand-700);font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.05em}
       .msg-new::before,.msg-new::after{content:"";flex:1;height:1px;background:var(--brand);opacity:.35}
 
-      .msg-row{display:flex;align-items:flex-end;gap:8px;margin-top:2px}
+      .msg-row{position:relative;display:flex;align-items:flex-end;gap:8px;margin-top:2px}
       .msg-row.is-first{margin-top:10px}
       .msg-row--mine{justify-content:flex-end}
       .msg-row .msg-av--sm{visibility:hidden}
@@ -170,6 +171,34 @@
       .msg-bubble.is-emoji{background:none !important;border:0;box-shadow:none;font-size:34px;line-height:1.15;padding:0 2px}
       .msg-row.is-pending .msg-bubble{opacity:.6}
       .msg-row.is-failed .msg-bubble{background:var(--danger-bg) !important;color:var(--danger-text) !important;border:1px solid #f5c2bc}
+      /* reactions */
+      .msg-react-btn{display:none;flex:none;align-self:center;width:28px;height:28px;border:0;border-radius:50%;background:none;color:var(--text-3);font-size:15px;cursor:pointer;opacity:0;align-items:center;justify-content:center;transition:opacity .15s,background .15s,color .15s}
+      .msg-rx-on .msg-react-btn{display:flex}
+      .msg-row:hover .msg-react-btn,.msg-row:focus-within .msg-react-btn,.msg-row.rx-open .msg-react-btn,.msg-row.show-rx .msg-react-btn{opacity:1}
+      .msg-react-btn:hover,.msg-row.rx-open .msg-react-btn{background:var(--surface-2);color:var(--text)}
+      .msg-row:not([data-id]) .msg-react-btn,.msg-row.is-pending .msg-react-btn,.msg-row.is-failed .msg-react-btn{visibility:hidden}
+      .msg-row.has-rx{margin-bottom:20px}
+      .msg-rx{position:absolute;right:6px;bottom:-14px;display:flex;align-items:center;gap:1px;height:22px;padding:0 6px;border-radius:999px;background:var(--surface);border:1px solid var(--border);box-shadow:0 1px 3px rgba(16,24,40,.14);font-size:12.5px;line-height:1;color:var(--text-2);cursor:pointer;white-space:nowrap;animation:msgRxPop .25s ease-out}
+      .msg-rx.is-mine{border-color:var(--brand);background:var(--brand-tint)}
+      .msg-rx__n{margin-left:3px;font-size:11px;font-weight:700}
+      @keyframes msgRxPop{0%{transform:scale(.4)}70%{transform:scale(1.15)}100%{transform:scale(1)}}
+      .msg-rxbar{position:absolute;bottom:calc(100% + 4px);left:38px;z-index:6;display:flex;gap:2px;padding:4px;background:var(--surface);border:1px solid var(--border);border-radius:999px;box-shadow:0 8px 24px rgba(16,24,40,.18);animation:msgIn .15s ease-out}
+      .msg-row--mine .msg-rxbar{left:auto;right:0}
+      .msg-rxbar.is-below{bottom:auto;top:calc(100% + 4px)}
+      .msg-rxbar button{border:0;background:none;width:36px;height:36px;border-radius:50%;font-size:22px;line-height:1;cursor:pointer;transition:transform .12s,background .12s}
+      .msg-rxbar button:hover,.msg-rxbar button:focus-visible{transform:scale(1.25);background:var(--surface-2);outline:none}
+      .msg-rxbar button.is-on{background:var(--brand-tint)}
+      /* mentions */
+      .msg-mention{font-weight:700;color:var(--brand-700)}
+      .msg-row--mine .msg-mention{color:#fff;text-decoration:underline;text-underline-offset:2px}
+      .msg-row.is-mention .msg-bubble{background:#fff7e0;border-color:#f3d27a;box-shadow:inset 3px 0 0 #f0b429}
+      .msg-item__at{flex:none;width:19px;height:19px;border-radius:50%;background:#f0b429;color:#fff;font-size:11px;font-weight:800;display:flex;align-items:center;justify-content:center}
+      .msg-mention-pop{position:absolute;left:16px;right:16px;bottom:calc(100% - 4px);z-index:6;max-height:260px;overflow-y:auto;padding:4px;background:var(--surface);border:1px solid var(--border);border-radius:12px;box-shadow:0 12px 32px rgba(16,24,40,.18)}
+      .msg-mention-pop button{display:flex;align-items:center;gap:10px;width:100%;border:0;background:none;padding:6px 8px;border-radius:8px;text-align:left;font-size:13px;color:var(--text);cursor:pointer}
+      .msg-mention-pop button.is-on,.msg-mention-pop button:hover{background:var(--brand-tint)}
+      .msg-mention-pop button span:not(.msg-av){font-weight:600}
+      .msg-mention-pop small{margin-left:auto;color:var(--text-3);font-size:11.5px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+      .msg-mention-pop__all{display:flex;align-items:center;justify-content:center;background:var(--brand-tint);color:var(--brand-700);font-size:12px}
       .msg-meta{font-size:10.5px;color:var(--text-3);margin:4px 2px 2px}
       .msg-meta--mine{text-align:right}
       .msg-meta--theirs{margin-left:38px}
@@ -234,7 +263,7 @@
       @keyframes msgShim{0%{background-position:100% 50%}100%{background-position:0 50%}}
 
       @media (prefers-reduced-motion: reduce){
-        .msg-row.is-new,.msg-typing i,.msg-shimmer{animation:none}
+        .msg-row.is-new,.msg-typing i,.msg-shimmer,.msg-rx,.msg-rxbar{animation:none}
         .msg-scroll{scroll-behavior:auto}
       }
 

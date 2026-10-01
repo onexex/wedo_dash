@@ -331,7 +331,32 @@ final class MessagesTest extends AppTestCase
         $this->assertNotNull($is, 'Message IS link');
         $this->assertSame('messages?with=' . self::ADMIN, $is->getAttribute('href'));
         $this->assertSame('1', trim($x->query("//a[@id='msg']//b")->item(0)->textContent));
-        $this->assertNotNull($x->query("//a[@id='wdMsgBtn']/span[contains(@class,'wd-iconbtn__dot')]")->item(0), 'topbar dot');
+        $badge = $x->query("//a[@id='wdMsgBtn']/span[contains(@class,'wd-inbox__badge')]")->item(0);
+        $this->assertNotNull($badge, 'topbar badge');
+        $this->assertSame('1', trim($badge->textContent));
         $this->assertSame(0, $x->query("//*[contains(@class,'com-container')]")->length, 'old chat popup is gone');
+    }
+
+    /** Top-bar envelope: numbered badge on load, kept live on every page by the ringer's check-in. */
+    public function testInboxBadgeShowsTheUnreadCountAndStaysLive(): void
+    {
+        $page = fn() => $this->dom($this->request('idcard.php', [], [], $this->as(self::ADMIN, 1))['body']);
+        $btn = $page()->query("//a[@id='wdMsgBtn']")->item(0);
+        $this->assertStringNotContainsString('has-unread', $btn->getAttribute('class'));
+        $this->assertSame('0', $btn->getAttribute('data-unread'));
+
+        $this->send(self::EMP, self::ADMIN, 'one');
+        $btn = $page()->query("//a[@id='wdMsgBtn']")->item(0);
+        $this->assertStringContainsString('has-unread', $btn->getAttribute('class'));
+        $this->assertSame('1', $btn->getAttribute('data-unread'));
+        $this->assertSame('1', trim($btn->textContent));                       // the number on the badge
+        $this->assertSame('1 unread conversation', $btn->getAttribute('title'));
+
+        // the ringer's check-in (every page, every few seconds) carries the live count
+        $live = $this->request('query/Query-calls.php', ['action' => 'incoming'], [], $this->as(self::ADMIN, 1));
+        $this->assertSame(1, json_decode($live['body'], true)['unread']);
+        $this->api(['action' => 'thread', 'with' => self::EMP], [], $this->as(self::ADMIN, 1));   // Ada reads it
+        $live = $this->request('query/Query-calls.php', ['action' => 'incoming'], [], $this->as(self::ADMIN, 1));
+        $this->assertSame(0, json_decode($live['body'], true)['unread']);
     }
 }

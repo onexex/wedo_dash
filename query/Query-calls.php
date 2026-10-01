@@ -3,7 +3,8 @@
    Query-calls.php  —  JSON API for video calls (see includes/msg-calls.php).
    Used by assets/js/wedo-call.js on every signed-in page.
 
-   GET  action=incoming                          a call ringing for me right now (or null); also marks me online
+   GET  action=incoming                          a call ringing for me right now (or null) + my unread
+                                                 conversations (top-bar envelope badge); also marks me online
    GET  action=state&id=N&after=SIGID            call + members + signals addressed to me; keeps me "present"
    POST action=start&with=EmpID|grp:ID&token     call a person or a whole group
    POST action=join&id=N&token                   answer / join a group call late   (alias: answer)
@@ -60,7 +61,7 @@ if ($action === 'incoming') { msg_touch($pdo, $me); }
 
 if (!call_ready($pdo)) {
     // migrations not applied yet: the ringer quietly does nothing
-    if ($action === 'incoming') { call_out(200, ['status' => 'ok', 'call' => null, 'disabled' => true]); }
+    if ($action === 'incoming') { call_out(200, ['status' => 'ok', 'call' => null, 'disabled' => true, 'unread' => msg_unread_threads($pdo, $me)]); }
     // 409, not 5xx: some hosts swap a 5xx body for their own HTML error page, which the browser can't read
     call_out(409, ['status' => 'error', 'code' => 'disabled', 'msg' => 'Video calls aren’t set up on this server yet.']);
 }
@@ -68,7 +69,7 @@ if (!call_ready($pdo)) {
 /* ---------------------------------------------------------------- reads */
 if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
     if ($action === 'incoming') {
-        call_out(200, ['status' => 'ok', 'call' => call_incoming($pdo, $me)]);
+        call_out(200, ['status' => 'ok', 'call' => call_incoming($pdo, $me), 'unread' => msg_unread_threads($pdo, $me)]);
     }
     if ($action === 'state') {
         $call = call_for_member($pdo, (int) ($_GET['id'] ?? 0), $me);
