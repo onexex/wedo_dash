@@ -66,9 +66,20 @@
     });
   }
 
+  /* what a card still needs before it may print — mirrors idc_card_missing() on the server */
+  function missing(c) {
+    var m = [];
+    if (!c.photo) { m.push('photo'); }
+    if (!c.signature) { m.push('signature'); }
+    return m;
+  }
+
   function statusPill(c) {
-    if (!c.signature) { return '<span class="wd-pill wd-pill--danger" title="Printing is locked until a signature is uploaded"><i class="fa-solid fa-lock"></i> No signature</span>'; }
-    if (!c.photo) { return '<span class="wd-pill wd-pill--warn">No photo</span>'; }
+    var m = missing(c);
+    if (m.length) {
+      return '<span class="wd-pill wd-pill--danger" title="Printing is locked until the ' + m.join(' and ') + (m.length > 1 ? ' are' : ' is') +
+        ' added"><i class="fa-solid fa-lock"></i> No ' + m.join(' & ') + '</span>';
+    }
     return c.idNumber ? '<span class="wd-pill wd-pill--ok">Issued</span>' : '<span class="wd-pill wd-pill--off">Not issued</span>';
   }
 
@@ -91,9 +102,9 @@
     }).join('');
     $id('empList').innerHTML = html || '<div class="idc-empty">No employees match these filters.</div>';
     var issued = list.filter(function (c) { return c.idNumber; }).length;
-    var unsigned = list.filter(function (c) { return !c.signature; }).length;
+    var notReady = list.filter(function (c) { return missing(c).length; }).length;
     $id('listFoot').textContent = list.length + ' shown · ' + issued + ' issued · ' + (list.length - issued) + ' not issued' +
-      (unsigned ? ' · ' + unsigned + ' without signature' : '');
+      (notReady ? ' · ' + notReady + ' not ready to print' : '');
     var all = list.length > 0 && list.every(function (c) { return selected[c.empId]; });
     $id('fAll').checked = all;
     updateSelCount();
@@ -143,29 +154,30 @@
     $id('pvSignUpload').querySelector('span').textContent = c.signature ? 'Replace' : 'Upload';
 
     var warn = [];
-    if (!c.photo) { warn.push('No photo on the 201 record — the circle will print blank.'); }
-    else if (Math.min(c.photoW, c.photoH) < 400) { warn.push('The photo is only ' + c.photoW + '×' + c.photoH + ' px and may print blurry. Aim for 600 px or more.'); }
+    if (c.photo && Math.min(c.photoW, c.photoH) < 400) { warn.push('The photo is only ' + c.photoW + '×' + c.photoH + ' px and may print blurry. Aim for 600 px or more.'); }
     if (!c.position) { warn.push('No position on the 201 record.'); }
     if (!c.employed) { warn.push('This employee is not marked Employed.'); }
     $id('pvWarnings').innerHTML = (BOOT.backSet ? '' :
         '<li class="is-block"><i class="fa-solid fa-lock"></i><span>Printing is locked until the company details on the back are confirmed.</span>' +
         '<button type="button" class="wd-btn wd-btn--ghost wd-btn--sm js-openback">Review</button></li>') +
-      (c.signature ? '' :
-        '<li class="is-block"><i class="fa-solid fa-lock"></i><span>Printing is locked until this employee’s signature is uploaded (the back says the card bears it).</span></li>') +
+      (missing(c).length ? '<li class="is-block"><i class="fa-solid fa-lock"></i><span>Printing is locked until this employee’s ' +
+        missing(c).join(' and ') + (missing(c).length > 1 ? ' are' : ' is') + ' added — the back says the card bears the holder’s photo and signature.' +
+        (c.photo ? '' : ' Add the photo on their 201 record (Change photo).') + '</span></li>' : '') +
       warn.map(function (w) { return '<li><i class="fa-solid fa-triangle-exclamation"></i><span>' + esc(w) + '</span></li>'; }).join('');
 
     $id('pvPrint').querySelector('span').textContent = c.idNumber ? 'Reprint card' : 'Issue & print';
     syncPrintBtn();
   }
 
-  /* the single-card print button is off while this employee has no signature */
+  /* the single-card print button is off while this employee is missing a photo or signature */
   function syncPrintBtn() {
     var c = byId[current];
-    var locked = !c || !c.signature;
+    var m = c ? missing(c) : [];
+    var locked = !c || m.length > 0;
     $id('pvPrint').disabled = locked;
-    $id('pvPrint').title = c && !c.signature ? 'Upload the employee’s signature first' : '';
+    $id('pvPrint').title = m.length ? 'Add the employee’s ' + m.join(' and ') + ' first' : '';
     $id('pvPrint').querySelector('i').className = locked ? 'fa-solid fa-lock' : 'fa-solid fa-print';
-    if (c && !c.signature) { $id('pvPrint').querySelector('span').textContent = 'Locked — signature needed'; }
+    if (m.length) { $id('pvPrint').querySelector('span').textContent = 'Locked — ' + m.join(' & ') + ' needed'; }
   }
 
   function namesList(names) {
@@ -281,11 +293,12 @@
 
   function issueAndPrint(ids) {
     if (!BOOT.backSet) { openBack(); return; }
-    var unsigned = ids.filter(function (id) { return !byId[id].signature; });
-    if (unsigned.length) {
-      alert('Printing is locked: ' + unsigned.length + ' of the selected employee' + (ids.length > 1 ? 's have' : ' has') +
-        ' no signature on file.\n\n' + namesList(unsigned.map(function (id) { return byId[id].listName; })) +
-        '\n\nUpload their signatures first. Nothing was printed.');
+    var notReady = ids.filter(function (id) { return missing(byId[id]).length; });
+    if (notReady.length) {
+      alert('Printing is locked: ' + notReady.length + ' of the selected employee' + (ids.length > 1 ? 's are' : ' is') +
+        ' missing a photo or signature.\n\n' +
+        namesList(notReady.map(function (id) { return byId[id].listName + ' — needs ' + missing(byId[id]).join(' & '); })) +
+        '\n\nAdd them first. Nothing was printed.');
       return;
     }
     var fresh = ids.filter(function (id) { return !byId[id].idNumber; }).length;
@@ -298,10 +311,15 @@
     var before = ids.indexOf(current) !== -1 ? saveCrop(true) : Promise.resolve();
     before.then(function () { return post({ action: 'issue', emp: ids }); }).then(function (d) {
       if (d.status === 'needs_back') { BOOT.backSet = false; renderPreview(); openBack(); return; }
-      if (d.status === 'needs_sign') {   // someone removed a signature since this page loaded
-        (d.missing || []).forEach(function (m) { if (byId[m.empId]) { byId[m.empId].signature = null; } });
+      if (d.status === 'not_ready') {   // a photo or signature was removed since this page loaded
+        (d.missing || []).forEach(function (m) {
+          var c = byId[m.empId]; if (!c) { return; }
+          if (m.needs.indexOf('photo') !== -1) { c.photo = null; }
+          if (m.needs.indexOf('signature') !== -1) { c.signature = null; }
+        });
         renderList(); renderPreview();
-        alert(d.msg + '\n\n' + namesList((d.missing || []).map(function (m) { return m.name; })) + '\n\nNothing was printed.');
+        alert(d.msg + '\n\n' + namesList((d.missing || []).map(function (m) { return m.name + ' — needs ' + m.needs.join(' & '); })) +
+          '\n\nNothing was printed.');
         return;
       }
       if (d.status !== 'ok') { alert(d.msg || 'Could not issue the cards.'); return; }

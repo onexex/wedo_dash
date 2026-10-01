@@ -25,6 +25,10 @@ final class IdCardTest extends AppTestCase
     {
         parent::setUp();
         $this->assertSame([], idc_save_back(self::db(), idc_back_defaults(), self::ADMIN));
+        // both seeded people get a 201 photo (the fixture gives the admin no profile row)
+        self::db()->prepare("INSERT INTO empprofiles (EmpID, EmpPPath) VALUES (?, ?)")
+            ->execute([self::ADMIN, 'assets/images/profiles/' . self::ADMIN . '.jpg']);
+        foreach ([self::EMP, self::ADMIN] as $id) { $this->makePhoto($id); }
         $this->assertSame('', idc_store_signature(self::EMP, $this->fakeScan()));
         $this->assertSame('', idc_store_signature(self::ADMIN, $this->fakeScan()));
     }
@@ -200,9 +204,24 @@ final class IdCardTest extends AppTestCase
 
     protected function tearDown(): void
     {
-        idc_remove_signature(self::EMP);
-        idc_remove_signature(self::ADMIN);
+        foreach ([self::EMP, self::ADMIN] as $id) {
+            idc_remove_signature($id);
+            @unlink($this->photoPath($id));
+        }
         parent::tearDown();
+    }
+
+    private function photoPath(string $empId): string
+    {
+        return dirname(__DIR__) . '/assets/images/profiles/' . $empId . '.jpg';
+    }
+
+    private function makePhoto(string $empId): void
+    {
+        $im = imagecreatetruecolor(600, 700);
+        imagefill($im, 0, 0, imagecolorallocate($im, 180, 190, 200));
+        imagejpeg($im, $this->photoPath($empId), 80);
+        imagedestroy($im);
     }
 
     /** A "scan": white paper with a dark stroke in the middle, saved as JPG. */
@@ -270,8 +289,8 @@ final class IdCardTest extends AppTestCase
         // batch with one unsigned employee: nothing is issued, not even for the signed one
         $res = $this->issue([self::EMP, self::ADMIN]);
         $this->assertSame(409, $res['status'], $res['body']);
-        $this->assertSame('needs_sign', $res['json']['status']);
-        $this->assertSame([['empId' => self::ADMIN, 'name' => 'Admin, Ada']], $res['json']['missing']);
+        $this->assertSame('not_ready', $res['json']['status']);
+        $this->assertSame([['empId' => self::ADMIN, 'name' => 'Admin, Ada', 'needs' => ['signature']]], $res['json']['missing']);
         $this->assertSame(0, (int) $this->row('SELECT COUNT(*) n FROM idcard_print_log')['n']);
         $this->assertSame(0, (int) $this->row('SELECT COUNT(*) n FROM idcard_cards WHERE id_number IS NOT NULL')['n']);
         $this->assertSame('E-1', $this->row('SELECT EmployeeIDNumber FROM employees WHERE EmpID=?', [self::EMP])['EmployeeIDNumber']);
@@ -281,6 +300,71 @@ final class IdCardTest extends AppTestCase
         idc_remove_signature(self::EMP);
         $this->assertSame(409, $this->issue([self::EMP])['status']);
         $this->assertSame(1, (int) $this->row('SELECT COUNT(*) n FROM idcard_print_log')['n']);
+    }
+
+    public function testPrintingIsLockedForAnyoneWithoutAPhoto(): void
+    {
+        @unlink($this->photoPath(self::EMP));
+        idc_remove_signature(self::ADMIN);
+
+        $res = $this->issue([self::EMP, self::ADMIN]);
+        $this->assertSame(409, $res['status'], $res['body']);
+        $this->assertEqualsCanonicalizing([
+            ['empId' => self::EMP,   'name' => 'Dela Cruz, Juan', 'needs' => ['photo']],
+            ['empId' => self::ADMIN, 'name' => 'Admin, Ada',      'needs' => ['signature']],
+        ], $res['json']['missing']);
+        $this->assertSame(0, (int) $this->row('SELECT COUNT(*) n FROM idcard_print_log')['n']);
+
+        $this->makePhoto(self::EMP);
+        $this->assertSame(200, $this->issue([self::EMP])['status']);
+    }
+
+    /** Phone photo: table around the paper, a shadow across it, dust. Only the strokes may survive. */
+    public function testSignatureFromAPhonePhotoIsCroppedToTheInk(): void
+    {
+        $im = imagecreatetruecolor(1600, 1200);
+        imagefill($im, 0, 0, imagecolorallocate($im, 92, 64, 40));                       // table
+        for ($y = 140; $y < 1060; $y++) {                                                  // paper, shaded toward one corner
+            for ($x = 200; $x < 1420; $x++) {
+                $v = 236 - (int) (70 * max(0, ($x + $y - 1300) / 1300));
+                imagesetpixel($im, $x, $y, ($v << 16) | ($v << 8) | $v);
+            }
+        }
+        imagesetthickness($im, 6);
+        imageline($im, 640, 700, 1120, 600, imagecolorallocate($im, 30, 34, 70));         // the "signature"
+        imagefilledellipse($im, 300, 300, 3, 3, imagecolorallocate($im, 120, 120, 120)); // dust far away
+        $path = tempnam(sys_get_temp_dir(), 'sig') . '.jpg';
+        imagejpeg($im, $path, 88);
+
+        $this->assertSame('', idc_store_signature(self::EMP, $path));
+        [$w, $h] = getimagesize(idc_sign_dir() . '/' . idc_sign_file(self::EMP));
+        // stroke is 480 x 100 px in the photo = 360 x 75 at the 1200 px working size (+ small margin)
+        $this->assertLessThan(400, $w, "crop {$w}x{$h} kept table/shadow/dust");
+        $this->assertLessThan(110, $h, "crop {$w}x{$h} kept table/shadow/dust");
+        $this->assertGreaterThan(340, $w);
+    }
+
+    /** A clean scan whose only problem is stray dots and a dash near the page edges (a real sample from HR). */
+    public function testStrayDotsOnAScanDoNotShrinkTheSignature(): void
+    {
+        $im = imagecreatetruecolor(1440, 2000);
+        imagefill($im, 0, 0, imagecolorallocate($im, 255, 255, 255));
+        imagesetthickness($im, 13);
+        imageline($im, 300, 870, 1255, 975, imagecolorallocate($im, 8, 8, 8));           // the signature
+        imageellipse($im, 470, 1060, 460, 200, imagecolorallocate($im, 8, 8, 8));
+        foreach ([[1340, 210], [20, 490], [147, 1800], [1435, 1825], [1090, 1975]] as [$x, $y]) {
+            imagefilledellipse($im, $x, $y, 4, 4, imagecolorallocate($im, 60, 60, 60));   // dots near the edges
+        }
+        imagesetthickness($im, 3);
+        imageline($im, 245, 1975, 290, 1975, imagecolorallocate($im, 8, 8, 8));          // short dash bottom-left
+        $path = tempnam(sys_get_temp_dir(), 'sig') . '.jpg';
+        imagejpeg($im, $path, 90);
+
+        $this->assertSame('', idc_store_signature(self::EMP, $path));
+        [$w, $h] = getimagesize(idc_sign_dir() . '/' . idc_sign_file(self::EMP));
+        // strokes span x 240..1260, y 870..1160 on the page = about 612 x 175 at the 0.6 working scale
+        $this->assertLessThan(640, $w, "crop {$w}x{$h} kept the stray marks");
+        $this->assertLessThan(200, $h, "crop {$w}x{$h} kept the stray marks");
     }
 
     public function testUploadWithoutAFileIsRejected(): void

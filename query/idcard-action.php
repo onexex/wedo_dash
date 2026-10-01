@@ -103,13 +103,18 @@ if ($action === 'issue') {
     foreach ($ids as $id) {
         if (!isset($found[$id])) { idc_out(404, ['status' => 'error', 'msg' => 'Employee not found. (' . $id . ')']); }
     }
-    // the back says the card bears the holder's signature: no signature, no card.
-    // All-or-nothing, so a batch never half-prints.
-    $unsigned = array_values(array_filter($found, function ($c) { return !$c['signature']; }));
-    if ($unsigned) {
-        idc_out(409, ['status' => 'needs_sign',
-            'msg' => count($unsigned) . ' employee' . (count($unsigned) > 1 ? 's have' : ' has') . ' no signature on file. Upload it before printing.',
-            'missing' => array_map(function ($c) { return ['empId' => $c['empId'], 'name' => $c['listName']]; }, $unsigned)]);
+    // the back says the card bears the holder's name, photo and signature: no photo
+    // or no signature, no card. All-or-nothing, so a batch never half-prints.
+    $notReady = [];
+    foreach ($found as $c) {
+        if ($needs = idc_card_missing($c)) {
+            $notReady[] = ['empId' => $c['empId'], 'name' => $c['listName'], 'needs' => $needs];
+        }
+    }
+    if ($notReady) {
+        idc_out(409, ['status' => 'not_ready',
+            'msg' => count($notReady) . ' employee' . (count($notReady) > 1 ? 's are' : ' is') . ' missing a photo or signature. Add them before printing.',
+            'missing' => $notReady]);
     }
 
     $issued = [];

@@ -131,7 +131,7 @@
       photo(card, p) +
       // employee's signature, just above the name (never over it, so the name stays readable)
       (card.signature ? '<image class="idc-sign" href="' + esc(card.signature) + '" xlink:href="' + esc(card.signature) +
-        '" x="165" y="519" width="210" height="84" preserveAspectRatio="xMidYMax meet"/>' : '') +
+        '" x="120" y="521" width="300" height="82" preserveAspectRatio="xMidYMax meet"/>' : '') +
       // identity
       fitText(270, 632, 30, 470, 20, 'font-weight="700" fill="' + INK + '" class="idc-name"', card.name || '') +
       fitText(270, 662, 23, 470, 15, 'font-weight="500" fill="' + RED + '" class="idc-pos"', card.position || '') +
