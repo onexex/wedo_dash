@@ -1,6 +1,10 @@
 <?php if (session_status() === PHP_SESSION_NONE) { session_start(); }
-  if (isset($_SESSION['id']) && $_SESSION['id']!="0"){}
-  else{ header ('location: login.php'); }
+  // must stop here — without exit the delete/insert below still ran for logged-out requests
+  if (!isset($_SESSION['id']) || $_SESSION['id'] == "0") {
+      http_response_code(401);
+      echo "Your session has expired. Please sign in again.";
+      exit;
+  }
 ?>
 <?php
 include 'w_conn.php';
@@ -18,6 +22,16 @@ catch(PDOException $e)
    {
 die("ERROR: Could not connect. " . $e->getMessage());
    }
+
+// Direct edits need "Update 201 Files"; everyone else goes through a change
+// request (query/Query-requestProfileChange.php) that HR approves.
+$__ar = $pdo->prepare('SELECT updte FROM accessrights WHERE EmpID = ?');
+$__ar->execute([$_SESSION['id']]);
+if ((string)$__ar->fetchColumn() !== '2') {
+    http_response_code(403);
+    echo "You don't have permission to update employee records directly.";
+    exit;
+}
 $nameArr = json_decode($_POST["name"]);
 $addArr = json_decode($_POST["a"]);
 $rellArr = json_decode($_POST["rel"]);

@@ -1,0 +1,2 @@
+# Test code must never be served over HTTP (it is also excluded from the deploy zip).
+Require all denied

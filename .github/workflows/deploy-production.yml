@@ -40,6 +40,44 @@ jobs:
           echo "OK — no credential file tracked."
 
   # ---------------------------------------------------------------------------
+  # Regression tests (PHPUnit) against a throwaway MariaDB that mirrors local
+  # XAMPP (10.4, non-strict sql_mode). See tests/bootstrap.php.
+  # ---------------------------------------------------------------------------
+  test:
+    name: Regression tests
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      # Started by hand (not as a service container) so it can take server flags:
+      # utf8mb4 + non-strict sql_mode, the same defaults as local XAMPP. The app's
+      # connections don't name a charset, so a latin1 default would mangle "ñ".
+      - name: Start MariaDB 10.4 (configured like local XAMPP)
+        run: |
+          docker run -d --name wedo-db -p 3306:3306 -e MARIADB_ROOT_PASSWORD=root mariadb:10.4 \
+            --character-set-server=utf8mb4 --collation-server=utf8mb4_general_ci \
+            --sql-mode=NO_ZERO_IN_DATE,NO_ZERO_DATE,NO_ENGINE_SUBSTITUTION
+          for i in $(seq 1 60); do
+            if docker exec wedo-db mysqladmin ping -uroot -proot --silent 2>/dev/null; then echo "MariaDB is up"; exit 0; fi
+            sleep 2
+          done
+          echo "::error::MariaDB did not start"; docker logs wedo-db; exit 1
+      - name: Set up PHP 8.2
+        uses: shivammathur/setup-php@v2
+        with:
+          php-version: '8.2'
+          extensions: pdo_mysql, mysqli, dom, mbstring
+          coverage: none
+      - name: Install dev dependencies
+        run: composer install --no-interaction --no-progress
+      - name: Run regression tests
+        env:
+          TEST_DB_HOST: 127.0.0.1
+          TEST_DB_USER: root
+          TEST_DB_PASS: root
+          TEST_DB_NAME: wedo_test
+        run: vendor/bin/phpunit
+
+  # ---------------------------------------------------------------------------
   # CD (PRODUCTION) — package into one zip, SFTP it over SSH (port 22, password
   # auth), then unzip + fix permissions on the server. Reuses the same FTP_*
   # secrets as staging (same cPanel/SSH login, different Document Root). If
@@ -48,7 +86,7 @@ jobs:
   # ---------------------------------------------------------------------------
   deploy:
     name: Package & deploy to PRODUCTION (.ph)
-    needs: lint
+    needs: [lint, test]
     if: github.event_name == 'workflow_dispatch' || (github.event_name == 'push' && github.ref == 'refs/heads/production')
     runs-on: ubuntu-latest
     concurrency:
@@ -87,6 +125,7 @@ jobs:
         run: |
           zip -r -q deploy.zip . \
             -x '.git/*' '.github/*' 'config.local.php' '*.bak' '*.log' 'error_log' 'deploy.zip' \
+               'tests/*' 'vendor/*' 'composer.json' 'composer.lock' 'phpunit.xml.dist' '.phpunit.cache/*' \
                'w_conn.php' '*/w_conn.php'
           ls -lh deploy.zip | awk '{print "zip size: " $5}'
 

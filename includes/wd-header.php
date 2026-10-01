@@ -65,6 +65,13 @@ $wdar->execute([':id' => $_SESSION['id']]);
 $ar = $wdar->fetch();
 if (!$ar) { $ar = []; }
 
+/* pending profile change requests (reviewers only) */
+$wdPcrCount = 0;
+if (isset($ar['updte']) && $ar['updte'] == 2) {
+    require_once __DIR__ . '/profile-change.php';
+    $wdPcrCount = pcr_pending_count($wdpdo);
+}
+
 $wd_active = $wd_active ?? '';
 function wd_on($k, $a) { return $k === $a ? ' is-active' : ''; }
 function wd_can($ar, $k) { return isset($ar[$k]) && $ar[$k] == 2; }
@@ -83,7 +90,7 @@ function wd_can($ar, $k) { return isset($ar[$k]) && $ar[$k] == 2; }
                        ||wd_can($ar,'eov')||wd_can($ar,'coe')||wd_can($ar,'payslipt')||wd_can($ar,'obv')||wd_can($ar,'atv')
                        ||wd_can($ar,'fdetls')||wd_can($ar,'lcreaditview');
       $wd_show_mgmt = wd_can($ar,'arights')||wd_can($ar,'ams')||wd_can($ar,'payeereg')||wd_can($ar,'bookletreg')||wd_can($ar,'eemployee')
-                    ||wd_can($ar,'e201d')||wd_can($ar,'EF')||wd_can($ar,'schedv');
+                    ||wd_can($ar,'e201d')||wd_can($ar,'EF')||wd_can($ar,'schedv')||wd_can($ar,'idcard');
       /* Maintenance is now its own top-level section (leveled with Management),
          no longer nested inside Management. */
       $wd_show_maint = wd_can($ar,'agncy')||wd_can($ar,'comp')||wd_can($ar,'dep')
@@ -100,6 +107,7 @@ function wd_can($ar, $k) { return isset($ar[$k]) && $ar[$k] == 2; }
         <?php if(wd_can($ar,'checkregister')): ?><a class="wd-nav<?php echo wd_on('checkregister',$wd_active); ?>" href="checkregister"><i class="fa-solid fa-file-lines"></i> Check Register</a><?php endif; ?>
         <?php if(wd_can($ar,'eo')): ?><a class="wd-nav<?php echo wd_on('earlyout',$wd_active); ?>" href="earlyout"><i class="fa-solid fa-calendar-minus"></i> Early Out Application</a><?php endif; ?>
         <?php if(wd_can($ar,'e201')): ?><a class="wd-nav<?php echo wd_on('e201',$wd_active); ?>" href="e201"><i class="fa-solid fa-folder"></i> Electronic 201 File</a><?php endif; ?>
+        <?php if(wd_can($ar,'updte')): ?><a class="wd-nav wd-nav--badge<?php echo wd_on('profilerequests',$wd_active); ?>" href="profilerequests"><i class="fa-solid fa-user-check"></i> <span class="wd-nav__label">Profile Change Requests</span><?php if($wdPcrCount > 0): ?><span class="wd-nav__badge"><?php echo $wdPcrCount > 99 ? '99+' : (int)$wdPcrCount; ?></span><?php endif; ?></a><?php endif; ?>
         <?php if(wd_can($ar,'memo')): ?><a class="wd-nav<?php echo wd_on('memo',$wd_active); ?>" href="memo"><i class="fa-solid fa-sticky-note"></i> Memorandum Generator</a><?php endif; ?>
         <?php if(wd_can($ar,'ob')): ?><a class="wd-nav<?php echo wd_on('ob',$wd_active); ?>" href="ob"><i class="fa-solid fa-briefcase"></i> Official Business Trip Tracker</a><?php endif; ?>
         <?php if(wd_can($ar,'ot')): ?><a class="wd-nav<?php echo wd_on('otfilling',$wd_active); ?>" href="otfilling"><i class="fa-solid fa-business-time"></i> Overtime Filing</a><?php endif; ?>
@@ -140,6 +148,7 @@ function wd_can($ar, $k) { return isset($ar[$k]) && $ar[$k] == 2; }
         <?php if(wd_can($ar,'e201d')): ?><a class="wd-nav<?php echo wd_on('e201files',$wd_active); ?>" href="e201files"><i class="fa-solid fa-file-pdf"></i> Electronic 201 Document</a><?php endif; ?>
         <?php if(wd_can($ar,'EF')): ?><a class="wd-nav<?php echo wd_on('scheduler',$wd_active); ?>" href="scheduler"><i class="fa-solid fa-calendar-days"></i> Employee Scheduler</a><?php endif; ?>
         <?php if(wd_can($ar,'eemployee')): ?><a class="wd-nav<?php echo wd_on('newemployee',$wd_active); ?>" href="newemployee"><i class="fa-solid fa-user-plus"></i> Enroll Employee</a><?php endif; ?>
+        <?php if(wd_can($ar,'idcard')): ?><a class="wd-nav<?php echo wd_on('idcard',$wd_active); ?>" href="idcard"><i class="fa-solid fa-id-card"></i> ID Card Generator</a><?php endif; ?>
         <?php if(wd_can($ar,'payeereg')): ?><a class="wd-nav<?php echo wd_on('payeereg',$wd_active); ?>" href="payeereg"><i class="fa-solid fa-box-archive"></i> Payee Management System</a><?php endif; ?>
         <?php if(wd_can($ar,'schedv')): ?><a class="wd-nav<?php echo wd_on('schedviewer',$wd_active); ?>" href="schedviewer"><i class="fa-solid fa-chart-column"></i> Schedule Viewer</a><?php endif; ?>
       </div>

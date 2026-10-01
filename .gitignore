@@ -10,3 +10,10 @@ config.local.php
 
 # Login Theme banner uploads (Maintenance > Login Theme) — server data, not code
 assets/images/login-themes/
+
+# Employee signatures for ID cards (Management > ID Card Generator) — server data, not code
+assets/images/id-signatures/
+
+# Dev-only test tooling (composer install; never deployed)
+vendor/
+.phpunit.cache/

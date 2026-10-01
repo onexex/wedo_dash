@@ -89,6 +89,7 @@ ar_row('fa-lock',      'Booklet Management',       'bookletreg', $row);
 ar_row('fa-lock',      'Payee Registry',           'payeereg',   $row);
 ar_row('fa-user-plus', 'Enroll Employee',          'eemployee',  $row);
 ar_row('fa-file-pdf',  'Electronic 201 Document',  'e201d',      $row);
+ar_row('fa-id-card',   'ID Card Generator',        'idcard',     $row);
 
 /* ---- Maintenance ---- */
 ar_group('Maintenance');
