@@ -193,6 +193,27 @@ final class GroupsTest extends AppTestCase
         $this->assertContains('Juan left the group', array_column($this->thread(self::B, $gid)['json']['messages'], 'text'));
     }
 
+    /** Any unexpected server error comes back as JSON with a reference — never an HTML page the screen can't read. */
+    public function testUnexpectedErrorsAreReadableJson(): void
+    {
+        $gid = $this->payroll();
+        self::db()->exec('RENAME TABLE msg_groups TO msg_groups_off');   // break something the code doesn't expect
+        try {
+            $admin = $this->request('query/Query-messages.php', ['action' => 'thread', 'with' => 'grp:' . $gid], [], $this->as(self::ADMIN));
+            $json = json_decode($admin['body'], true);
+            $this->assertIsArray($json, "not JSON:\n" . $admin['body']);
+            $this->assertSame('error', $json['status']);
+            $this->assertMatchesRegularExpression('/^[0-9a-f]{6}$/', $json['ref']);
+            $this->assertStringContainsString('msg_groups', $json['msg']);           // super users see the real error
+
+            $ben = json_decode($this->request('query/Query-messages.php', ['action' => 'thread', 'with' => 'grp:' . $gid], [], $this->as(self::B))['body'], true);
+            $this->assertStringNotContainsString('msg_groups', $ben['msg']);         // everyone else gets a plain message + ref
+            $this->assertStringContainsString('ref ' . $ben['ref'], $ben['msg']);
+        } finally {
+            self::db()->exec('RENAME TABLE msg_groups_off TO msg_groups');
+        }
+    }
+
     public function testOneToOneStillWorksBeforeTheGroupsMigration(): void
     {
         self::db()->exec('RENAME TABLE msg_group_members TO msg_group_members_off');
@@ -202,7 +223,9 @@ final class GroupsTest extends AppTestCase
             $t = $this->get(self::ADMIN, ['action' => 'threads'])['json'];
             $this->assertFalse($t['groups']);
             $this->assertSame([self::EMP], array_column($t['threads'], 'key'));
-            $this->assertSame(503, $this->post(self::EMP, 'group_create', ['name' => 'X', 'members' => [self::B, self::C]])['status']);
+            $res = $this->post(self::EMP, 'group_create', ['name' => 'X', 'members' => [self::B, self::C]]);
+            $this->assertSame(409, $res['status']);
+            $this->assertSame('disabled', $res['json']['code']);
         } finally {
             self::db()->exec('RENAME TABLE msg_group_members_off TO msg_group_members');
         }

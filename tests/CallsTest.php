@@ -290,9 +290,29 @@ final class CallsTest extends AppTestCase
             $res = $this->api(self::ADMIN, ['action' => 'incoming'], [], 1);
             $this->assertSame(200, $res['status']);
             $this->assertTrue($res['json']['disabled']);
-            $this->assertSame(503, $this->post(self::EMP, 'start', ['with' => self::ADMIN])['status']);
+            $res = $this->post(self::EMP, 'start', ['with' => self::ADMIN]);
+            $this->assertSame(409, $res['status']);                            // never 5xx: hosts replace those with HTML
+            $this->assertSame('disabled', $res['json']['code']);
         } finally {
             self::db()->exec('RENAME TABLE msg_call_members_off TO msg_call_members');
+        }
+    }
+
+    /** What production had on 2026-10-01: msg_calls from an early draft (caller/callee). */
+    public function testDraftCallTablesSwitchCallsOffInsteadOfCrashing(): void
+    {
+        $db = self::db();
+        $db->exec('RENAME TABLE msg_calls TO msg_calls_real');
+        $db->exec("CREATE TABLE msg_calls (id INT AUTO_INCREMENT PRIMARY KEY, caller VARCHAR(50) NOT NULL, callee VARCHAR(50) NOT NULL,
+                   status VARCHAR(12) NOT NULL DEFAULT 'ringing', created_at DATETIME NOT NULL)");
+        try {
+            $this->assertTrue($this->api(self::ADMIN, ['action' => 'incoming'], [], 1)['json']['disabled']);
+            $res = $this->post(self::EMP, 'start', ['with' => self::ADMIN]);
+            $this->assertSame(409, $res['status'], $res['body']);
+            $this->assertSame('disabled', $res['json']['code']);
+        } finally {
+            $db->exec('DROP TABLE msg_calls');
+            $db->exec('RENAME TABLE msg_calls_real TO msg_calls');
         }
     }
 

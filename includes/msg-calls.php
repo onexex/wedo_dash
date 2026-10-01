@@ -37,22 +37,27 @@ function call_ready(PDO $pdo): bool
     static $ready = [];
     $k = spl_object_id($pdo);
     if (!isset($ready[$k])) {
-        try { $pdo->query("SELECT 1 FROM msg_call_members LIMIT 0"); $ready[$k] = grp_ready($pdo); }
-        catch (Throwable $e) { $ready[$k] = false; }
+        try {
+            // the columns this code needs — an early draft of these tables (caller/callee) counts as "not set up"
+            $pdo->query("SELECT starter, group_id, end_reason, connected_at FROM msg_calls LIMIT 0");
+            $pdo->query("SELECT recipient FROM msg_call_signals LIMIT 0");
+            $pdo->query("SELECT state, ping FROM msg_call_members LIMIT 0");
+            $ready[$k] = grp_ready($pdo);
+        } catch (Throwable $e) { $ready[$k] = false; }
     }
     return $ready[$k];
 }
 
-/** STUN (free, public) plus an optional TURN relay from config.local.php: ['turn' => ['url'=>…, 'user'=>…, 'pass'=>…]]. */
+/**
+ * STUN (free, public) plus an optional TURN relay: config.local.php may hold
+ * ['turn' => ['url'=>…, 'user'=>…, 'pass'=>…]]. Read from the settings w_conn.php
+ * already loaded ($__cfg) — the file itself is never included a second time.
+ */
 function call_ice_servers(): array
 {
     $servers = [['urls' => ['stun:stun.l.google.com:19302', 'stun:stun1.l.google.com:19302']]];
-    $cfgFile = dirname(__DIR__) . '/config.local.php';
-    $turn = null;
-    if (is_file($cfgFile)) {
-        $cfg = include $cfgFile;
-        if (is_array($cfg) && !empty($cfg['turn']['url'])) { $turn = $cfg['turn']; }
-    }
+    $cfg = $GLOBALS['__cfg'] ?? null;
+    $turn = (is_array($cfg) && !empty($cfg['turn']['url'])) ? $cfg['turn'] : null;
     if ($turn === null && getenv('TURN_URL')) {
         $turn = ['url' => getenv('TURN_URL'), 'user' => getenv('TURN_USER') ?: '', 'pass' => getenv('TURN_PASS') ?: ''];
     }

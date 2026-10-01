@@ -52,7 +52,9 @@
     canSend: false, lastId: 0, seen: {}, today: '', seenUpTo: 0,
     lastDay: '', group_: null,    // newest bubble run: {sender, mine, at, day, row, meta}
     pending: [], typingEl: null, statusEl: null, newBelow: 0,
-    polling: false, typingSentAt: 0, typingOn: false
+    polling: false, typingSentAt: 0, typingOn: false,
+    rxOn: false, rxBusy: {},      // reactions set up on the server; message ids with a react request in flight
+    mentionKey: '', mentionRe: null
   };
 
   // ------------------------------------------------------------------ helpers
@@ -98,7 +100,7 @@
       opts.body = b;
     }
     return fetch(url, opts).then(function (r) {
-      return r.json().catch(function () { return { status: 'error', msg: 'Unexpected server response.' }; })
+      return r.json().catch(function () { return { status: 'error', msg: 'Unexpected server response (HTTP ' + r.status + ').' }; })
         .then(function (j) {
           if (r.status === 401) { window.location.href = 'login'; }
           if (!r.ok || j.status !== 'ok') { var e = new Error(j.msg || 'Something went wrong.'); e.http = r.status; throw e; }
@@ -193,14 +195,9 @@
     return !!EMOJI_ONLY && t.length <= 16 && EMOJI_ONLY.test(t) && /[^\s\d#*]/.test(t);
   }
 
+  /** top-bar envelope badge (assets/js/wedo-call.js owns it) + this page's tab title */
   function setTopbarBadge(n) {
-    var btn = $('wdMsgBtn');
-    if (btn) {
-      var dot = btn.querySelector('.wd-iconbtn__dot');
-      if (n > 0 && !dot) { btn.appendChild(h('span', 'wd-iconbtn__dot')); }
-      if (n <= 0 && dot) { dot.remove(); }
-      btn.title = n > 0 ? n + ' unread conversation' + (n > 1 ? 's' : '') : 'Messages';
-    }
+    if (window.WDInbox) { window.WDInbox.set(n); }
     document.title = n > 0 ? '(' + n + ') ' + baseTitle : baseTitle;
   }
 
@@ -263,6 +260,11 @@
       var who = t.lastMine ? 'You: ' : (t.type === 'group' && t.lastSender ? t.lastSender + ': ' : '');
       bottom.appendChild(h('span', 'msg-item__preview', who + (t.last || 'No messages yet')));
     }
+    if (t.mentions) {
+      var at = h('span', 'msg-item__at', '@');
+      at.title = 'You were mentioned';
+      bottom.appendChild(at);
+    }
     if (t.unread) { bottom.appendChild(h('span', 'msg-item__badge', t.unread > 99 ? '99+' : String(t.unread))); }
     main.appendChild(top);
     main.appendChild(bottom);
@@ -308,6 +310,8 @@
           if (people.length) {
             frag.appendChild(h('div', 'msg-label', 'Start a new chat'));
             people.forEach(function (p) { frag.appendChild(personItem(p, term)); });
+          } else if (state.searchError) {
+            frag.appendChild(empty('fa-solid fa-triangle-exclamation', 'Search failed', state.searchError));
           } else if (!chats.length) {
             frag.appendChild(empty('fa-solid fa-user-slash', 'No one found', 'Try a first name, last name or employee ID.'));
           }
@@ -390,10 +394,12 @@
       api({ action: 'search', term: term }).then(function (j) {
         if (seq !== searchSeq || state.term !== term) { return; }
         state.people = j.people;
+        state.searchError = '';
         renderList();
-      }).catch(function () {
+      }).catch(function (e) {
         if (seq !== searchSeq) { return; }
         state.people = [];
+        state.searchError = e.message;   // shown instead of a fake "No one found"
         renderList();
       });
     }, 220);
@@ -460,6 +466,164 @@
     else { el.scroll.appendChild(node); }
   }
 
+  // ------------------------------------------------------------------ mentions (groups)
+
+  function escapeRe(s) { return s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'); }
+
+  /** /@(Full Name|…|everyone)/ for the open group; null in 1-to-1 chats */
+  function mentionRe() {
+    if (state.kind !== 'group' || !state.group || !state.group.members) { return null; }
+    var names = state.group.members.map(function (m) { return m.name; }).filter(Boolean);
+    var key = names.join('|');
+    if (state.mentionKey !== key) {
+      state.mentionKey = key;
+      var alts = names.slice().sort(function (a, b) { return b.length - a.length; }).map(escapeRe);
+      alts.push('everyone');
+      try { state.mentionRe = new RegExp('@(?:' + alts.join('|') + ')(?![\\p{L}\\p{N}])', 'giu'); }
+      catch (e) { state.mentionRe = null; }
+    }
+    return state.mentionRe;
+  }
+
+  /** wrap each "@Name" in a bubble's text (outside links) in a highlight */
+  function markMentions(node) {
+    var re = mentionRe();
+    if (!re) { return; }
+    var walker = document.createTreeWalker(node, NodeFilter.SHOW_TEXT), texts = [];
+    while (walker.nextNode()) {
+      if (!(walker.currentNode.parentNode.closest && walker.currentNode.parentNode.closest('a'))) { texts.push(walker.currentNode); }
+    }
+    texts.forEach(function (t) {
+      var s = t.nodeValue, last = 0, m, frag = null;
+      re.lastIndex = 0;
+      while ((m = re.exec(s)) !== null) {
+        frag = frag || document.createDocumentFragment();
+        if (m.index > last) { frag.appendChild(document.createTextNode(s.slice(last, m.index))); }
+        frag.appendChild(h('span', 'msg-mention', m[0]));
+        last = m.index + m[0].length;
+      }
+      if (!frag) { return; }
+      if (last < s.length) { frag.appendChild(document.createTextNode(s.slice(last))); }
+      t.parentNode.replaceChild(frag, t);
+    });
+  }
+
+  // ------------------------------------------------------------------ reactions
+
+  var RX = ['👍', '❤️', '😂', '😮', '😢', '🙏', '🖕'];
+
+  /** the reaction pill under a bubble: up to 3 emoji + total; hover lists who */
+  function renderReactions(row, list) {
+    var key = list && list.length ? JSON.stringify(list) : '';
+    if ((row.dataset.rx || '') === key) { return; }
+    row.dataset.rx = key;
+    var bubble = row.querySelector('.msg-bubble');
+    if (!bubble) { return; }
+    var old = bubble.querySelector('.msg-rx');
+    if (old) { old.remove(); }
+    row.classList.toggle('has-rx', !!key);
+    if (!key) { return; }
+    var pill = h('button', 'msg-rx' + (list.some(function (g) { return g.mine; }) ? ' is-mine' : ''));
+    pill.type = 'button';
+    var total = 0, who = [];
+    list.forEach(function (g, i) {
+      if (i < 3) { pill.appendChild(h('span', 'msg-rx__e', g.emoji)); }
+      total += g.count;
+      who.push(g.emoji + ' ' + g.names.join(', '));
+    });
+    if (total > 1) { pill.appendChild(h('span', 'msg-rx__n', String(total))); }
+    pill.title = who.join('\n');
+    pill.setAttribute('aria-label', 'Reactions: ' + who.join('; ') + '. Change mine');
+    bubble.appendChild(pill);
+  }
+
+  /** reactions from a thread response ({msid: [...]}, or null when not set up on the server) */
+  function applyReactions(map) {
+    state.rxOn = map !== null && map !== undefined;
+    app.classList.toggle('msg-rx-on', state.rxOn);
+    if (!state.rxOn) { return; }
+    Array.prototype.forEach.call(el.scroll.querySelectorAll('.msg-row[data-id]'), function (row) {
+      if (state.rxBusy[row.dataset.id]) { return; }   // my own change is on its way; don't flicker back
+      renderReactions(row, map[row.dataset.id] || []);
+    });
+  }
+
+  /** my change applied locally, so the pill updates before the server answers */
+  function rxLocal(list, emoji) {
+    var out = JSON.parse(JSON.stringify(list || [])), had = null;
+    out.forEach(function (g) {
+      if (g.mine) { had = g.emoji; g.count--; g.mine = false; g.names = g.names.filter(function (n) { return n !== 'You'; }); }
+    });
+    out = out.filter(function (g) { return g.count > 0; });
+    if (had !== emoji) {
+      var g = out.filter(function (x) { return x.emoji === emoji; })[0];
+      if (!g) { g = { emoji: emoji, count: 0, mine: false, names: [] }; out.push(g); }
+      g.count++; g.mine = true; g.names.unshift('You');
+    }
+    return out;
+  }
+
+  function react(row, emoji) {
+    var id = row && row.dataset.id;
+    if (!id) { return; }
+    var before = row.dataset.rx ? JSON.parse(row.dataset.rx) : [];
+    state.rxBusy[id] = (state.rxBusy[id] || 0) + 1;
+    renderReactions(row, rxLocal(before, emoji));
+    post('react', { id: id, emoji: emoji }).then(function (j) {
+      if (row.isConnected) { renderReactions(row, j.reactions); }
+    }).catch(function (e) {
+      if (row.isConnected) { renderReactions(row, before); }
+      showError(e.message);
+    }).then(function () {
+      if (--state.rxBusy[id] <= 0) { delete state.rxBusy[id]; }
+    });
+  }
+
+  var rxBar = h('div', 'msg-rxbar'), rxRow = null;
+  rxBar.hidden = true;
+  rxBar.setAttribute('role', 'menu');
+  RX.forEach(function (em) {
+    var b = h('button', null, em);
+    b.type = 'button'; b.dataset.emoji = em; b.setAttribute('role', 'menuitem'); b.setAttribute('aria-label', 'React ' + em);
+    rxBar.appendChild(b);
+  });
+  function openRxBar(row) {
+    if (!row || !row.dataset.id || !state.rxOn) { return; }
+    rxRow = row;
+    var mine = (row.dataset.rx ? JSON.parse(row.dataset.rx) : []).filter(function (g) { return g.mine; }).map(function (g) { return g.emoji; })[0];
+    Array.prototype.forEach.call(rxBar.children, function (b) { b.classList.toggle('is-on', b.dataset.emoji === mine); });
+    row.appendChild(rxBar);
+    rxBar.hidden = false;
+    rxBar.classList.toggle('is-below', row.getBoundingClientRect().top - el.scroll.getBoundingClientRect().top < 56);
+    row.classList.add('rx-open');
+  }
+  function closeRxBar() {
+    if (rxRow) { rxRow.classList.remove('rx-open'); }
+    rxRow = null;
+    rxBar.hidden = true;
+    if (rxBar.parentNode) { rxBar.parentNode.removeChild(rxBar); }
+  }
+
+  el.scroll.addEventListener('click', function (e) {
+    var pick = e.target.closest('.msg-rxbar button');
+    if (pick) { e.stopPropagation(); var r = rxRow; closeRxBar(); react(r, pick.dataset.emoji); return; }
+    var opener = e.target.closest('.msg-react-btn, .msg-rx');
+    if (opener) {
+      e.stopPropagation();
+      var row = opener.closest('.msg-row');
+      if (rxRow === row) { closeRxBar(); } else { closeRxBar(); openRxBar(row); }
+      return;
+    }
+    // touch screens have no hover: tapping a bubble shows its react button
+    var bubble = e.target.closest('.msg-bubble');
+    if (bubble && !e.target.closest('a') && window.matchMedia && window.matchMedia('(hover: none)').matches) {
+      var tapped = bubble.closest('.msg-row');
+      Array.prototype.forEach.call(el.scroll.querySelectorAll('.msg-row.show-rx'), function (x) { if (x !== tapped) { x.classList.remove('show-rx'); } });
+      tapped.classList.toggle('show-rx');
+    }
+  });
+  document.addEventListener('click', function (e) { if (rxRow && !rxBar.contains(e.target)) { closeRxBar(); } });
+
   /** who sent a message, as a display card */
   function senderOf(m) {
     if (m.sender && m.sender.name) { return m.sender; }
@@ -504,8 +668,14 @@
     if (!m.mine) { row.appendChild(avatar(who, 'msg-av--sm')); }
     var bubble = h('div', 'msg-bubble' + (isEmojiOnly(m.text) ? ' is-emoji' : ''));
     bubble.appendChild(linkify(m.text));
+    markMentions(bubble);
     bubble.title = fullTime(m.at);
-    row.appendChild(bubble);
+    if (m.mentionsMe && !m.mine) { row.classList.add('is-mention'); }
+    var rbtn = h('button', 'msg-react-btn');
+    rbtn.type = 'button'; rbtn.title = 'React'; rbtn.setAttribute('aria-label', 'React to this message');
+    rbtn.appendChild(h('i', 'fa-regular fa-face-smile'));
+    if (m.mine) { row.appendChild(rbtn); row.appendChild(bubble); }    // the button sits on the inner side
+    else { row.appendChild(bubble); row.appendChild(rbtn); }
     if (m.id) { row.dataset.id = m.id; }
     place(row);
 
@@ -612,7 +782,7 @@
         var firsts = g.members.map(function (m) { return m.first; });
         el.headRole.appendChild(h('span', null, g.members.length + ' members · ' + namesText(firsts)));
       }
-      el.call.hidden = !window.WeDoCall || !!state.activeCall;
+      el.call.hidden = !callsOn() || !!state.activeCall;
       el.call.title = 'Video call the group (up to 4 people)';
       el.info.hidden = false;
       renderCallBar();
@@ -626,7 +796,7 @@
     el.headAv.classList.toggle('is-online', !!(pr && pr.online));
     el.headName.textContent = p.name;
     el.headRole.appendChild(h('span', null, p.position || p.id));
-    el.call.hidden = !state.canSend || !window.WeDoCall;
+    el.call.hidden = !state.canSend || !callsOn();
     el.call.title = 'Video call';
     var label = pr && pr.typing ? 'typing…' : activeLabel(pr);
     if (label) {
@@ -642,7 +812,7 @@
     el.callBarText.textContent = 'Group call in progress' + (c.joined.length ? ' · ' + namesText(c.joined.map(function (n) { return n.split(' ')[0]; })) : '') +
       ' (' + c.joined.length + '/' + c.max + ')';
     var full = c.joined.length >= c.max;
-    el.callJoin.disabled = c.imIn || full || !window.WeDoCall;
+    el.callJoin.disabled = c.imIn || full || !callsOn();
     el.callJoin.textContent = c.imIn ? 'You’re in it' : full ? 'Full' : 'Join';
   }
 
@@ -660,6 +830,9 @@
     state.lastId = 0; state.seen = {}; state.lastDay = ''; state.group_ = null;
     state.pending = []; state.typingEl = null; state.statusEl = null; state.newBelow = 0;
     state.seenUpTo = 0; state.presence = null; state.readers = []; state.typingNames = []; state.activeCall = null;
+    state.rxBusy = {};
+    closeRxBar();
+    closeMention();
     el.jump.hidden = true;
     el.callBar.hidden = true;
     closeEmoji();
@@ -721,6 +894,7 @@
         el.scroll.appendChild(hi);
       }
       appendMessages(j.messages, { firstUnread: j.firstUnread });
+      applyReactions(j.reactions);
       setTyping(state.kind === 'group' ? state.typingNames : (state.typingNames.length ? ['x'] : []));
       var divider = el.scroll.querySelector('.msg-new');
       if (divider) {
@@ -767,7 +941,10 @@
   el.callJoin.addEventListener('click', function () {
     if (window.WeDoCall && state.activeCall) { window.WeDoCall.join(state.activeCall.id, state.group); }
   });
+  /** calls are offered only once this server has confirmed they're set up */
+  function callsOn() { return !!(window.WeDoCall && window.WeDoCall.enabled && window.WeDoCall.enabled()); }
   document.addEventListener('wdcall:ready', function () { if (state.active) { renderHead(); } });
+  document.addEventListener('wdcall:status', function () { if (state.active) { renderHead(); } });
   document.addEventListener('wdcall:ended', function () { if (state.active) { poll(); } });
 
   // ------------------------------------------------------------------ jump to latest
@@ -819,8 +996,89 @@
     post('typing', { with: '' }).catch(function () {});
   }
 
-  el.text.addEventListener('input', function () { updateComposer(); announceTyping(); });
+  // "@" in a group: pick a member (or everyone) to mention
+  var mention = { pop: h('div', 'msg-mention-pop'), items: [], at: 0, start: -1 };
+  mention.pop.hidden = true;
+  mention.pop.setAttribute('role', 'listbox');
+  mention.pop.setAttribute('aria-label', 'Mention someone');
+  el.form.appendChild(mention.pop);
+
+  function closeMention() { mention.pop.hidden = true; mention.items = []; mention.start = -1; }
+  function mentionCandidates(q) {
+    if (state.kind !== 'group' || !state.group || !state.group.members) { return []; }
+    var others = {};
+    state.readers.forEach(function (r) { others[r.id] = true; });   // readers = everyone but me
+    q = q.toLowerCase();
+    var out = [];
+    if ('everyone'.indexOf(q) === 0) { out.push({ everyone: true, name: 'everyone' }); }
+    state.group.members.forEach(function (m) {
+      if (!others[m.id]) { return; }
+      var n = m.name.toLowerCase();
+      var hit = !q || n.indexOf(q) === 0 || n.split(/\s+/).some(function (w) { return w.indexOf(q) === 0; });
+      if (hit) { out.push(m); }
+    });
+    return out.slice(0, 7);
+  }
+  function updateMention() {
+    var caret = el.text.selectionStart, before = el.text.value.slice(0, caret);
+    var m = /(?:^|\s)@([^\s@]{0,24}(?: [^\s@]{0,24})?)$/.exec(before);
+    var list = m ? mentionCandidates(m[1]) : [];
+    if (!list.length) { closeMention(); return; }
+    mention.start = caret - m[1].length - 1;
+    mention.items = list;
+    mention.at = Math.min(mention.at, list.length - 1);
+    mention.pop.textContent = '';
+    list.forEach(function (p, i) {
+      var b = h('button', i === mention.at ? 'is-on' : null);
+      b.type = 'button'; b.setAttribute('role', 'option');
+      if (p.everyone) {
+        var ic = h('span', 'msg-av msg-av--sm msg-mention-pop__all'); ic.appendChild(h('i', 'fa-solid fa-users'));
+        b.appendChild(ic);
+        b.appendChild(h('span', null, '@everyone'));
+        b.appendChild(h('small', null, 'Notify the whole group'));
+      } else {
+        b.appendChild(avatar(p, 'msg-av--sm'));
+        b.appendChild(h('span', null, p.name));
+        if (p.position) { b.appendChild(h('small', null, p.position)); }
+      }
+      b.addEventListener('mousedown', function (e) { e.preventDefault(); pickMention(i); });   // keep focus in the box
+      mention.pop.appendChild(b);
+    });
+    mention.pop.hidden = false;
+  }
+  function pickMention(i) {
+    var p = mention.items[i];
+    if (!p || mention.start < 0) { return; }
+    var t = el.text, caret = t.selectionStart;
+    var ins = '@' + (p.everyone ? 'everyone' : p.name) + ' ';
+    t.value = t.value.slice(0, mention.start) + ins + t.value.slice(caret);
+    t.selectionStart = t.selectionEnd = mention.start + ins.length;
+    closeMention();
+    t.focus();
+    updateComposer();
+    announceTyping();
+  }
+  /** arrow keys / Enter / Tab / Escape while the suggestions are open; true = handled */
+  function mentionKey(e) {
+    if (mention.pop.hidden || !mention.items.length) { return false; }
+    if (e.key === 'ArrowDown' || e.key === 'ArrowUp') {
+      mention.at = (mention.at + (e.key === 'ArrowDown' ? 1 : -1) + mention.items.length) % mention.items.length;
+      Array.prototype.forEach.call(mention.pop.children, function (b, i) { b.classList.toggle('is-on', i === mention.at); });
+    } else if ((e.key === 'Enter' && !e.shiftKey) || e.key === 'Tab') {
+      pickMention(mention.at);
+    } else if (e.key === 'Escape') {
+      closeMention();
+    } else { return false; }
+    e.preventDefault();
+    e.stopPropagation();
+    return true;
+  }
+
+  el.text.addEventListener('input', function () { updateComposer(); announceTyping(); updateMention(); });
+  el.text.addEventListener('click', updateMention);
+  el.text.addEventListener('blur', function () { setTimeout(closeMention, 120); });
   el.text.addEventListener('keydown', function (e) {
+    if (mentionKey(e)) { return; }
     if (e.key === 'Enter' && !e.shiftKey && !e.isComposing) {
       e.preventDefault();
       if (el.form.requestSubmit) { el.form.requestSubmit(); } else { el.form.dispatchEvent(new Event('submit', { cancelable: true })); }
@@ -955,7 +1213,7 @@
     container.appendChild(input);
     container.appendChild(chips);
     container.appendChild(list);
-    var results = [], seq = 0, timer = null;
+    var results = [], seq = 0, timer = null, loading = false, failed = '';
 
     function renderChips() {
       chips.textContent = '';
@@ -973,8 +1231,13 @@
         list.appendChild(h('div', 'msg-member__sub', 'Type at least 2 letters to find people.'));
         return;
       }
+      if (failed) { list.appendChild(h('div', 'msg-modal__err', 'Search failed: ' + failed)); return; }
+      if (loading && !results.length) { list.appendChild(h('div', 'msg-member__sub', 'Searching…')); return; }
       var shown = results.filter(function (p) { return !exclude[p.id]; });
-      if (!shown.length) { list.appendChild(h('div', 'msg-member__sub', 'No one found.')); return; }
+      if (!shown.length) {
+        list.appendChild(h('div', 'msg-member__sub', results.length ? 'Everyone found is already in the group.' : 'No one found. Try a first name, last name or employee ID.'));
+        return;
+      }
       shown.forEach(function (p) {
         var item = h('button', 'msg-item' + (picked[p.id] ? ' is-on' : ''));
         item.type = 'button';
@@ -995,11 +1258,16 @@
     input.addEventListener('input', function () {
       clearTimeout(timer);
       var term = input.value.trim();
-      if (term.length < 2) { results = []; renderList_(); return; }
+      failed = '';
+      if (term.length < 2) { results = []; loading = false; renderList_(); return; }
+      loading = true; results = []; renderList_();
       timer = setTimeout(function () {
         var s = ++seq;
-        api({ action: 'search', term: term }).then(function (j) { if (s === seq) { results = j.people; renderList_(); } })
-          .catch(function () { if (s === seq) { results = []; renderList_(); } });
+        api({ action: 'search', term: term }).then(function (j) {
+          if (s === seq) { loading = false; results = j.people || []; renderList_(); }
+        }).catch(function (e) {
+          if (s === seq) { loading = false; results = []; failed = e.message; renderList_(); }   // show why, don't pretend "no one"
+        });
       }, 220);
     });
     renderList_();
@@ -1140,7 +1408,8 @@
       if (app.classList.contains('has-thread') && window.innerWidth <= 760) { closeThread(); }
       el.search.focus(); el.search.select();
     } else if (e.key === 'Escape') {
-      if (!el.modal.hidden) { closeModal(); }
+      if (rxRow) { closeRxBar(); }
+      else if (!el.modal.hidden) { closeModal(); }
       else if (!el.emoji.hidden) { closeEmoji(); el.text.focus(); }
       else if (state.active && window.innerWidth <= 760) { closeThread(); }
     }
@@ -1164,6 +1433,7 @@
           el.readonly.hidden = state.canSend;
         }
         var theirs = appendMessages(j.messages, { animate: true });
+        applyReactions(j.reactions);
         setTyping(theirs ? [] : (state.kind === 'group' ? state.typingNames : (state.typingNames.length ? ['x'] : [])));
         renderHead();
         updateStatus();

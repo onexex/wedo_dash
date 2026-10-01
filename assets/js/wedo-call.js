@@ -82,7 +82,7 @@
       opts.body = body;
     }
     return fetch(url, opts).then(function (r) {
-      return r.json().catch(function () { return { status: 'error', msg: 'Unexpected server response.' }; })
+      return r.json().catch(function () { return { status: 'error', msg: 'Unexpected server response (HTTP ' + r.status + ').' }; })
         .then(function (j) {
           if (!r.ok || j.status !== 'ok') { var e = new Error(j.msg || 'Something went wrong.'); e.code = j.code; e.http = r.status; throw e; }
           return j;
@@ -146,6 +146,50 @@
     try { if (window.Notification && Notification.permission === 'default') { Notification.requestPermission(); } } catch (e) { /* ignore */ }
   }
 
+  /* ------------------------------------------------------------------ top-bar envelope: live unread badge
+     The ringer's check-in (every page, every few seconds) brings my unread
+     conversation count. The badge shows the number; a rise plays the "new
+     message" bump. Pages other than Messages also get "(3) " in the tab title
+     (Messages manages its own title). */
+  var inbox = { btn: document.getElementById('wdMsgBtn'), n: 0 };
+  if (inbox.btn) { inbox.n = parseInt(inbox.btn.getAttribute('data-unread'), 10) || 0; }
+  var onMessagesPage = !!document.getElementById('msgApp');
+
+  function titleWithCount(n) {
+    if (onMessagesPage || titleLoop) { return; }       // Messages sets its own; an incoming call is flashing it
+    var pure = document.title.replace(/^\(\d+\+?\)\s+/, '');
+    document.title = (n > 0 ? '(' + (n > 99 ? '99+' : n) + ') ' : '') + pure;
+  }
+  function setUnread(n) {
+    n = Math.max(0, parseInt(n, 10) || 0);
+    titleWithCount(n);
+    if (!inbox.btn || n === inbox.n) { return; }
+    var rose = n > inbox.n;
+    inbox.n = n;
+    var badge = inbox.btn.querySelector('.wd-inbox__badge');
+    if (!badge) {
+      badge = h('span', 'wd-inbox__badge');
+      inbox.btn.appendChild(badge);
+      var dot = inbox.btn.querySelector('.wd-iconbtn__dot');
+      if (dot) { dot.remove(); }
+    }
+    badge.textContent = n > 99 ? '99+' : String(n);
+    badge.hidden = n === 0;
+    inbox.btn.classList.toggle('has-unread', n > 0);
+    var label = n > 0 ? n + ' unread conversation' + (n > 1 ? 's' : '') : 'Messages';
+    inbox.btn.title = label;
+    inbox.btn.setAttribute('aria-label', label);
+    inbox.btn.setAttribute('data-unread', String(n));
+    if (rose) {                                        // replay the "new message" animation
+      inbox.btn.classList.remove('is-new');
+      void inbox.btn.offsetWidth;
+      inbox.btn.classList.add('is-new');
+      setTimeout(function () { if (inbox.btn) { inbox.btn.classList.remove('is-new'); } }, 900);
+    }
+  }
+  window.WDInbox = { set: setUnread, count: function () { return inbox.n; } };
+  if (inbox.n > 0) { titleWithCount(inbox.n); }
+
   /* ------------------------------------------------------------------ incoming-call card */
   var ringCard = null, ringingCall = null, dismissed = {};
 
@@ -200,15 +244,25 @@
   }
 
   function pollIncoming() {
-    if (active) { return Promise.resolve(); }
     return api({ action: 'incoming' }).then(function (j) {
+      if (typeof j.unread === 'number') { setUnread(j.unread); }
+      setEnabled(!j.disabled);
       // calls not set up on this server: keep checking in slowly — it still keeps me "online" for Messages
       if (j.disabled) { ringerDelay = 20000; return; }
+      ringerDelay = RING_POLL_MS;
       if (j.call && !dismissed[j.call.id] && !active) { showRing(j.call); }
       else if (ringingCall && (!j.call || j.call.id !== ringingCall.id)) { hideRing(); }  // answered elsewhere / gave up
     }).catch(function (e) { if (e.http === 401) { stopRingerLoop(); } });
   }
   var ringerTimer = null, ringerOn = true, ringerDelay = RING_POLL_MS;
+
+  /** whether this server has calls set up (null until the first check-in answers) */
+  var enabled = null;
+  function setEnabled(on) {
+    if (enabled === on) { return; }
+    enabled = on;
+    document.dispatchEvent(new CustomEvent('wdcall:status', { detail: { enabled: on } }));
+  }
   function ringerLoop() {
     if (!ringerOn) { return; }
     ringerTimer = setTimeout(function () { pollIncoming().then(ringerLoop, ringerLoop); }, ringerDelay);
@@ -550,6 +604,7 @@
       beginCall(j.call, j.iceServers, true);
       startRingtone('outgoing');
     }).catch(function (e) {
+      if (e.code === 'disabled') { setEnabled(false); }
       if (e.code === 'busy') { alert(withKey.indexOf('grp:') === 0 ? e.message : label + ' is on another call right now. Try again in a bit.'); }
       else { alert(e.message); }
     });
@@ -557,6 +612,7 @@
 
   window.WeDoCall = {
     available: canRTC && secure,
+    enabled: function () { return enabled === true; },   // calls set up on this server
     inCall: function () { return !!active; },
     start: function (empId, person) { startWith(empId, (person && person.name) || empId); },
     startGroup: function (key, group) { startWith(key, (group && group.name) || 'The group'); },

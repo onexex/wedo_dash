@@ -904,6 +904,19 @@ CREATE TABLE `msg_group_members` (
   PRIMARY KEY (`group_id`,`EmpID`),
   KEY `ix_group_member` (`EmpID`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
+CREATE TABLE `msg_reactions` (
+  `MSID` int(11) NOT NULL,
+  `EmpID` varchar(50) NOT NULL,
+  `Emoji` varchar(16) CHARACTER SET utf8mb4 COLLATE utf8mb4_bin NOT NULL,
+  `DateReacted` datetime NOT NULL,
+  PRIMARY KEY (`MSID`,`EmpID`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
+CREATE TABLE `msg_mentions` (
+  `MSID` int(11) NOT NULL,
+  `EmpID` varchar(50) NOT NULL,
+  PRIMARY KEY (`MSID`,`EmpID`),
+  KEY `ix_mention_emp` (`EmpID`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
 /*!40101 SET character_set_client = @saved_cs_client */;
 /*!40101 SET @saved_cs_client     = @@character_set_client */;
 /*!40101 SET character_set_client = utf8 */;
