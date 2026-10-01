@@ -25,6 +25,18 @@ header('Cache-Control: no-store');
 
 function msg_out($code, array $body) { http_response_code($code); echo json_encode($body, JSON_HEX_TAG | JSON_HEX_AMP); exit; }
 
+/* Anything unexpected: log it with a short reference and answer in JSON (never an
+   HTML error page the browser can't read). Super users see the actual error. */
+set_exception_handler(function (Throwable $e) {
+    $ref = substr(md5(uniqid('', true)), 0, 6);
+    error_log('[wedo messages ' . $ref . '] ' . $e->getMessage() . ' @ ' . $e->getFile() . ':' . $e->getLine());
+    if (!headers_sent()) { http_response_code(500); header('Content-Type: application/json; charset=utf-8'); }
+    $admin = (string) ($GLOBALS['wdApiUserType'] ?? '') === '1';
+    echo json_encode(['status' => 'error', 'ref' => $ref,
+        'msg' => $admin ? 'Server error (ref ' . $ref . '): ' . $e->getMessage() : 'Something went wrong on the server (ref ' . $ref . '). Please try again.']);
+    exit;
+});
+
 if (!isset($_SESSION['id']) || $_SESSION['id'] == "0") {
     msg_out(401, ['status' => 'error', 'msg' => 'Your session has expired — please sign in again.']);
 }
@@ -43,6 +55,7 @@ try {
 
 $me       = (string) $_SESSION['id'];
 $userType = $_SESSION['UserType'] ?? '';
+$wdApiUserType = $userType;
 $action   = (string) ($_REQUEST['action'] ?? '');
 $with     = trim((string) ($_REQUEST['with'] ?? ''));
 $gid      = grp_id_from_key($with);
@@ -61,7 +74,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         msg_out(419, ['status' => 'error', 'msg' => 'This page has expired — reload it and try again.']);
     }
     if (strpos($action, 'group_') === 0 && !$groupsOn) {
-        msg_out(503, ['status' => 'error', 'msg' => 'Group chats aren’t set up on this server yet.']);
+        // 409, not 5xx: some hosts swap a 5xx body for their own HTML error page
+        msg_out(409, ['status' => 'error', 'code' => 'disabled', 'msg' => 'Group chats aren’t set up on this server yet.']);
     }
     $id = (int) ($_POST['id'] ?? 0);
 

@@ -98,7 +98,7 @@
       opts.body = b;
     }
     return fetch(url, opts).then(function (r) {
-      return r.json().catch(function () { return { status: 'error', msg: 'Unexpected server response.' }; })
+      return r.json().catch(function () { return { status: 'error', msg: 'Unexpected server response (HTTP ' + r.status + ').' }; })
         .then(function (j) {
           if (r.status === 401) { window.location.href = 'login'; }
           if (!r.ok || j.status !== 'ok') { var e = new Error(j.msg || 'Something went wrong.'); e.http = r.status; throw e; }
@@ -612,7 +612,7 @@
         var firsts = g.members.map(function (m) { return m.first; });
         el.headRole.appendChild(h('span', null, g.members.length + ' members · ' + namesText(firsts)));
       }
-      el.call.hidden = !window.WeDoCall || !!state.activeCall;
+      el.call.hidden = !callsOn() || !!state.activeCall;
       el.call.title = 'Video call the group (up to 4 people)';
       el.info.hidden = false;
       renderCallBar();
@@ -626,7 +626,7 @@
     el.headAv.classList.toggle('is-online', !!(pr && pr.online));
     el.headName.textContent = p.name;
     el.headRole.appendChild(h('span', null, p.position || p.id));
-    el.call.hidden = !state.canSend || !window.WeDoCall;
+    el.call.hidden = !state.canSend || !callsOn();
     el.call.title = 'Video call';
     var label = pr && pr.typing ? 'typing…' : activeLabel(pr);
     if (label) {
@@ -642,7 +642,7 @@
     el.callBarText.textContent = 'Group call in progress' + (c.joined.length ? ' · ' + namesText(c.joined.map(function (n) { return n.split(' ')[0]; })) : '') +
       ' (' + c.joined.length + '/' + c.max + ')';
     var full = c.joined.length >= c.max;
-    el.callJoin.disabled = c.imIn || full || !window.WeDoCall;
+    el.callJoin.disabled = c.imIn || full || !callsOn();
     el.callJoin.textContent = c.imIn ? 'You’re in it' : full ? 'Full' : 'Join';
   }
 
@@ -767,7 +767,10 @@
   el.callJoin.addEventListener('click', function () {
     if (window.WeDoCall && state.activeCall) { window.WeDoCall.join(state.activeCall.id, state.group); }
   });
+  /** calls are offered only once this server has confirmed they're set up */
+  function callsOn() { return !!(window.WeDoCall && window.WeDoCall.enabled && window.WeDoCall.enabled()); }
   document.addEventListener('wdcall:ready', function () { if (state.active) { renderHead(); } });
+  document.addEventListener('wdcall:status', function () { if (state.active) { renderHead(); } });
   document.addEventListener('wdcall:ended', function () { if (state.active) { poll(); } });
 
   // ------------------------------------------------------------------ jump to latest

@@ -20,6 +20,18 @@ header('Cache-Control: no-store');
 
 function call_out($code, array $body) { http_response_code($code); echo json_encode($body, JSON_HEX_TAG | JSON_HEX_AMP | JSON_UNESCAPED_UNICODE); exit; }
 
+/* Anything unexpected: log it with a short reference and answer in JSON (never an
+   HTML error page the browser can't read). Super users see the actual error. */
+set_exception_handler(function (Throwable $e) {
+    $ref = substr(md5(uniqid('', true)), 0, 6);
+    error_log('[wedo calls ' . $ref . '] ' . $e->getMessage() . ' @ ' . $e->getFile() . ':' . $e->getLine());
+    if (!headers_sent()) { http_response_code(500); header('Content-Type: application/json; charset=utf-8'); }
+    $admin = (string) ($GLOBALS['wdApiUserType'] ?? '') === '1';
+    echo json_encode(['status' => 'error', 'ref' => $ref,
+        'msg' => $admin ? 'Server error (ref ' . $ref . '): ' . $e->getMessage() : 'Something went wrong on the server (ref ' . $ref . '). Please try again.']);
+    exit;
+});
+
 if (!isset($_SESSION['id']) || $_SESSION['id'] == "0") {
     call_out(401, ['status' => 'error', 'msg' => 'Your session has expired — please sign in again.']);
 }
@@ -29,6 +41,7 @@ require_once __DIR__ . '/../includes/msg-calls.php';
 
 $me       = (string) $_SESSION['id'];
 $userType = $_SESSION['UserType'] ?? '';
+$wdApiUserType = $userType;
 $tokenOk  = hash_equals(msg_csrf_token(), (string) ($_POST['token'] ?? ''));
 session_write_close();
 
@@ -48,7 +61,8 @@ if ($action === 'incoming') { msg_touch($pdo, $me); }
 if (!call_ready($pdo)) {
     // migrations not applied yet: the ringer quietly does nothing
     if ($action === 'incoming') { call_out(200, ['status' => 'ok', 'call' => null, 'disabled' => true]); }
-    call_out(503, ['status' => 'error', 'msg' => 'Video calls aren’t set up on this server yet.']);
+    // 409, not 5xx: some hosts swap a 5xx body for their own HTML error page, which the browser can't read
+    call_out(409, ['status' => 'error', 'code' => 'disabled', 'msg' => 'Video calls aren’t set up on this server yet.']);
 }
 
 /* ---------------------------------------------------------------- reads */

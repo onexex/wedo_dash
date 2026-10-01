@@ -82,7 +82,7 @@
       opts.body = body;
     }
     return fetch(url, opts).then(function (r) {
-      return r.json().catch(function () { return { status: 'error', msg: 'Unexpected server response.' }; })
+      return r.json().catch(function () { return { status: 'error', msg: 'Unexpected server response (HTTP ' + r.status + ').' }; })
         .then(function (j) {
           if (!r.ok || j.status !== 'ok') { var e = new Error(j.msg || 'Something went wrong.'); e.code = j.code; e.http = r.status; throw e; }
           return j;
@@ -202,13 +202,23 @@
   function pollIncoming() {
     if (active) { return Promise.resolve(); }
     return api({ action: 'incoming' }).then(function (j) {
+      setEnabled(!j.disabled);
       // calls not set up on this server: keep checking in slowly — it still keeps me "online" for Messages
       if (j.disabled) { ringerDelay = 20000; return; }
+      ringerDelay = RING_POLL_MS;
       if (j.call && !dismissed[j.call.id] && !active) { showRing(j.call); }
       else if (ringingCall && (!j.call || j.call.id !== ringingCall.id)) { hideRing(); }  // answered elsewhere / gave up
     }).catch(function (e) { if (e.http === 401) { stopRingerLoop(); } });
   }
   var ringerTimer = null, ringerOn = true, ringerDelay = RING_POLL_MS;
+
+  /** whether this server has calls set up (null until the first check-in answers) */
+  var enabled = null;
+  function setEnabled(on) {
+    if (enabled === on) { return; }
+    enabled = on;
+    document.dispatchEvent(new CustomEvent('wdcall:status', { detail: { enabled: on } }));
+  }
   function ringerLoop() {
     if (!ringerOn) { return; }
     ringerTimer = setTimeout(function () { pollIncoming().then(ringerLoop, ringerLoop); }, ringerDelay);
@@ -550,6 +560,7 @@
       beginCall(j.call, j.iceServers, true);
       startRingtone('outgoing');
     }).catch(function (e) {
+      if (e.code === 'disabled') { setEnabled(false); }
       if (e.code === 'busy') { alert(withKey.indexOf('grp:') === 0 ? e.message : label + ' is on another call right now. Try again in a bit.'); }
       else { alert(e.message); }
     });
@@ -557,6 +568,7 @@
 
   window.WeDoCall = {
     available: canRTC && secure,
+    enabled: function () { return enabled === true; },   // calls set up on this server
     inCall: function () { return !!active; },
     start: function (empId, person) { startWith(empId, (person && person.name) || empId); },
     startGroup: function (key, group) { startWith(key, (group && group.name) || 'The group'); },
