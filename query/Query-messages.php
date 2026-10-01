@@ -11,6 +11,8 @@
    GET  action=search&term=...                people I can start a conversation with / add to a group
    POST action=send&with=KEY&text=...         send a message ("@Name" / "@everyone" in a group mentions people)
    POST action=react&id=MSID&emoji=E          toggle my reaction (one per person; same emoji again removes it)
+   POST action=send_gif&with=KEY&gif=FILE     send a GIF sticker from the library (assets/gifs)
+   GET  action=gifs                           the GIF sticker library (title, search words, size)
    POST action=typing&with=KEY|''             I'm typing there ('' = stopped)
    POST action=group_create&name=..&members[]=..      new group (me = admin)
    POST action=group_add&id=..&members[]=..           admins
@@ -47,6 +49,7 @@ require_once __DIR__ . '/../includes/messages-lib.php';
 require_once __DIR__ . '/../includes/msg-groups.php';
 require_once __DIR__ . '/../includes/msg-calls.php';
 require_once __DIR__ . '/../includes/msg-reactions.php';
+require_once __DIR__ . '/../includes/msg-gifs.php';
 
 try {
     $pdo = new PDO("mysql:host=$servername;dbname=$db;charset=utf8mb4", $username, $password);
@@ -97,6 +100,19 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 : msg_send_dm($pdo, $me, $with, (string) ($_POST['text'] ?? ''), $userType);
             if (!$res['ok']) { msg_out(422, ['status' => 'error', 'msg' => $res['error']]); }
             msg_touch($pdo, $me, '');   // sent = no longer typing
+            msg_out(200, ['status' => 'ok', 'message' => $res['message'], 'today' => $today]);
+
+        case 'send_gif':
+            if (!gif_enabled($pdo)) {
+                msg_out(409, ['status' => 'error', 'code' => 'disabled', 'msg' => 'GIFs aren’t set up on this server yet.']);
+            }
+            $g = gif_message_text((string) ($_POST['gif'] ?? ''));
+            if (!$g['ok']) { msg_out(422, ['status' => 'error', 'msg' => $g['error']]); }
+            $res = $gid
+                ? ($groupsOn ? grp_send($pdo, $gid, $me, $g['text'], 'gif') : ['ok' => false, 'error' => 'Group chats aren’t set up on this server yet.'])
+                : msg_send_dm($pdo, $me, $with, $g['text'], $userType, 'gif');
+            if (!$res['ok']) { msg_out(422, ['status' => 'error', 'msg' => $res['error']]); }
+            msg_touch($pdo, $me, '');
             msg_out(200, ['status' => 'ok', 'message' => $res['message'], 'today' => $today]);
 
         case 'react':
@@ -155,7 +171,7 @@ switch ($action) {
             }
             usort($threads, fn($a, $b) => strcmp($b['at'], $a['at']));
         }
-        msg_out(200, ['status' => 'ok', 'threads' => $threads, 'groups' => $groupsOn,
+        msg_out(200, ['status' => 'ok', 'threads' => $threads, 'groups' => $groupsOn, 'gifs' => gif_enabled($pdo),
                       'online' => msg_online($pdo, $me, $userType),
                       'unread' => msg_unread_threads($pdo, $me), 'today' => $today]);
 
@@ -202,5 +218,11 @@ switch ($action) {
 
     case 'search':
         msg_out(200, ['status' => 'ok', 'people' => msg_search($pdo, $me, (string) ($_GET['term'] ?? ''), $userType)]);
+
+    case 'gifs':
+        if (!gif_enabled($pdo)) {
+            msg_out(409, ['status' => 'error', 'code' => 'disabled', 'msg' => 'GIFs aren’t set up on this server yet.']);
+        }
+        msg_out(200, ['status' => 'ok', 'gifs' => array_values(gif_library())]);
 }
 msg_out(400, ['status' => 'error', 'msg' => 'Unknown action.']);

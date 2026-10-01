@@ -171,6 +171,19 @@
       .msg-bubble.is-emoji{background:none !important;border:0;box-shadow:none;font-size:34px;line-height:1.15;padding:0 2px}
       .msg-row.is-pending .msg-bubble{opacity:.6}
       .msg-row.is-failed .msg-bubble{background:var(--danger-bg) !important;color:var(--danger-text) !important;border:1px solid #f5c2bc}
+      /* GIFs */
+      .msg-gifbtn{font:800 10.5px/1 system-ui,-apple-system,'Segoe UI',sans-serif;letter-spacing:.3px}
+      .msg-gifbtn.is-on{color:var(--brand);background:var(--brand-tint)}
+      .msg-gif{position:absolute;left:16px;bottom:64px;z-index:5;width:340px;height:380px;display:flex;flex-direction:column;background:var(--surface);border:1px solid var(--border);border-radius:14px;box-shadow:0 12px 32px rgba(16,24,40,.18);overflow:hidden}
+      .msg-gif__search{padding:10px 10px 6px}
+      .msg-gif__search .wd-input{font-size:13px}
+      .msg-gif__grid{flex:1;min-height:0;overflow-y:auto;padding:4px 10px 10px;display:grid;grid-template-columns:1fr 1fr;grid-auto-rows:max-content;gap:6px;align-content:start}
+      .msg-gif__grid button{display:block;width:100%;aspect-ratio:3 / 2;padding:0;border:0;border-radius:8px;overflow:hidden;background:var(--surface-2);cursor:pointer}
+      .msg-gif__grid button:hover,.msg-gif__grid button:focus-visible{outline:2px solid var(--brand);outline-offset:-2px}
+      .msg-gif__grid img{display:block;width:100%;height:100%;object-fit:cover}
+      .msg-gif__note{grid-column:1 / -1;padding:18px 6px;text-align:center;font-size:12.5px;color:var(--text-3)}
+      .msg-bubble.is-gif{padding:0;background:none !important;border:0;box-shadow:none;line-height:0;max-width:min(260px,68%)}
+      .msg-bubble.is-gif img{display:block;width:100%;height:auto;border-radius:14px;background:var(--surface-2)}
       /* reactions */
       .msg-react-btn{display:none;flex:none;align-self:center;width:28px;height:28px;border:0;border-radius:50%;background:none;color:var(--text-3);font-size:15px;cursor:pointer;opacity:0;align-items:center;justify-content:center;transition:opacity .15s,background .15s,color .15s}
       .msg-rx-on .msg-react-btn{display:flex}
@@ -277,6 +290,7 @@
         .msg-bubble{max-width:82%}
         .msg-kbd{display:none}
         .msg-emoji{left:8px;right:8px;width:auto}
+        .msg-gif{left:8px;right:8px;width:auto;height:min(400px,60vh)}
       }
     </style>
 </head>
@@ -341,8 +355,10 @@
 
         <form class="msg-compose" id="msgCompose" hidden autocomplete="off">
           <div class="msg-emoji" id="msgEmoji" hidden role="dialog" aria-label="Emoji"></div>
+          <div class="msg-gif" id="msgGif" hidden role="dialog" aria-label="GIFs"></div>
           <div class="msg-compose__field">
             <textarea id="msgText" rows="1" placeholder="Write a message&hellip;" aria-label="Message"></textarea>
+            <button type="button" class="msg-ico msg-gifbtn" id="msgGifBtn" hidden aria-label="Send a GIF" title="GIF">GIF</button>
             <button type="button" class="msg-ico" id="msgEmojiBtn" aria-label="Insert emoji" title="Emoji"><i class="fa-regular fa-face-smile"></i></button>
           </div>
           <button type="submit" class="msg-send" id="msgSend" aria-label="Send" title="Send (Enter)"><i class="fa-solid fa-paper-plane"></i></button>

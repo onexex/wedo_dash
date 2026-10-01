@@ -40,6 +40,7 @@
     callBar: $('msgCallBar'), callBarText: $('msgCallBarText'), callJoin: $('msgCallJoin'),
     scroll: $('msgScroll'), jump: $('msgJump'), form: $('msgCompose'), text: $('msgText'),
     send: $('msgSend'), count: $('msgCount'), emoji: $('msgEmoji'), emojiBtn: $('msgEmojiBtn'),
+    gif: $('msgGif'), gifBtn: $('msgGifBtn'),
     error: $('msgError'), readonly: $('msgReadonly'), modal: $('msgModal'), modalCard: $('msgModalCard')
   };
 
@@ -53,6 +54,7 @@
     lastDay: '', group_: null,    // newest bubble run: {sender, mine, at, day, row, meta}
     pending: [], typingEl: null, statusEl: null, newBelow: 0,
     polling: false, typingSentAt: 0, typingOn: false,
+    gifsOn: false,                // the GIF sticker library (assets/gifs) is there
     rxOn: false, rxBusy: {},      // reactions set up on the server; message ids with a react request in flight
     mentionKey: '', mentionRe: null
   };
@@ -369,6 +371,8 @@
       renderOnline(j.online);
       state.groupsOn = !!j.groups;
       el.newGroup.hidden = !state.groupsOn;
+      state.gifsOn = !!j.gifs;
+      el.gifBtn.hidden = !state.gifsOn;
       var key = JSON.stringify(j.threads);
       if (key !== state.threadsKey) {           // nothing changed = no re-render (no flicker, focus kept)
         state.threadsKey = key;
@@ -464,6 +468,21 @@
   function place(node) {
     if (state.typingEl && state.typingEl.parentNode === el.scroll) { el.scroll.insertBefore(node, state.typingEl); }
     else { el.scroll.appendChild(node); }
+  }
+
+  // ------------------------------------------------------------------ GIF stickers (assets/gifs)
+
+  var GIF_FILE = /^[a-z0-9][a-z0-9_-]{0,60}\.gif$/;
+  /** a GIF message's card {f, w, h, t}, or null if it doesn't name a library file */
+  function gifData(text) {
+    try { var g = JSON.parse(text); } catch (e) { return null; }
+    return g && typeof g.f === 'string' && GIF_FILE.test(g.f) ? g : null;
+  }
+  function gifImg(g) {
+    var img = document.createElement('img');
+    img.src = 'assets/gifs/' + g.f; img.alt = g.t || 'GIF'; img.loading = 'lazy'; img.decoding = 'async';
+    if (g.w && g.h) { img.width = g.w; img.height = g.h; }   // reserves the space: no jump when it loads
+    return img;
   }
 
   // ------------------------------------------------------------------ mentions (groups)
@@ -666,9 +685,11 @@
 
     var row = h('div', 'msg-row' + (m.mine ? ' msg-row--mine' : '') + (joins ? '' : ' is-first') + ' is-last' + (opts.animate ? ' is-new' : ''));
     if (!m.mine) { row.appendChild(avatar(who, 'msg-av--sm')); }
-    var bubble = h('div', 'msg-bubble' + (isEmojiOnly(m.text) ? ' is-emoji' : ''));
-    bubble.appendChild(linkify(m.text));
-    markMentions(bubble);
+    var gif = m.kind === 'gif' ? gifData(m.text) : null;
+    var bubble = h('div', 'msg-bubble' + (gif ? ' is-gif' : isEmojiOnly(m.text) ? ' is-emoji' : ''));
+    if (gif) { bubble.appendChild(gifImg(gif)); }
+    else if (m.kind === 'gif') { bubble.appendChild(document.createTextNode('GIF')); }
+    else { bubble.appendChild(linkify(m.text)); markMentions(bubble); }
     bubble.title = fullTime(m.at);
     if (m.mentionsMe && !m.mine) { row.classList.add('is-mention'); }
     var rbtn = h('button', 'msg-react-btn');
@@ -693,8 +714,9 @@
       if (state.seen[m.id]) { return; }
       // a message of mine that is still "sending" here: adopt it instead of drawing it twice
       if (m.mine && m.kind !== 'event') {
+        var mkey = m.kind === 'gif' ? 'gif:' + ((gifData(m.text) || {}).f || '') : m.text;
         for (var i = 0; i < state.pending.length; i++) {
-          if (state.pending[i].text === m.text) {
+          if ((state.pending[i].key || state.pending[i].text) === mkey) {
             var pend = state.pending.splice(i, 1)[0];
             pend.row.dataset.id = m.id;
             pend.row.classList.remove('is-pending');
@@ -832,6 +854,7 @@
     state.seenUpTo = 0; state.presence = null; state.readers = []; state.typingNames = []; state.activeCall = null;
     state.rxBusy = {};
     closeRxBar();
+    if (el.gif) { el.gif.hidden = true; el.gifBtn.classList.remove('is-on'); }
     closeMention();
     el.jump.hidden = true;
     el.callBar.hidden = true;
@@ -1127,12 +1150,53 @@
 
   function retrySend(row) {
     var text = row.dataset.failedText || '';
+    var failedGif = row.dataset.failedGif ? JSON.parse(row.dataset.failedGif) : null;
     var meta = row.nextSibling && row.nextSibling.classList && row.nextSibling.classList.contains('msg-meta') ? row.nextSibling : null;
     if (state.group_ && state.group_.row === row) { state.group_ = null; }
     if (meta) { meta.remove(); }
     row.remove();
     hideError();
-    if (text) { sendText(text); }
+    if (failedGif) { sendGif(failedGif); }
+    else if (text) { sendText(text); }
+  }
+
+  /** send a GIF picked from the panel: shows at once, confirmed by the server */
+  function sendGif(card) {
+    var to = state.active;
+    var now = new Date();
+    var at = state.today + ' ' + (now.getHours() < 10 ? '0' : '') + now.getHours() + ':' + (now.getMinutes() < 10 ? '0' : '') + now.getMinutes() + ':00';
+    var hello = el.scroll.querySelector('.msg-empty');
+    if (hello) { hello.remove(); }
+    var text = JSON.stringify({ f: card.file, w: card.w, h: card.h, t: card.title });
+    var row = addBubble({ id: 0, mine: true, kind: 'gif', text: text, at: at }, { animate: true });
+    row.classList.add('is-pending');
+    var entry = { key: 'gif:' + card.file, text: text, row: row };
+    state.pending.push(entry);
+    updateStatus();
+    toBottom();
+
+    post('send_gif', { with: to, gif: card.file }).then(function (j) {
+      if (state.active !== to) { return; }
+      var i = state.pending.indexOf(entry);
+      if (i !== -1) {
+        state.pending.splice(i, 1);
+        row.dataset.id = j.message.id;
+        row.classList.remove('is-pending');
+        state.seen[j.message.id] = true;
+        if (j.message.id > state.lastId) { state.lastId = j.message.id; }
+      }
+      updateStatus();
+      loadThreads();
+    }).catch(function (err) {
+      if (state.active !== to) { return; }
+      var i = state.pending.indexOf(entry);
+      if (i !== -1) { state.pending.splice(i, 1); }
+      row.classList.remove('is-pending');
+      row.classList.add('is-failed');
+      row.dataset.failedGif = JSON.stringify(card);
+      showError(err.message);
+      updateStatus();
+    });
   }
 
   el.form.addEventListener('submit', function (e) {
@@ -1161,6 +1225,7 @@
   function closeEmoji() { el.emoji.hidden = true; el.emojiBtn.classList.remove('is-on'); }
   el.emojiBtn.addEventListener('click', function (e) {
     e.stopPropagation();
+    if (!el.gif.hidden) { closeGif(); }
     el.emoji.hidden = !el.emoji.hidden;
     el.emojiBtn.classList.toggle('is-on', !el.emoji.hidden);
   });
@@ -1177,6 +1242,61 @@
   });
   document.addEventListener('click', function (e) {
     if (!el.emoji.hidden && !el.emoji.contains(e.target) && e.target !== el.emojiBtn) { closeEmoji(); }
+  });
+
+  // ------------------------------------------------------------------ GIF panel (the sticker library, searchable)
+
+  var gp = { input: h('input', 'wd-input'), grid: h('div', 'msg-gif__grid'), list: null, loading: false };
+  gp.input.type = 'search'; gp.input.placeholder = 'Search GIFs'; gp.input.autocomplete = 'off';
+  gp.input.setAttribute('aria-label', 'Search GIFs');
+  (function () {
+    var top = h('div', 'msg-gif__search'); top.appendChild(gp.input);
+    el.gif.appendChild(top);
+    el.gif.appendChild(gp.grid);
+  })();
+
+  function gifNote(text) { gp.grid.appendChild(h('div', 'msg-gif__note', text)); }
+  function renderGifs() {
+    gp.grid.textContent = '';
+    var q = gp.input.value.trim().toLowerCase();
+    var shown = gp.list.filter(function (g) { return !q || (g.title + ' ' + g.tags).toLowerCase().indexOf(q) !== -1; });
+    if (!shown.length) { gifNote('No GIFs for “' + gp.input.value.trim() + '”.'); return; }
+    shown.forEach(function (g) {
+      var b = h('button');
+      b.type = 'button'; b.title = g.title; b.setAttribute('aria-label', 'Send GIF: ' + g.title);
+      b.appendChild(gifImg({ f: g.file, w: g.w, h: g.h, t: g.title }));
+      b.addEventListener('click', function () { closeGif(); sendGif(g); });
+      gp.grid.appendChild(b);
+    });
+  }
+  function loadGifs() {
+    if (gp.list || gp.loading) { return; }
+    gp.loading = true;
+    gifNote('Loading…');
+    api({ action: 'gifs' }).then(function (j) {
+      gp.list = j.gifs;
+      renderGifs();
+    }).catch(function (e) {
+      gp.grid.textContent = '';
+      gifNote(e.message);
+    }).then(function () { gp.loading = false; });
+  }
+  function openGif() {
+    closeEmoji();
+    el.gif.hidden = false;
+    el.gifBtn.classList.add('is-on');
+    loadGifs();
+    if (window.innerWidth > 760) { setTimeout(function () { gp.input.focus(); }, 30); }
+  }
+  function closeGif() { el.gif.hidden = true; el.gifBtn.classList.remove('is-on'); }
+  el.gifBtn.addEventListener('click', function (e) {
+    e.stopPropagation();
+    if (el.gif.hidden) { openGif(); } else { closeGif(); }
+  });
+  gp.input.addEventListener('input', function () { if (gp.list) { renderGifs(); } });
+  gp.input.addEventListener('keydown', function (e) { if (e.key === 'Escape') { e.stopPropagation(); closeGif(); el.text.focus(); } });
+  document.addEventListener('click', function (e) {
+    if (!el.gif.hidden && !el.gif.contains(e.target) && e.target !== el.gifBtn) { closeGif(); }
   });
 
   // ------------------------------------------------------------------ modal (new group / group info)
@@ -1409,6 +1529,7 @@
       el.search.focus(); el.search.select();
     } else if (e.key === 'Escape') {
       if (rxRow) { closeRxBar(); }
+      else if (!el.gif.hidden) { closeGif(); }
       else if (!el.modal.hidden) { closeModal(); }
       else if (!el.emoji.hidden) { closeEmoji(); el.text.focus(); }
       else if (state.active && window.innerWidth <= 760) { closeThread(); }
