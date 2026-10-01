@@ -177,7 +177,7 @@ function grp_threads(PDO $pdo, string $me): array
             'photo'      => null,
             'initials'   => mb_strtoupper(mb_substr($r['name'], 0, 2)),
             'members'    => (int) $r['members'],
-            'last'       => (string) $r['last_text'],
+            'last'       => $r['last_kind'] === 'gif' ? 'GIF' : (string) $r['last_text'],
             'lastMine'   => $mine && $r['last_kind'] !== 'event',
             'lastSender' => ($r['last_kind'] === 'event' || $mine) ? '' : trim((string) $r['last_fn']),
             'at'         => (string) ($r['last_at'] ?: $r['created_at']),
@@ -254,14 +254,14 @@ function grp_typing(PDO $pdo, int $gid, string $me): array
     } catch (Throwable $e) { return []; }
 }
 
-function grp_send(PDO $pdo, int $gid, string $me, string $text): array
+function grp_send(PDO $pdo, int $gid, string $me, string $text, string $kind = 'text'): array
 {
     if (!grp_member($pdo, $gid, $me)) { return ['ok' => false, 'error' => 'You’re no longer in this group.']; }
     $text = trim(str_replace("\r\n", "\n", $text));
     if ($text === '') { return ['ok' => false, 'error' => 'Write a message first.']; }
     if (mb_strlen($text) > MSG_MAX_LEN) { return ['ok' => false, 'error' => 'Messages are limited to ' . MSG_MAX_LEN . ' characters.']; }
-    $msg = grp_insert($pdo, $gid, $me, $text);
-    mn_record($pdo, $gid, $msg['id'], $me, $text);   // "@Ben Bautista" / "@everyone"
+    $msg = grp_insert($pdo, $gid, $me, $text, $kind);
+    if ($kind === 'text') { mn_record($pdo, $gid, $msg['id'], $me, $text); }   // "@Ben Bautista" / "@everyone"
     return ['ok' => true, 'message' => $msg];
 }
 

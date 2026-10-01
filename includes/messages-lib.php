@@ -125,7 +125,7 @@ function msg_threads(PDO $pdo, string $me): array
             'name'     => $name !== '' ? $name : $r['other'],
             'photo'    => msg_photo($r['EmpPPath']),
             'initials' => msg_initials($r['EmpFN'], $r['EmpLN']),
-            'last'     => (string) $r['last_text'],
+            'last'     => $r['last_kind'] === 'gif' ? 'GIF' : (string) $r['last_text'],
             'lastMine' => $r['last_sender'] === $me && $r['last_kind'] !== 'event',
             'at'       => (string) $r['last_at'],
             'unread'   => (int) $r['unread'],
