@@ -45,19 +45,21 @@ jobs:
   test:
     name: Regression tests
     runs-on: ubuntu-latest
-    services:
-      mariadb:
-        image: mariadb:10.4
-        env:
-          MARIADB_ROOT_PASSWORD: root
-        ports: ['3306:3306']
-        options: >-
-          --health-cmd="mysqladmin ping -proot"
-          --health-interval=5s --health-timeout=5s --health-retries=20
     steps:
       - uses: actions/checkout@v4
-      - name: Match the server's SQL mode (non-strict)
-        run: mysql -h127.0.0.1 -uroot -proot -e "SET GLOBAL sql_mode='NO_ZERO_IN_DATE,NO_ZERO_DATE,NO_ENGINE_SUBSTITUTION';"
+      # Started by hand (not as a service container) so it can take server flags:
+      # utf8mb4 + non-strict sql_mode, the same defaults as local XAMPP. The app's
+      # connections don't name a charset, so a latin1 default would mangle "ñ".
+      - name: Start MariaDB 10.4 (configured like local XAMPP)
+        run: |
+          docker run -d --name wedo-db -p 3306:3306 -e MARIADB_ROOT_PASSWORD=root mariadb:10.4 \
+            --character-set-server=utf8mb4 --collation-server=utf8mb4_general_ci \
+            --sql-mode=NO_ZERO_IN_DATE,NO_ZERO_DATE,NO_ENGINE_SUBSTITUTION
+          for i in $(seq 1 60); do
+            if docker exec wedo-db mysqladmin ping -uroot -proot --silent 2>/dev/null; then echo "MariaDB is up"; exit 0; fi
+            sleep 2
+          done
+          echo "::error::MariaDB did not start"; docker logs wedo-db; exit 1
       - name: Set up PHP 8.2
         uses: shivammathur/setup-php@v2
         with:
