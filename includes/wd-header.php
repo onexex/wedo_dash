@@ -59,6 +59,13 @@ try {
     $wdUnseenAnn = (int) $wdua->fetchColumn();
 } catch (Exception $e) { $wdUnseenAnn = 0; }
 
+/* conversations with unread messages (topbar envelope) */
+$wdUnreadMsg = 0;
+try {
+    require_once __DIR__ . '/messages-lib.php';
+    $wdUnreadMsg = msg_unread_threads($wdpdo, (string) $_SESSION['id']);
+} catch (Exception $e) { $wdUnreadMsg = 0; }
+
 /* access rights */
 $wdar = $wdpdo->prepare("SELECT * FROM accessrights WHERE EmpID = :id");
 $wdar->execute([':id' => $_SESSION['id']]);
@@ -206,6 +213,7 @@ function wd_can($ar, $k) { return isset($ar[$k]) && $ar[$k] == 2; }
       <button class="wd-iconbtn wd-menu-toggle" type="button" onclick="document.querySelector('.wd-app').classList.toggle('is-collapsed')" aria-label="Toggle menu"><i class="fa-solid fa-bars"></i></button>
       <div class="wd-search"><i class="fa-solid fa-magnifying-glass"></i><input placeholder="Search&hellip;"></div>
       <div style="flex:1"></div>
+      <a href="messages" class="wd-iconbtn" id="wdMsgBtn" title="<?php echo $wdUnreadMsg > 0 ? (int)$wdUnreadMsg . ' unread conversation' . ($wdUnreadMsg > 1 ? 's' : '') : 'Messages'; ?>" aria-label="Messages"><i class="fa-regular fa-envelope"></i><?php if($wdUnreadMsg>0): ?><span class="wd-iconbtn__dot"></span><?php endif; ?></a>
       <a href="notifications.php" class="wd-iconbtn" title="<?php echo (int)$nrow; ?> notification(s)" aria-label="Notifications"><i class="fa-solid fa-bell"></i><?php if($nrow>0): ?><span class="wd-iconbtn__dot"></span><?php endif; ?></a>
       <div class="wd-user" onclick="this.classList.toggle('is-open');event.stopPropagation();">
         <div class="wd-avatar"><?php echo htmlspecialchars($wdInitials); ?></div>

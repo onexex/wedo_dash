@@ -561,6 +561,7 @@
     /* floating Corner bubble; legacy shell has no theme tokens, the include adds them */
     $wdcb_legacy = true;
     include __DIR__ . '/corner-bubble.php';
+    include __DIR__ . '/call-widget.php';   /* video calls: incoming ringer + call window */
     }
     else{
       ?>

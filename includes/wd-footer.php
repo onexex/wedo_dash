@@ -4,6 +4,7 @@
 </div>
 
 <?php include __DIR__ . '/corner-bubble.php'; /* floating Corner bubble (announcements + calendar) */ ?>
+<?php include __DIR__ . '/call-widget.php'; /* video calls: incoming ringer + call window */ ?>
 
 <!-- Change password modal (Bootstrap; handled by assets/js/script.js .btnchangepass) -->
 <div class="modal" id="changepass">

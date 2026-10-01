@@ -260,24 +260,6 @@
 .dv-livesearch a:last-child{border-bottom:none}
 .dv-livesearch a:hover{background:var(--surface-2)}
 
-/* Floating message panel */
-.com-container{width:320px;height:420px;background:var(--surface);position:fixed;bottom:0;right:18px;
-  z-index:1200;border:1px solid var(--border);border-radius:var(--radius-lg) var(--radius-lg) 0 0;
-  box-shadow:0 10px 30px rgba(0,0,0,.18);display:none;overflow:hidden}
-.com-header{display:flex;align-items:center;justify-content:space-between;height:46px;padding:0 14px}
-.com-header h5{color:#fff;margin:0;font-size:14px;font-weight:600}
-.com-header i{color:#fff;font-size:18px;cursor:pointer}
-.com-messages{overflow:auto;height:calc(100% - 46px - 48px);padding:10px 12px;background:var(--surface-2)}
-.com-messages .r-message p{padding:7px 10px;background:#e6e6e6;color:#222;display:inline-block;
-  margin-bottom:4px;border-radius:10px;font-size:13px}
-.com-messages .s-message{text-align:right}
-.com-messages .s-message p{padding:7px 10px;background:var(--brand);color:#fff;display:inline-block;
-  margin-bottom:4px;border-radius:10px;font-size:13px}
-.com-messages .s-message i,.com-messages .r-message i{font-size:9px;color:var(--text-3)}
-.com-send-m{position:absolute;bottom:0;width:100%;height:48px;display:flex;border-top:1px solid var(--border);background:var(--surface)}
-.com-send-m input{flex:1;border:none;outline:none;padding:0 12px;font-size:13px;background:none;color:var(--text)}
-.com-send-m .btn{border:none;background:var(--brand);color:#fff;width:48px;border-radius:0}
-
 /* Job-description modal lists */
 .EmpListJD a,.ListJD a{display:block;text-align:left;cursor:auto;padding:7px 10px;
   border-bottom:1px solid var(--border);font-size:13px;color:var(--text)}
@@ -321,6 +303,6 @@
 .e201-print .e2-salary__toggle{display:none}
 
 /* chrome that must never appear on paper */
-.e201-print .e2-actions,.e201-print .modal,.e201-print .com-container{display:none !important}
+.e201-print .e2-actions,.e201-print .modal{display:none !important}
 
 @page{margin:10mm}
