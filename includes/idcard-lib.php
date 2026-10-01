@@ -246,6 +246,161 @@ function idc_sign_url($empId) {
     return ($f !== '' && is_file($p)) ? 'assets/images/id-signatures/' . $f . '?v=' . filemtime($p) : null;
 }
 
+/** Working copy at most 1200 px on its longest side, on white (transparent areas = paper). */
+function idc_work_canvas($src) {
+    $w = imagesx($src); $h = imagesy($src);
+    $scale = min(1, 1200 / max($w, $h));
+    $cw = max(1, (int) round($w * $scale)); $ch = max(1, (int) round($h * $scale));
+    $img = imagecreatetruecolor($cw, $ch);
+    imagefill($img, 0, 0, imagecolorallocate($img, 255, 255, 255));
+    imagealphablending($img, true);
+    imagecopyresampled($img, $src, 0, 0, 0, 0, $cw, $ch, $w, $h);
+    return $img;
+}
+
+/**
+ * Pull the ink out of a scan or phone photo of a signature: a transparent PNG
+ * image cropped tight to the strokes, or null when no ink is found.
+ *
+ * $img is the small working copy from idc_work_canvas().
+ *
+ * Phone photos have shadows, uneven light, the paper's edge and the table
+ * around it. A fixed "dark = ink" cut-off keeps all of that, the crop stays
+ * big and the signature prints tiny. So:
+ *   1. paper brightness is measured per 24 px cell (shadows are still paper);
+ *   2. only cells that are clearly paper, and not on its edge, can hold ink;
+ *   3. a pixel is ink when it is well darker than the paper around it;
+ *   4. specks are dropped, and the crop is the box around the real strokes.
+ */
+function idc_extract_ink($img) {
+    $cw = imagesx($img); $ch = imagesy($img);
+
+    // luminance of every pixel, one byte each
+    $L = str_repeat("\0", $cw * $ch);
+    for ($y = 0, $i = 0; $y < $ch; $y++) {
+        for ($x = 0; $x < $cw; $x++, $i++) {
+            $c = imagecolorat($img, $x, $y);
+            $L[$i] = chr((int) ((($c >> 16 & 0xFF) * 299 + ($c >> 8 & 0xFF) * 587 + ($c & 0xFF) * 114) / 1000));
+        }
+    }
+
+    // 1. paper level per cell = 90th percentile brightness (ink is a small share of any cell)
+    $C = 24;
+    $gw = (int) ceil($cw / $C); $gh = (int) ceil($ch / $C);
+    $cell = [];
+    for ($gy = 0; $gy < $gh; $gy++) {
+        for ($gx = 0; $gx < $gw; $gx++) {
+            $hist = array_fill(0, 256, 0); $n = 0;
+            for ($y = $gy * $C, $ye = min($ch, $y + $C); $y < $ye; $y++) {
+                for ($x = $gx * $C, $xe = min($cw, $x + $C), $i = $y * $cw + $x; $x < $xe; $x++, $i++) {
+                    $hist[ord($L[$i])]++; $n++;
+                }
+            }
+            $want = $n * 0.9; $acc = 0; $v = 255;
+            for ($b = 0; $b < 256; $b++) { $acc += $hist[$b]; if ($acc >= $want) { $v = $b; break; } }
+            $cell[$gy][$gx] = $v;
+        }
+    }
+    // a cell crowded with ink borrows the paper level of its neighbours
+    $bg = [];
+    for ($gy = 0; $gy < $gh; $gy++) {
+        for ($gx = 0; $gx < $gw; $gx++) {
+            $nb = [];
+            for ($dy = -1; $dy <= 1; $dy++) { for ($dx = -1; $dx <= 1; $dx++) {
+                if (isset($cell[$gy + $dy][$gx + $dx])) { $nb[] = $cell[$gy + $dy][$gx + $dx]; }
+            } }
+            sort($nb);
+            $bg[$gy][$gx] = max($cell[$gy][$gx], $nb[(int) floor((count($nb) - 1) / 2)]);
+        }
+    }
+
+    // 2. which cells are paper: bright compared with the page as a whole, and not on the paper's edge
+    $all = [];
+    foreach ($bg as $row) { foreach ($row as $v) { $all[] = $v; } }
+    sort($all);
+    $paperLevel = $all[(int) floor((count($all) - 1) * 0.75)];
+    $isPaper = function ($gx, $gy) use ($bg, $paperLevel) {
+        return isset($bg[$gy][$gx]) ? $bg[$gy][$gx] >= $paperLevel - 60 : true;   // outside the image counts as paper
+    };
+    $inkable = [];
+    for ($gy = 0; $gy < $gh; $gy++) {
+        for ($gx = 0; $gx < $gw; $gx++) {
+            $ok = true;
+            for ($dy = -1; $dy <= 1 && $ok; $dy++) { for ($dx = -1; $dx <= 1; $dx++) {
+                if (!$isPaper($gx + $dx, $gy + $dy)) { $ok = false; break; }
+            } }
+            $inkable[$gy][$gx] = $ok;
+        }
+    }
+
+    // 3. ink = clearly darker than the paper it sits on
+    $M = str_repeat("\0", $cw * $ch);
+    $inkCount = 0;
+    for ($y = 0, $i = 0; $y < $ch; $y++) {
+        $gy = intdiv($y, $C);
+        for ($x = 0; $x < $cw; $x++, $i++) {
+            $gx = intdiv($x, $C);
+            if (!$inkable[$gy][$gx]) { continue; }
+            $lum = ord($L[$i]);
+            if ($lum < 200 && $bg[$gy][$gx] - $lum >= 45) { $M[$i] = "\1"; $inkCount++; }
+        }
+    }
+    if ($inkCount === 0) { imagedestroy($img); return null; }
+
+    // 4. connected strokes; specks (tiny next to the biggest stroke) are dropped
+    $comps = []; $largest = 0;
+    for ($start = 0, $N = $cw * $ch; $start < $N; $start++) {
+        if ($M[$start] !== "\1") { continue; }
+        $M[$start] = "\2";
+        $stack = [$start]; $pix = [];
+        while ($stack) {
+            $p = array_pop($stack); $pix[] = $p;
+            $px = $p % $cw; $py = intdiv($p, $cw);
+            for ($dy = -1; $dy <= 1; $dy++) {
+                $ny = $py + $dy; if ($ny < 0 || $ny >= $ch) { continue; }
+                for ($dx = -1; $dx <= 1; $dx++) {
+                    $nx = $px + $dx; if ($nx < 0 || $nx >= $cw) { continue; }
+                    $q = $ny * $cw + $nx;
+                    if ($M[$q] === "\1") { $M[$q] = "\2"; $stack[] = $q; }
+                }
+            }
+        }
+        $comps[] = $pix;
+        $largest = max($largest, count($pix));
+    }
+    $minKeep = max(10, (int) ($largest * 0.02));
+    $minX = $cw; $minY = $ch; $maxX = -1; $maxY = -1; $keep = [];
+    foreach ($comps as $pix) {
+        if (count($pix) < $minKeep) { continue; }
+        foreach ($pix as $p) {
+            $keep[] = $p;
+            $x = $p % $cw; $y = intdiv($p, $cw);
+            if ($x < $minX) { $minX = $x; } if ($x > $maxX) { $maxX = $x; }
+            if ($y < $minY) { $minY = $y; } if ($y > $maxY) { $maxY = $y; }
+        }
+    }
+    unset($comps);
+    if ($maxX < 0) { imagedestroy($img); return null; }
+
+    // transparent PNG of just the kept strokes, cropped with a small margin
+    $pad = 4;
+    $minX = max(0, $minX - $pad); $minY = max(0, $minY - $pad);
+    $maxX = min($cw - 1, $maxX + $pad); $maxY = min($ch - 1, $maxY + $pad);
+    $out = imagecreatetruecolor($maxX - $minX + 1, $maxY - $minY + 1);
+    imagealphablending($out, false); imagesavealpha($out, true);
+    imagefill($out, 0, 0, 0x7F000000);
+    foreach ($keep as $p) {
+        $x = $p % $cw; $y = intdiv($p, $cw);
+        $d = $bg[intdiv($y, $C)][intdiv($x, $C)] - ord($L[$p]);   // how much darker than the paper
+        $strength = min(1, max(0, ($d - 45) / 45));                 // soft anti-aliased edges
+        $alpha = (int) round((1 - (0.4 + 0.6 * $strength)) * 127);
+        $c = imagecolorat($img, $x, $y) & 0xFFFFFF;
+        imagesetpixel($out, $x - $minX, $y - $minY, ($alpha << 24) | $c);
+    }
+    imagedestroy($img);
+    return $out;
+}
+
 /**
  * Turn an image file into the stored signature. Returns '' on success or a
  * message for the user.
@@ -259,47 +414,12 @@ function idc_store_signature($empId, $srcPath) {
     $src = @imagecreatefromstring((string) file_get_contents($srcPath));
     if (!$src) { return 'That image could not be read.'; }
 
-    // shrink big photos first so the pixel pass stays quick
-    $w = imagesx($src); $h = imagesy($src);
-    $scale = min(1, 1600 / max($w, $h));
-    $cw = max(1, (int) round($w * $scale)); $ch = max(1, (int) round($h * $scale));
-    $img = imagecreatetruecolor($cw, $ch);
-    imagealphablending($img, false); imagesavealpha($img, true);
-    imagefill($img, 0, 0, imagecolorallocatealpha($img, 255, 255, 255, 127));
-    imagealphablending($img, true);
-    imagecopyresampled($img, $src, 0, 0, 0, 0, $cw, $ch, $w, $h);
-    imagedestroy($src);
-    imagealphablending($img, false);
-
-    // paper -> transparent (light pixels fade out), ink kept; find the ink's bounding box
-    $minX = $cw; $minY = $ch; $maxX = -1; $maxY = -1;
-    for ($y = 0; $y < $ch; $y++) {
-        for ($x = 0; $x < $cw; $x++) {
-            $c = imagecolorat($img, $x, $y);
-            $a = ($c >> 24) & 0x7F;
-            $r = ($c >> 16) & 0xFF; $g = ($c >> 8) & 0xFF; $b = $c & 0xFF;
-            $lum = 0.299 * $r + 0.587 * $g + 0.114 * $b;
-            if ($a >= 120 || $lum >= 200) {                       // background
-                imagesetpixel($img, $x, $y, 0x7F000000);
-                continue;
-            }
-            if ($lum > 130) {                                      // soft edge: partial transparency
-                $a = max($a, (int) round(($lum - 130) / 70 * 127));
-                imagesetpixel($img, $x, $y, ($a << 24) | ($r << 16) | ($g << 8) | $b);
-            }
-            if ($x < $minX) { $minX = $x; } if ($x > $maxX) { $maxX = $x; }
-            if ($y < $minY) { $minY = $y; } if ($y > $maxY) { $maxY = $y; }
-        }
-    }
-    if ($maxX < 0) { imagedestroy($img); return 'No signature found — the image looks blank. Use dark ink on white paper.'; }
-
-    $pad = 6;
-    $minX = max(0, $minX - $pad); $minY = max(0, $minY - $pad);
-    $maxX = min($cw - 1, $maxX + $pad); $maxY = min($ch - 1, $maxY + $pad);
-    $out = imagecreatetruecolor($maxX - $minX + 1, $maxY - $minY + 1);
-    imagealphablending($out, false); imagesavealpha($out, true);
-    imagecopy($out, $img, 0, 0, $minX, $minY, $maxX - $minX + 1, $maxY - $minY + 1);
-    imagedestroy($img);
+    // shrink first and let go of the full-size photo (a 12 MP photo is ~50 MB decoded)
+    $work = idc_work_canvas($src);
+    unset($src);
+    $out = idc_extract_ink($work);
+    unset($work);
+    if (!$out) { return 'No signature found — the image looks blank. Use dark ink on white paper.'; }
 
     if (!is_dir(idc_sign_dir())) { @mkdir(idc_sign_dir(), 0755, true); }
     $ok = imagepng($out, idc_sign_dir() . '/' . $file, 9);
@@ -310,6 +430,14 @@ function idc_store_signature($empId, $srcPath) {
 function idc_remove_signature($empId) {
     $f = idc_sign_file($empId);
     if ($f !== '') { @unlink(idc_sign_dir() . '/' . $f); }
+}
+
+/** What a card still needs before it may print: [] or a list of 'photo' / 'signature'. */
+function idc_card_missing(array $card) {
+    $needs = [];
+    if (empty($card['photo']))     { $needs[] = 'photo'; }
+    if (empty($card['signature'])) { $needs[] = 'signature'; }
+    return $needs;
 }
 
 /** One DB row -> the JSON the page and renderer use. */
