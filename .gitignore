@@ -10,3 +10,7 @@ config.local.php
 
 # Login Theme banner uploads (Maintenance > Login Theme) — server data, not code
 assets/images/login-themes/
+
+# Dev-only test tooling (composer install; never deployed)
+vendor/
+.phpunit.cache/

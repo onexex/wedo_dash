@@ -177,6 +177,10 @@ $pdo->setAttribute(PDO::ATTR_ERRMODE, PDO::ERRMODE_EXCEPTION);
         <a class="e2-act e2-act--primary" id="Updateinfo" href="UpdateEmployeeInfo?sid=<?php echo e2h($eid); ?>" title="Update information">
           <i class="fa-solid fa-pen-to-square"></i><span>Edit profile</span>
         </a>
+      <?php } elseif ($isSelf) { /* everyone may request changes to their own info; HR approves */ ?>
+        <a class="e2-act e2-act--primary" id="Updateinfo" href="UpdateEmployeeInfo" title="Request changes to your information">
+          <i class="fa-solid fa-user-pen"></i><span>Update my info</span>
+        </a>
       <?php } ?>
       <?php if ($_SESSION['UserType'] != 3) { ?>
         <button type="button" class="e2-act e2-act--icon" id="changepasskey" data-toggle="modal" data-target="#e201ResetPass" title="Reset password">

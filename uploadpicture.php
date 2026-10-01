@@ -1,6 +1,21 @@
 <?php if (session_status() === PHP_SESSION_NONE) { session_start(); }
-  if (isset($_SESSION['id']) && $_SESSION['id']!="0"){}
-  else{ header ('location: login.php'); exit; }
+  if (!isset($_SESSION['id']) || $_SESSION['id'] == "0") {
+      http_response_code(401);
+      echo 0;
+      exit;
+  }
+  // only HR may set an employee's photo: "Update 201 Files" (edit profile) or
+  // "Enroll Employee" (registration). Employees can't change photos via requests.
+  include 'w_conn.php';
+  $__ar = mysqli_prepare($con, 'SELECT updte, eemployee FROM accessrights WHERE EmpID = ?');
+  mysqli_stmt_bind_param($__ar, 's', $_SESSION['id']);
+  mysqli_stmt_execute($__ar);
+  $__r = mysqli_fetch_assoc(mysqli_stmt_get_result($__ar));
+  if (!$__r || ((string)$__r['updte'] !== '2' && (string)$__r['eemployee'] !== '2')) {
+      http_response_code(403);
+      echo 0;
+      exit;
+  }
 ?>
 <?php
 $filename = $_FILES['file']['name'];

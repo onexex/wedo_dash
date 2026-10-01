@@ -1,4 +1,11 @@
-<?php 
+<?php
+if (session_status() === PHP_SESSION_NONE) { session_start(); }
+// AJAX endpoint: refuse with a message (the edit page shows it) instead of redirecting
+if (!isset($_SESSION['id']) || $_SESSION['id'] == "0") {
+    http_response_code(401);
+    echo "Your session has expired. Please sign in again.";
+    exit;
+}
 include 'w_conn.php';
 // $conn = new mysqli($servername, $username, $password, $db);
 // $name=$_POST['name'];
@@ -15,6 +22,16 @@ catch(PDOException $e)
 die("ERROR: Could not connect. " . $e->getMessage());
    }
 
+// Direct edits need "Update 201 Files"; everyone else goes through a change
+// request (query/Query-requestProfileChange.php) that HR approves.
+$__ar = $pdo->prepare('SELECT updte FROM accessrights WHERE EmpID = ?');
+$__ar->execute([$_SESSION['id']]);
+if ((string)$__ar->fetchColumn() !== '2') {
+    http_response_code(403);
+    echo "You don't have permission to update employee records directly.";
+    exit;
+}
+
 try {
   
    
@@ -27,11 +44,15 @@ try {
    $stats=$_POST['empst'];
    $cid=$_POST['empcid'];
    
-   $dor=$_POST['dorInput'];
+   // blank = no regularization date (NULL — alas.php treats only NULL as "not set")
+   $dor = (isset($_POST['dorInput']) && trim($_POST['dorInput']) !== '') ? $_POST['dorInput'] : null;
 
-   $sql = "UPDATE employees SET EmpFN='$fn',EmpMN='$mn',EmpSuffix='$suff',EmpLN='$ln',PosID='$pos',EmpStatusID='$stats',EmployeeIDNumber='$cid' WHERE EmpID='$id'";
+   // parameterized: values used to be pasted into the SQL, so any apostrophe
+   // (O'Brien, St. Mary's) broke the save
+   $sql = "UPDATE employees SET EmpFN=:fn,EmpMN=:mn,EmpSuffix=:suff,EmpLN=:ln,PosID=:pos,EmpStatusID=:stats,EmployeeIDNumber=:cid WHERE EmpID=:id";
    $stmt = $pdo->prepare($sql);
-   $stmt->execute(); 
+   $stmt->execute([':fn' => $fn, ':mn' => $mn, ':suff' => $suff, ':ln' => $ln, ':pos' => $pos,
+                    ':stats' => $stats, ':cid' => $cid, ':id' => $id]);
 
    	$add1=$_POST['pempstreetno'];
    	$dis=$_POST['pempdistrict'];
@@ -62,9 +83,14 @@ try {
    	$cit=$_POST['empcitizen'];
    	$rel=$_POST['empreligion'];
 
-   	$sql = "UPDATE empprofiles SET EmpAddress1='$add1',EmpAddDis='$dis',EmpAddCity='$ct',EmpAddProv='$prov',EmpAddZip='$zip',EmpAddCountry='$ctry',EmpPhone='$pnum',EmpDOB='$dob',EmpGender='$gen',EmpCS='$empcs',EmpMobile='$phnum',EmpEmail='$eadd',EmpPPNo='$ppno',EmpPPED='$ped',EmpPPIA='$pia',EmpSSS='$sss',EmpTIN='$tin',EmpHMONumber='$hmonum',EmpPP='$emppp',EmpPPSD='$psd',EmpPPDept='$dept',EmpPPPos='$empppd',EmpPINo='$empag',EmpPHNo='$phno',EmpUMIDNo='$umid',EmpPPath='$targetPath',EmpCitezen='$cit',EmpReligion='$rel' WHERE EmpID='$id'";
+   	$sql = "UPDATE empprofiles SET EmpAddress1=:add1,EmpAddDis=:dis,EmpAddCity=:ct,EmpAddProv=:prov,EmpAddZip=:zip,EmpAddCountry=:ctry,EmpPhone=:pnum,EmpDOB=:dob,EmpGender=:gen,EmpCS=:empcs,EmpMobile=:phnum,EmpEmail=:eadd,EmpPPNo=:ppno,EmpPPED=:ped,EmpPPIA=:pia,EmpSSS=:sss,EmpTIN=:tin,EmpHMONumber=:hmonum,EmpPP=:emppp,EmpPPSD=:psd,EmpPPDept=:dept,EmpPPPos=:empppd,EmpPINo=:empag,EmpPHNo=:phno,EmpUMIDNo=:umid,EmpPPath=:targetPath,EmpCitezen=:cit,EmpReligion=:rel WHERE EmpID=:id";
    $stmt = $pdo->prepare($sql);
-   $stmt->execute(); 
+   $stmt->execute([':add1' => $add1, ':dis' => $dis, ':ct' => $ct, ':prov' => $prov, ':zip' => $zip, ':ctry' => $ctry,
+                    ':pnum' => $pnum, ':dob' => $dob, ':gen' => $gen, ':empcs' => $empcs, ':phnum' => $phnum, ':eadd' => $eadd,
+                    ':ppno' => $ppno, ':ped' => $ped, ':pia' => $pia, ':sss' => $sss, ':tin' => $tin, ':hmonum' => $hmonum,
+                    ':emppp' => $emppp, ':psd' => $psd, ':dept' => $dept, ':empppd' => $empppd, ':empag' => $empag,
+                    ':phno' => $phno, ':umid' => $umid, ':targetPath' => $targetPath, ':cit' => $cit, ':rel' => $rel,
+                    ':id' => $id]);
 
   
    $statID="2";
@@ -118,17 +144,23 @@ try {
    
    
     // $sql="UPDATE empdetails SET EmpISID='$empis',EmpRoleID='$roleid',EmpdepID='$EmpdepID',EmpCompID='$empcom',EmpDateHired='$empdh',EmpDateResigned='$dr',EmpStatID='$empclass',AgencyID='$empage',HMO_ID='$emphmo',EmpDOR='$dor' WHERE EmpID='$EmpID'";
-    $sql="UPDATE empdetails SET EmpDOR='$dor', EmpISID='$empis',EmpdepID='$EmpdepID',EmpCompID='$empcom',EmpDateHired='$empdh',EmpDateResigned='$dr',EmpStatID='$empclass',AgencyID='$empage',HMO_ID='$emphmo' WHERE EmpID='$EmpID'";
+    $sql="UPDATE empdetails SET EmpDOR=:dor, EmpISID=:empis,EmpdepID=:dep,EmpCompID=:empcom,EmpDateHired=:empdh,EmpDateResigned=:dr,EmpStatID=:empclass,AgencyID=:empage,HMO_ID=:emphmo WHERE EmpID=:EmpID";
     $stmt = $pdo->prepare($sql);
-    $stmt->execute(); 
+    $stmt->execute([':dor' => $dor, ':empis' => $empis, ':dep' => $EmpdepID, ':empcom' => $empcom, ':empdh' => $empdh,
+                    ':dr' => $dr, ':empclass' => $empclass, ':empage' => $empage, ':emphmo' => $emphmo, ':EmpID' => $EmpID]);
 
    	$basic=$_POST['empbasic'];
    	$allow=$_POST['empallowance'];
    	$hourlyr=$_POST['emphourlyrate'];
 
-    $sql="UPDATE empdetails2 SET EmpBasic='$basic',EmpAllowance='$allow',EmpHRate='$hourlyr' where EmpID='$EmpID'";
+    $sql="UPDATE empdetails2 SET EmpBasic=:basic,EmpAllowance=:allow,EmpHRate=:hr where EmpID=:EmpID";
    	$stmt = $pdo->prepare($sql);
-   	$stmt->execute(); 
+   	$stmt->execute([':basic' => $basic, ':allow' => $allow, ':hr' => $hourlyr, ':EmpID' => $EmpID]);
+      // Work schedule is owned by the scheduling module. The edit-profile form no
+      // longer sends the wrksch* fields; only touch workdays when they are posted,
+      // otherwise every day's SchedTime would be overwritten with NULL.
+      if (isset($_POST['wrkschmon'], $_POST['wrkschtues'], $_POST['wrkschwed'], $_POST['wrkschthu'],
+                $_POST['wrkschfri'], $_POST['wrkschsat'], $_POST['wrkschsun'])) {
       $mn="Monday";
       $sql = "select * from workdays WHERE  empid=:empide2 and Day_s=:empday";
       $stmtmon = $pdo->prepare($sql);
@@ -356,6 +388,7 @@ try {
       $stmt->bindParam(':empmon', $_POST['wrkschsun']);
       $stmt->execute();
         }
+      } // end work schedule
       
  
 
