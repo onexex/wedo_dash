@@ -90,7 +90,7 @@ function wd_can($ar, $k) { return isset($ar[$k]) && $ar[$k] == 2; }
                        ||wd_can($ar,'eov')||wd_can($ar,'coe')||wd_can($ar,'payslipt')||wd_can($ar,'obv')||wd_can($ar,'atv')
                        ||wd_can($ar,'fdetls')||wd_can($ar,'lcreaditview');
       $wd_show_mgmt = wd_can($ar,'arights')||wd_can($ar,'ams')||wd_can($ar,'payeereg')||wd_can($ar,'bookletreg')||wd_can($ar,'eemployee')
-                    ||wd_can($ar,'e201d')||wd_can($ar,'EF')||wd_can($ar,'schedv');
+                    ||wd_can($ar,'e201d')||wd_can($ar,'EF')||wd_can($ar,'schedv')||wd_can($ar,'idcard');
       /* Maintenance is now its own top-level section (leveled with Management),
          no longer nested inside Management. */
       $wd_show_maint = wd_can($ar,'agncy')||wd_can($ar,'comp')||wd_can($ar,'dep')
@@ -148,6 +148,7 @@ function wd_can($ar, $k) { return isset($ar[$k]) && $ar[$k] == 2; }
         <?php if(wd_can($ar,'e201d')): ?><a class="wd-nav<?php echo wd_on('e201files',$wd_active); ?>" href="e201files"><i class="fa-solid fa-file-pdf"></i> Electronic 201 Document</a><?php endif; ?>
         <?php if(wd_can($ar,'EF')): ?><a class="wd-nav<?php echo wd_on('scheduler',$wd_active); ?>" href="scheduler"><i class="fa-solid fa-calendar-days"></i> Employee Scheduler</a><?php endif; ?>
         <?php if(wd_can($ar,'eemployee')): ?><a class="wd-nav<?php echo wd_on('newemployee',$wd_active); ?>" href="newemployee"><i class="fa-solid fa-user-plus"></i> Enroll Employee</a><?php endif; ?>
+        <?php if(wd_can($ar,'idcard')): ?><a class="wd-nav<?php echo wd_on('idcard',$wd_active); ?>" href="idcard"><i class="fa-solid fa-id-card"></i> ID Card Generator</a><?php endif; ?>
         <?php if(wd_can($ar,'payeereg')): ?><a class="wd-nav<?php echo wd_on('payeereg',$wd_active); ?>" href="payeereg"><i class="fa-solid fa-box-archive"></i> Payee Management System</a><?php endif; ?>
         <?php if(wd_can($ar,'schedv')): ?><a class="wd-nav<?php echo wd_on('schedviewer',$wd_active); ?>" href="schedviewer"><i class="fa-solid fa-chart-column"></i> Schedule Viewer</a><?php endif; ?>
       </div>

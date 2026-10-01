@@ -22,6 +22,7 @@ abstract class AppTestCase extends TestCase
         'companies', 'departments', 'positions', 'joblevel', 'empstatus', 'estatus', 'hmo', 'agency',
         'workschedule', 'workdays', 'frelationship', 'employees', 'empdetails', 'empdetails2', 'empprofiles',
         'empeducationalbackground', 'fdetails', 'accessrights', 'dars', 'profile_change_requests',
+        'idcard_cards', 'idcard_print_log', 'idcard_settings',
     ];
 
     protected function setUp(): void
@@ -82,7 +83,7 @@ abstract class AppTestCase extends TestCase
         $ins('empdetails', ['EmpID' => self::ADMIN, 'EmpUN' => 'aadmin', 'EmpRoleID' => 1, 'EmpISID' => 'N/A', 'EmpdepID' => 2,
                             'EmpCompID' => 'TC', 'EmpStatID' => 2, 'AgencyID' => 1, 'HMO_ID' => 1,
                             'EmpDateHired' => '2020-01-06', 'EmpDateResigned' => '0000-00-00']);
-        $ins('accessrights', ['EmpID' => self::ADMIN, 'updte' => 2, 'srch' => 2, 'e201' => 2]);
+        $ins('accessrights', ['EmpID' => self::ADMIN, 'updte' => 2, 'srch' => 2, 'e201' => 2, 'idcard' => 2]);
 
         // the employee being edited
         $ins('employees', ['EmpID' => self::EMP, 'EmpFN' => 'Juan', 'EmpLN' => 'Dela Cruz', 'EmpMN' => 'Santos', 'EmpSuffix' => 'Jr',

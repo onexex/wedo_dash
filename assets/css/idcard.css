@@ -1,0 +1,114 @@
+/* ==========================================================================
+   idcard.css  —  Management > ID Card Generator (idcard.php)
+   Built on wedo-theme.css tokens. The card artwork is SVG from
+   assets/js/idcard-render.js; this file only lays out the screen and the
+   CR80 print pages.
+   ========================================================================== */
+
+.idc-headactions{display:flex;gap:8px;flex-wrap:wrap}
+.idc-count{display:inline-flex;align-items:center;justify-content:center;min-width:20px;height:20px;padding:0 6px;margin-left:2px;
+  border-radius:var(--radius-pill);background:#fff;color:var(--brand-700);font-size:11.5px;font-weight:700;line-height:1}
+.idc-count[hidden]{display:none}
+
+.idc-layout{display:grid;grid-template-columns:minmax(300px,360px) 1fr;gap:16px;margin-top:16px;align-items:start}
+.idc-previewcard{position:sticky;top:16px}
+@media (max-width:1100px){ .idc-layout{grid-template-columns:1fr} }
+
+/* ---------------------------------------------------------------- list */
+.idc-listcard{display:flex;flex-direction:column;max-height:calc(100vh - 170px);min-height:420px}
+.idc-filters{padding:14px 14px 10px;border-bottom:1px solid var(--border);display:flex;flex-direction:column;gap:8px}
+.idc-filters__row{display:flex;gap:8px}
+.idc-filters__row > *{flex:1;min-width:0}
+.idc-filters__row--meta{justify-content:space-between;font-size:12.5px;color:var(--text-2)}
+.idc-filters__row--meta > *{flex:0 0 auto}
+.idc-check{display:inline-flex;align-items:center;gap:6px;font-weight:500;margin:0;cursor:pointer}
+.idc-check input{margin:0}
+
+.idc-list{overflow-y:auto;flex:1}
+.idc-row{display:flex;align-items:center;gap:10px;padding:9px 14px;border-bottom:1px solid var(--border);cursor:pointer;transition:background .12s}
+.idc-row:hover{background:var(--surface-2)}
+.idc-row.is-current{background:var(--brand-tint);box-shadow:inset 3px 0 0 var(--brand)}
+.idc-row input[type=checkbox]{margin:0;flex:0 0 auto;width:16px;height:16px;cursor:pointer}
+.idc-thumb{width:38px;height:38px;border-radius:50%;flex:0 0 auto;background:var(--surface-2) center/cover no-repeat;
+  display:flex;align-items:center;justify-content:center;font-size:12px;font-weight:700;color:var(--text-3);border:2px solid #fff;box-shadow:0 0 0 1px var(--border)}
+.idc-row__main{flex:1;min-width:0;line-height:1.3}
+.idc-row__name{font-weight:600;font-size:13.5px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.idc-row__sub{font-size:11.5px;color:var(--text-3);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.idc-row .wd-pill{padding:2px 8px;font-size:10.5px;flex:0 0 auto}
+.idc-row .wd-pill i{font-size:9px}
+.wd-pill--off{background:var(--surface-2);color:var(--text-2)}
+.idc-empty{padding:30px 16px;text-align:center;color:var(--text-3);font-size:13px}
+.idc-listfoot{padding:8px 14px;font-size:12px;border-top:1px solid var(--border)}
+
+/* ---------------------------------------------------------------- preview */
+.idc-preview{display:flex;gap:28px;padding:24px;flex-wrap:wrap;align-items:flex-start;justify-content:center}
+.idc-preview.is-empty{opacity:.35;pointer-events:none}
+.idc-sides{display:flex;gap:20px;flex-wrap:wrap;justify-content:center}
+.idc-side{margin:0;text-align:center}
+.idc-side figcaption{font-size:12px;font-weight:600;color:var(--text-2);margin-top:8px}
+.idc-cardframe{width:clamp(240px,19vw,340px);aspect-ratio:540/856;border-radius:12px;overflow:hidden;background:#fff;
+  box-shadow:0 10px 28px rgba(16,24,40,.18),0 0 0 1px rgba(16,24,40,.06)}
+.idc-cardframe .idc-svg{width:100%;height:100%;display:block}
+.idc-cardframe--front .idc-photo{cursor:grab}
+.idc-cardframe--front.is-dragging .idc-photo{cursor:grabbing}
+.idc-num--preview{fill:#9b9b9b}
+
+.idc-panel{flex:1 1 260px;min-width:240px;max-width:340px;display:flex;flex-direction:column;gap:16px}
+.idc-panel__block{display:flex;flex-direction:column;gap:8px}
+.idc-eyebrow{font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.08em;color:var(--text-3)}
+.idc-zoom{display:flex;align-items:center;gap:10px;color:var(--text-3)}
+.idc-zoom input{flex:1;accent-color:var(--brand)}
+.idc-btnrow{display:flex;gap:6px;flex-wrap:wrap}
+.idc-signrow{display:flex;align-items:center;gap:10px;flex-wrap:wrap}
+.idc-signbox{width:150px;height:56px;border:1px dashed var(--border-2);border-radius:8px;display:flex;align-items:center;justify-content:center;
+  background:#fff;font-size:11.5px;color:var(--text-3);padding:4px}
+.idc-signbox img{max-width:100%;max-height:100%}
+.idc-filebtn{position:relative;overflow:hidden;margin:0;cursor:pointer}
+.idc-filebtn input{position:absolute;inset:0;opacity:0;cursor:pointer;width:100%}
+.idc-filebtn.is-busy{opacity:.6;pointer-events:none}
+.idc-number{font-family:'Roboto Condensed',var(--font-body);font-size:22px;font-weight:700;letter-spacing:.04em;color:var(--text)}
+.idc-number.is-preview{color:var(--text-3)}
+.idc-small{font-size:12px;line-height:1.5;margin:0}
+.idc-warnings{list-style:none;margin:0;padding:0;display:flex;flex-direction:column;gap:6px}
+.idc-warnings:empty{display:none}
+.idc-warnings li{background:var(--warn-bg);color:var(--warn-text);border-radius:8px;padding:7px 10px;font-size:12.5px;display:flex;gap:8px;align-items:flex-start}
+.idc-warnings li i{margin-top:3px}
+.idc-linkbtn{background:none;border:0;padding:0;color:var(--brand-700);font:inherit;font-weight:600;cursor:pointer}
+.idc-linkbtn:hover{text-decoration:underline}
+.idc-linkbtn i{font-size:10px}
+
+/* card back settings modal */
+#mdlBack .modal-dialog{width:min(760px,96vw)}
+#mdlBack .modal-content{border-radius:var(--radius-lg);overflow:hidden;border:0}
+.idc-backedit{display:flex;gap:28px;align-items:flex-start;flex-wrap:wrap}
+.idc-backedit__form{flex:1 1 300px}
+.idc-backedit__preview{flex:0 0 auto;margin:0 auto}
+.idc-cardframe--sm{width:240px}
+.idc-notice{display:flex;gap:8px;align-items:flex-start;background:var(--info-bg);color:var(--info-text);border-radius:8px;
+  padding:9px 12px;font-size:12.5px;line-height:1.5;margin-bottom:12px}
+.idc-notice i{margin-top:3px}
+.idc-notice[hidden]{display:none}
+.idc-warnings li.is-block{background:var(--danger-bg);color:var(--danger-text)}
+.idc-warnings li button{margin-left:auto;flex:0 0 auto}
+.idc-err{display:block;color:var(--danger-text);font-size:12px;margin-top:4px}
+.idc-err:empty{display:none}
+.idc-panel .wd-btn:disabled,.idc-headactions .wd-btn:disabled{opacity:.45;cursor:not-allowed;box-shadow:none;filter:grayscale(.3)}
+.idc-printone{justify-content:center;width:100%;padding-top:11px;padding-bottom:11px}
+
+/* ---------------------------------------------------------------- print
+   Each side is one CR80 page (54 x 85.6 mm, portrait): front, back, front, back…
+   which is what a duplex card printer expects. Off-screen (not display:none)
+   on screen so the renderer can measure text before printing. */
+#idcPrint{position:absolute;left:-10000px;top:0;width:54mm}
+.idc-page{width:54mm;height:85.6mm;overflow:hidden;background:#fff}
+.idc-page .idc-svg{width:54mm;height:85.6mm;display:block}
+
+@page{size:54mm 85.6mm;margin:0}
+@media print{
+  html,body{background:#fff !important;margin:0 !important;padding:0 !important}
+  body > *:not(#idcPrint){display:none !important}
+  #idcPrint{position:static;left:auto;width:auto}
+  .idc-page{page-break-after:always;break-after:page}
+  .idc-page:last-child{page-break-after:auto;break-after:auto}
+  *{-webkit-print-color-adjust:exact;print-color-adjust:exact}
+}

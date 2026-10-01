@@ -43,6 +43,9 @@ try {
    $pos=$_POST['empposition'];
    $stats=$_POST['empst'];
    $cid=$_POST['empcid'];
+   // once a company ID card is issued its number is the Employee ID (ID Card Generator)
+   require_once __DIR__ . '/../includes/idcard-lib.php';
+   $cid = idc_issued_number($pdo, $id) ?: $cid;
    
    // blank = no regularization date (NULL — alas.php treats only NULL as "not set")
    $dor = (isset($_POST['dorInput']) && trim($_POST['dorInput']) !== '') ? $_POST['dorInput'] : null;

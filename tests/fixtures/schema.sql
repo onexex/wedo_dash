@@ -43,6 +43,7 @@ CREATE TABLE `accessrights` (
   `ur` int(11) NOT NULL DEFAULT 1,
   `srch` int(11) NOT NULL DEFAULT 1,
   `updte` int(11) NOT NULL DEFAULT 1,
+  `idcard` int(11) NOT NULL DEFAULT 1,
   `gcorner` int(11) NOT NULL DEFAULT 2,
   `cddv` int(11) NOT NULL DEFAULT 1,
   `emv` int(11) NOT NULL DEFAULT 1,
@@ -660,6 +661,48 @@ CREATE TABLE `holidays` (
   PRIMARY KEY (`SID`),
   KEY `ix_holidays_date_comp` (`Hdate`,`HCompID`)
 ) ENGINE=InnoDB DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci;
+/*!40101 SET character_set_client = @saved_cs_client */;
+/*!40101 SET @saved_cs_client     = @@character_set_client */;
+/*!40101 SET character_set_client = utf8 */;
+CREATE TABLE `idcard_cards` (
+  `EmpID` varchar(50) NOT NULL,
+  `id_number` varchar(20) DEFAULT NULL,
+  `issue_year` smallint(6) DEFAULT NULL,
+  `seq` int(11) DEFAULT NULL,
+  `photo_x` decimal(5,3) NOT NULL DEFAULT 0.000,
+  `photo_y` decimal(5,3) NOT NULL DEFAULT 0.000,
+  `photo_zoom` decimal(4,2) NOT NULL DEFAULT 1.00,
+  `first_issued_at` datetime DEFAULT NULL,
+  `updated_by` varchar(50) DEFAULT NULL,
+  `updated_at` datetime NOT NULL DEFAULT current_timestamp() ON UPDATE current_timestamp(),
+  PRIMARY KEY (`EmpID`),
+  UNIQUE KEY `ux_idcard_number` (`id_number`),
+  UNIQUE KEY `ux_idcard_year_seq` (`issue_year`,`seq`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
+/*!40101 SET character_set_client = @saved_cs_client */;
+/*!40101 SET @saved_cs_client     = @@character_set_client */;
+/*!40101 SET character_set_client = utf8 */;
+CREATE TABLE `idcard_print_log` (
+  `id` int(11) NOT NULL AUTO_INCREMENT,
+  `EmpID` varchar(50) NOT NULL,
+  `id_number` varchar(20) NOT NULL,
+  `action` varchar(10) NOT NULL,
+  `prev_employee_id_number` varchar(100) DEFAULT NULL,
+  `printed_by` varchar(50) NOT NULL,
+  `printed_at` datetime NOT NULL DEFAULT current_timestamp(),
+  PRIMARY KEY (`id`),
+  KEY `ix_idcard_log_emp` (`EmpID`,`printed_at`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
+/*!40101 SET character_set_client = @saved_cs_client */;
+/*!40101 SET @saved_cs_client     = @@character_set_client */;
+/*!40101 SET character_set_client = utf8 */;
+CREATE TABLE `idcard_settings` (
+  `setting_key` varchar(40) NOT NULL,
+  `setting_value` varchar(200) NOT NULL DEFAULT '',
+  `updated_by` varchar(50) DEFAULT NULL,
+  `updated_at` datetime NOT NULL DEFAULT current_timestamp() ON UPDATE current_timestamp(),
+  PRIMARY KEY (`setting_key`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
 /*!40101 SET character_set_client = @saved_cs_client */;
 /*!40101 SET @saved_cs_client     = @@character_set_client */;
 /*!40101 SET character_set_client = utf8 */;

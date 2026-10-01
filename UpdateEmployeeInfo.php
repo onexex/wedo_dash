@@ -366,7 +366,8 @@
                             <div class="col-lg-6">
                                 <div class="form-group">
                                     <label for="empcid">Employee ID:</label>
-                                    <input type="text" class="form-control" required name="empcid" id="empcid" placeholder="Employee ID" value="<?php echo h($res['EmployeeIDNumber']); ?>">
+                                    <?php require_once __DIR__ . '/includes/idcard-lib.php'; $idcNumber = idc_issued_number($pdo, $res['EmpID']); ?>
+                                    <input type="text" class="form-control" required name="empcid" id="empcid" placeholder="Employee ID" value="<?php echo h($idcNumber ?: $res['EmployeeIDNumber']); ?>"<?php if ($idcNumber): ?> readonly title="Set by the issued company ID card (ID Card Generator)"<?php endif; ?>>
                                 </div>
                             </div>
                             <div class="col-lg-6">
