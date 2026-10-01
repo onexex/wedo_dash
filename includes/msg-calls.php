@@ -122,7 +122,7 @@ function call_finish(PDO $pdo, array $call, string $reason): array
             if ($others) {
                 $text = $secs !== null ? '📹 Video call · ' . call_duration_text($secs)
                       : ($reason === 'declined' ? '📹 Video call declined' : '📹 Missed video call');
-                msg_send($pdo, $call['starter'], $others[0], $text, '1', 'event');
+                msg_send_dm($pdo, $call['starter'], $others[0], $text, '1', 'event');
             }
         }
     } catch (Throwable $e) { /* the note is a nicety */ }

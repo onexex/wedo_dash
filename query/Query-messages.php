@@ -78,7 +78,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         case 'send':
             $res = $gid
                 ? ($groupsOn ? grp_send($pdo, $gid, $me, (string) ($_POST['text'] ?? '')) : ['ok' => false, 'error' => 'Group chats aren’t set up on this server yet.'])
-                : msg_send($pdo, $me, $with, (string) ($_POST['text'] ?? ''), $userType);
+                : msg_send_dm($pdo, $me, $with, (string) ($_POST['text'] ?? ''), $userType);
             if (!$res['ok']) { msg_out(422, ['status' => 'error', 'msg' => $res['error']]); }
             msg_touch($pdo, $me, '');   // sent = no longer typing
             msg_out(200, ['status' => 'ok', 'message' => $res['message'], 'today' => $today]);

@@ -165,7 +165,8 @@ function msg_mark_read(PDO $pdo, string $me, string $other): void
  * Send $text from $me to $other, starting the conversation if needed.
  * Returns ['ok' => true, 'message' => [...]] or ['ok' => false, 'error' => '...'].
  */
-function msg_send(PDO $pdo, string $me, string $other, string $text, $userType, string $kind = 'text'): array
+// Not "msg_send": that name is a built-in PHP function (sysvmsg extension) on Linux servers.
+function msg_send_dm(PDO $pdo, string $me, string $other, string $text, $userType, string $kind = 'text'): array
 {
     $text = trim(str_replace("\r\n", "\n", $text));
     if ($text === '') { return ['ok' => false, 'error' => 'Write a message first.']; }
