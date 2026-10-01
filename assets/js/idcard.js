@@ -257,14 +257,17 @@
     });
   }
 
+  /* drawn on the printed page itself (0.1 mm units of the 54.9 x 86 mm page), not the card artwork */
   function calibrationSvg(label) {
-    var W = IDCard.W, H = IDCard.H;
-    return '<svg xmlns="http://www.w3.org/2000/svg" class="idc-svg" viewBox="0 0 ' + W + ' ' + H + '">' +
+    var W = 549, H = 860;
+    return '<svg xmlns="http://www.w3.org/2000/svg" class="idc-svg idc-calib" viewBox="0 0 ' + W + ' ' + H + '" preserveAspectRatio="none">' +
       '<rect width="' + W + '" height="' + H + '" fill="#fff"/>' +
       '<rect x="5" y="5" width="' + (W - 10) + '" height="' + (H - 10) + '" fill="none" stroke="#000" stroke-width="3"/>' +
       '<rect x="30" y="30" width="' + (W - 60) + '" height="' + (H - 60) + '" fill="none" stroke="#E00A0A" stroke-width="2" stroke-dasharray="10 8"/>' +
       '<path d="M' + (W / 2) + ',' + (H / 2 - 40) + ' V' + (H / 2 + 40) + ' M' + (W / 2 - 40) + ',' + (H / 2) + ' H' + (W / 2 + 40) + '" stroke="#000" stroke-width="2"/>' +
       '<g font-family="Arial,sans-serif" text-anchor="middle" fill="#000">' +
+        '<path d="M' + (W / 2) + ',48 l-26,40 h52 z" fill="#000"/>' +
+        '<text x="' + (W / 2) + '" y="122" font-size="26" font-weight="700">TOP</text>' +
         '<text x="' + (W / 2) + '" y="' + (H / 2 - 80) + '" font-size="34" font-weight="700">' + label + '</text>' +
         '<text x="' + (W / 2) + '" y="' + (H / 2 + 100) + '" font-size="20">Black line = 0.5 mm from the edge</text>' +
         '<text x="' + (W / 2) + '" y="' + (H / 2 + 128) + '" font-size="20" fill="#E00A0A">Red dashes = 3 mm safe zone for text</text>' +
@@ -275,20 +278,40 @@
   function printPages(pagesHtml, images) {
     var box = $id('idcPrint');
     box.innerHTML = pagesHtml.map(function (h) { return '<div class="idc-page">' + h + '</div>'; }).join('');
+    // the card artwork fills the printer's page edge to edge (bleeds ~0.5 mm), never letterboxed
+    Array.prototype.forEach.call(box.querySelectorAll('.idc-svg:not(.idc-calib)'), function (s) {
+      s.setAttribute('preserveAspectRatio', 'xMidYMid slice');
+    });
     return Promise.all((images || []).map(loadImage)).then(function () { return IDCard.fit(box); }).then(function () {
       window.print();
     });
   }
   window.addEventListener('afterprint', function () { $id('idcPrint').innerHTML = ''; });
 
+  /* The Badgy100 prints one side only, so a job runs in two rounds: every front,
+     then the same cards go back into the feeder turned over and every back is
+     printed. The back is identical on all cards, so their order doesn't matter. */
+  function printTwoSides(fronts, backs, imgs, what) {
+    var n = fronts.length;
+    return printPages(fronts, imgs).then(function () {
+      var go = confirm('Round 2 of 2 — the backs\n\n' +
+        'When the ' + n + ' ' + what + (n > 1 ? 's are' : ' is') + ' out of the printer:\n' +
+        '  1. Turn ' + (n > 1 ? 'them' : 'it') + ' over (printed side down).\n' +
+        '  2. Put ' + (n > 1 ? 'them' : 'it') + ' back in the feeder with the ▲ top of the card at the same end as before.\n\n' +
+        'OK = print the backs now.   Cancel = stop here.');
+      if (go) { return printPages(backs, imgs); }
+    });
+  }
+
   function printCards(list) {
-    var pages = [], imgs = [BOOT.back.logo, BOOT.back.signature];
-    list.forEach(function (c) {
-      pages.push(IDCard.front(c)); pages.push(IDCard.back(BOOT.back));
+    var imgs = [BOOT.back.logo, BOOT.back.signature];
+    var fronts = list.map(function (c) {
       if (c.photo) { imgs.push(c.photo); }
       if (c.signature) { imgs.push(c.signature); }
+      return IDCard.front(c);
     });
-    return printPages(pages, imgs);
+    var backs = list.map(function () { return IDCard.back(BOOT.back); });
+    return printTwoSides(fronts, backs, imgs, 'card');
   }
 
   function issueAndPrint(ids) {
@@ -302,7 +325,8 @@
       return;
     }
     var fresh = ids.filter(function (id) { return !byId[id].idNumber; }).length;
-    var msg = 'Print ' + ids.length + ' card' + (ids.length > 1 ? 's' : '') + ' (' + ids.length * 2 + ' pages, front and back)?';
+    var msg = 'Print ' + ids.length + ' card' + (ids.length > 1 ? 's' : '') + '?\n\n' +
+      'Load ' + ids.length + ' blank card' + (ids.length > 1 ? 's' : '') + '. The fronts print first; then you turn the cards over and put them back in for the backs.';
     if (fresh) { msg += '\n\n' + fresh + ' will get a new ID number now. Numbers are permanent and are kept on reprints.'; }
     if (!confirm(msg)) { return; }
 
@@ -446,7 +470,7 @@
     if (ids.length) { issueAndPrint(ids); }
   });
   $id('btnCalib').addEventListener('click', function () {
-    printPages([calibrationSvg('FRONT'), calibrationSvg('BACK')]);
+    printTwoSides([calibrationSvg('FRONT')], [calibrationSvg('BACK')], [], 'test card');
   });
   window.addEventListener('beforeunload', function () { if (cropDirty) { saveCrop(true); } });
 
