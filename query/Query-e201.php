@@ -15,7 +15,7 @@ $statement = $pdo->prepare("select * from accessrights where EmpID = :id");
 $statement->execute([':id' => $_SESSION['id']]);
 $rowbtn = $statement->fetch();
 
-// message actions only on the page's own render (script.js binds #sndmessage at load)
+// Messages / Message IS shortcuts only on your own profile
 $isSelf = false;
 $mnum   = 0;
 

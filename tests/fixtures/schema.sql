@@ -834,12 +834,86 @@ CREATE TABLE `messages` (
   `MSID` int(11) NOT NULL AUTO_INCREMENT,
   `MHID` varchar(100) NOT NULL,
   `SenderID` varchar(50) NOT NULL,
-  `Message` varchar(500) NOT NULL,
+  `Message` varchar(500) CHARACTER SET utf8mb4 COLLATE utf8mb4_general_ci NOT NULL,
+  `Kind` varchar(10) NOT NULL DEFAULT 'text',
   `DateSent` datetime NOT NULL,
   `DateRecieved` datetime NOT NULL DEFAULT current_timestamp(),
   `Status` int(11) NOT NULL DEFAULT 1,
   PRIMARY KEY (`MSID`)
 ) ENGINE=InnoDB DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci;
+/*!40101 SET character_set_client = @saved_cs_client */;
+/*!40101 SET @saved_cs_client     = @@character_set_client */;
+/*!40101 SET character_set_client = utf8 */;
+CREATE TABLE `msg_calls` (
+  `id` int(11) NOT NULL AUTO_INCREMENT,
+  `starter` varchar(50) NOT NULL,
+  `group_id` int(11) DEFAULT NULL,
+  `status` varchar(10) NOT NULL DEFAULT 'ringing',
+  `end_reason` varchar(10) DEFAULT NULL,
+  `created_at` datetime NOT NULL,
+  `connected_at` datetime DEFAULT NULL,
+  `ended_at` datetime DEFAULT NULL,
+  PRIMARY KEY (`id`),
+  KEY `ix_calls_group` (`group_id`,`status`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
+/*!40101 SET character_set_client = @saved_cs_client */;
+/*!40101 SET @saved_cs_client     = @@character_set_client */;
+/*!40101 SET character_set_client = utf8 */;
+CREATE TABLE `msg_call_members` (
+  `call_id` int(11) NOT NULL,
+  `EmpID` varchar(50) NOT NULL,
+  `state` varchar(10) NOT NULL,
+  `joined_at` datetime DEFAULT NULL,
+  `ping` datetime DEFAULT NULL,
+  PRIMARY KEY (`call_id`,`EmpID`),
+  KEY `ix_call_member` (`EmpID`,`state`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
+/*!40101 SET character_set_client = @saved_cs_client */;
+/*!40101 SET @saved_cs_client     = @@character_set_client */;
+/*!40101 SET character_set_client = utf8 */;
+CREATE TABLE `msg_call_signals` (
+  `id` int(11) NOT NULL AUTO_INCREMENT,
+  `call_id` int(11) NOT NULL,
+  `sender` varchar(50) NOT NULL,
+  `recipient` varchar(50) NOT NULL,
+  `kind` varchar(10) NOT NULL,
+  `payload` mediumtext NOT NULL,
+  `created_at` datetime NOT NULL,
+  PRIMARY KEY (`id`),
+  KEY `ix_signals_to` (`call_id`,`recipient`,`id`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
+/*!40101 SET character_set_client = @saved_cs_client */;
+/*!40101 SET @saved_cs_client     = @@character_set_client */;
+/*!40101 SET character_set_client = utf8 */;
+CREATE TABLE `msg_groups` (
+  `id` int(11) NOT NULL AUTO_INCREMENT,
+  `name` varchar(60) NOT NULL,
+  `created_by` varchar(50) NOT NULL,
+  `created_at` datetime NOT NULL,
+  PRIMARY KEY (`id`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
+/*!40101 SET character_set_client = @saved_cs_client */;
+/*!40101 SET @saved_cs_client     = @@character_set_client */;
+/*!40101 SET character_set_client = utf8 */;
+CREATE TABLE `msg_group_members` (
+  `group_id` int(11) NOT NULL,
+  `EmpID` varchar(50) NOT NULL,
+  `role` varchar(10) NOT NULL DEFAULT 'member',
+  `joined_at` datetime NOT NULL,
+  `last_read` int(11) NOT NULL DEFAULT 0,
+  PRIMARY KEY (`group_id`,`EmpID`),
+  KEY `ix_group_member` (`EmpID`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
+/*!40101 SET character_set_client = @saved_cs_client */;
+/*!40101 SET @saved_cs_client     = @@character_set_client */;
+/*!40101 SET character_set_client = utf8 */;
+CREATE TABLE `msg_presence` (
+  `EmpID` varchar(50) NOT NULL,
+  `last_seen` datetime NOT NULL,
+  `typing_to` varchar(50) DEFAULT NULL,
+  `typing_at` datetime DEFAULT NULL,
+  PRIMARY KEY (`EmpID`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
 /*!40101 SET character_set_client = @saved_cs_client */;
 /*!40101 SET @saved_cs_client     = @@character_set_client */;
 /*!40101 SET character_set_client = utf8 */;

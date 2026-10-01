@@ -128,15 +128,6 @@ $(document).ready(function(){
         $("#idempposition " + ".pos" + sval).show();
         $("#empis " + ".is" + sval).show();
       });
-    //new employee
-    $( "#sndmessage" ).click(function() {
-      $(".com-container").slideToggle();
-
-    });
-     $( "#sndm" ).click(function() {
-      $(".com-container").slideToggle();
-
-    });
  		$( ".btn-click button" ).click(function() {
           var vl = $(this).attr('id');
          

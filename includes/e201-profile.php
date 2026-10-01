@@ -11,7 +11,7 @@
  *   $rowbtn   accessrights row         $isSelf  true when $q is the viewer
  *   $mnum     unread message count (only used when $isSelf)
  *   $servername/$db/$username/$password  (from w_conn.php)
- * Leaves $res, $ISname and $eid set for the caller (chat panel / JD modal).
+ * Leaves $res, $ISname and $eid set for the caller (JD modal).
  * ========================================================================== */
 
 if (!function_exists('e2h')) {
@@ -50,7 +50,7 @@ if (!function_exists('e2h')) {
   function e2money($n) { return number_format((float)$n, 2); }
 }
 
-$sql = "SELECT empdetails.Seq_ID,hmo.HMO_PROVIDER,agency.AgencyName,empdetails.EmpID,empdetails.EmpDateHired,empdetails.EmpDateResigned,empstatus.EmpStatDesc,
+$sql = "SELECT empdetails.Seq_ID,empdetails.EmpISID,hmo.HMO_PROVIDER,agency.AgencyName,empdetails.EmpID,empdetails.EmpDateHired,empdetails.EmpDateResigned,empstatus.EmpStatDesc,
   workschedule.TimeFrom,workschedule.TimeTo,workdays.WDesc,companies.CompanyDesc,empdetails2.EmpBasic,
   empdetails2.EmpHRate,empdetails2.EmpAllowance,employees.EmpFN AS fn,employees.EmpLN AS ln,employees.EmpMN AS mn,
   empprofiles.EmpAddress1,empprofiles.EmpDOB,empprofiles.EmpGender,empprofiles.EmpEmail,empprofiles.EmpMobile,
@@ -166,9 +166,11 @@ $pdo->setAttribute(PDO::ATTR_ERRMODE, PDO::ERRMODE_EXCEPTION);
           <i class="fa-regular fa-envelope"></i><span>Messages</span>
           <?php if ($mnum > 0) { ?><b class="e2-act__badge"><?php echo (int)$mnum; ?></b><?php } ?>
         </a>
-        <button type="button" class="e2-act" id="sndmessage" title="Message your immediate superior">
-          <i class="fa-regular fa-comment"></i><span>Message IS</span>
-        </button>
+        <?php if ($ISname !== '') { ?>
+          <a class="e2-act" id="sndmessage" href="messages?with=<?php echo rawurlencode($res['EmpISID']); ?>" title="Message <?php echo e2h($ISname); ?>">
+            <i class="fa-regular fa-comment"></i><span>Message IS</span>
+          </a>
+        <?php } ?>
       <?php } ?>
       <?php if ($canUpdate) { ?>
         <button type="button" class="e2-act" id="btnprint" onclick="printDiv();" title="Print 201 file">

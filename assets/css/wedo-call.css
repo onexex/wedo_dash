@@ -1,0 +1,92 @@
+/* ==========================================================================
+   wedo-call.css — incoming-call card + call window (assets/js/wedo-call.js).
+   Self-contained (own tokens) so it also works on legacy pages without the theme.
+   ========================================================================== */
+.wdc-ring, .wdc{
+  --wdc-brand:#f93627; --wdc-ok:#16a34a; --wdc-bad:#dc2626; --wdc-ink:#16203a; --wdc-muted:#6b7385;
+  --wdc-font:'Biryani', system-ui, -apple-system, 'Segoe UI', sans-serif;
+  font-family:var(--wdc-font); box-sizing:border-box;
+}
+.wdc-ring *, .wdc *{box-sizing:border-box}
+.wdc-ring[hidden], .wdc[hidden], .wdc [hidden]{display:none !important}
+
+/* ---------------------------------------------------------------- incoming call card */
+.wdc-ring{position:fixed;top:18px;left:50%;transform:translateX(-50%);z-index:1060;width:min(380px, calc(100vw - 24px));
+  background:#101828;color:#fff;border-radius:20px;padding:16px 18px;box-shadow:0 20px 50px rgba(0,0,0,.35);
+  display:flex;align-items:center;gap:14px;animation:wdcDrop .3s ease-out}
+@keyframes wdcDrop{from{opacity:0;transform:translate(-50%,-16px)}to{opacity:1;transform:translate(-50%,0)}}
+.wdc-ring__info{flex:1;min-width:0}
+.wdc-ring__name{font-weight:700;font-size:15px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.wdc-ring__sub{font-size:12.5px;color:#cbd5e1;display:flex;align-items:center;gap:6px}
+.wdc-ring__btns{display:flex;gap:10px}
+.wdc-round{width:46px;height:46px;border-radius:50%;border:0;color:#fff;font-size:17px;cursor:pointer;display:flex;align-items:center;justify-content:center;transition:transform .12s, filter .12s}
+.wdc-round:hover{transform:scale(1.07);filter:brightness(1.08)}
+.wdc-round--ok{background:var(--wdc-ok)}
+.wdc-round--bad{background:var(--wdc-bad)}
+.wdc-round--ok i{animation:wdcWiggle 1.2s infinite}
+@keyframes wdcWiggle{0%,60%,100%{transform:rotate(0)}10%,30%,50%{transform:rotate(-14deg)}20%,40%{transform:rotate(14deg)}}
+
+/* avatars */
+.wdc-av{position:relative;flex:none;width:52px;height:52px;border-radius:50%;background:#334155;color:#fff;display:flex;align-items:center;justify-content:center;font-weight:700;font-size:17px}
+.wdc-av img{width:100%;height:100%;object-fit:cover;border-radius:50%}
+.wdc-av--pulse::before{content:"";position:absolute;inset:-6px;border-radius:50%;border:2px solid rgba(34,197,94,.7);animation:wdcPulse 1.6s infinite}
+@keyframes wdcPulse{0%{transform:scale(.9);opacity:1}100%{transform:scale(1.35);opacity:0}}
+.wdc-av--xl{width:110px;height:110px;font-size:36px}
+
+/* ---------------------------------------------------------------- call window */
+.wdc{position:fixed;inset:0;z-index:1055;background:rgba(5,10,20,.72);backdrop-filter:blur(6px);display:flex;align-items:center;justify-content:center;padding:20px}
+.wdc__stage{position:relative;width:min(1100px, 100%);height:min(720px, 100%);background:#0b1220;border-radius:22px;overflow:hidden;box-shadow:0 30px 80px rgba(0,0,0,.5)}
+.wdc__remote{position:absolute;inset:0;width:100%;height:100%;object-fit:cover;background:#0b1220}
+.wdc__peer{position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:12px;color:#fff;text-align:center;
+  background:radial-gradient(circle at 50% 35%, #1e293b 0%, #0b1220 70%)}
+.wdc__name{font-size:22px;font-weight:700}
+.wdc__status{font-size:14px;color:#cbd5e1;min-height:20px}
+.wdc__status.is-bad{color:#fca5a5}
+.wdc__top{position:absolute;top:14px;left:16px;right:16px;display:flex;align-items:center;justify-content:flex-end;gap:10px;color:#fff;z-index:2;pointer-events:none}
+.wdc__top .wdc__pill{background:rgba(0,0,0,.45);border-radius:999px;padding:5px 12px;font-size:12.5px;font-weight:600;display:flex;align-items:center;gap:7px}
+.wdc__dot{width:8px;height:8px;border-radius:50%;background:#22c55e}
+/* video tiles: 1 = full stage, 2 = side by side, 3 = one wide on top + two below */
+.wdc__grid{position:absolute;inset:0;display:grid;gap:6px;padding:6px;grid-template-columns:1fr;grid-auto-rows:1fr}
+.wdc__grid[data-n="2"]{grid-template-columns:1fr 1fr}
+.wdc__grid[data-n="3"]{grid-template-columns:1fr 1fr}
+.wdc__grid[data-n="3"] .wdc-tile:first-child{grid-column:span 2}
+.wdc-tile{position:relative;min-height:0;border-radius:14px;overflow:hidden;background:#111a2e;display:flex;align-items:center;justify-content:center}
+.wdc__grid[data-n="1"] .wdc-tile{border-radius:16px}
+.wdc-tile video{position:absolute;inset:0;width:100%;height:100%;object-fit:cover;opacity:0;transition:opacity .3s}
+.wdc-tile.has-video video{opacity:1}
+.wdc-tile__name{position:absolute;left:10px;top:10px;z-index:1;background:rgba(0,0,0,.5);color:#fff;border-radius:999px;padding:3px 10px;font-size:12px;font-weight:600}
+.wdc-tile.is-reconnecting::after{content:"Reconnecting…";position:absolute;bottom:90px;left:50%;transform:translateX(-50%);background:rgba(220,38,38,.85);color:#fff;border-radius:999px;padding:3px 10px;font-size:11.5px;font-weight:600}
+.wdc-av--tile{width:72px;height:72px;font-size:24px}
+.wdc-av--group{background:#7c2d12;font-size:24px}
+.wdc-av--xl.wdc-av--group{font-size:48px}
+.wdc__local{position:absolute;right:16px;bottom:96px;width:clamp(120px, 22%, 240px);aspect-ratio:4/3;object-fit:cover;border-radius:14px;
+  background:#1e293b;border:2px solid rgba(255,255,255,.18);box-shadow:0 8px 24px rgba(0,0,0,.4);transform:scaleX(-1);z-index:2}
+.wdc__local.is-off{opacity:.25}
+.wdc__bar{position:absolute;left:50%;bottom:18px;transform:translateX(-50%);display:flex;gap:14px;z-index:3;
+  background:rgba(15,23,42,.6);backdrop-filter:blur(8px);padding:10px 14px;border-radius:999px}
+.wdc-ctl{width:50px;height:50px;border-radius:50%;border:0;background:rgba(255,255,255,.14);color:#fff;font-size:18px;cursor:pointer;display:flex;align-items:center;justify-content:center;transition:background .15s, transform .12s}
+.wdc-ctl:hover{background:rgba(255,255,255,.24);transform:translateY(-1px)}
+.wdc-ctl.is-off{background:#fff;color:var(--wdc-ink)}
+.wdc-ctl--end{background:var(--wdc-bad);width:62px}
+.wdc-ctl--end:hover{background:#b91c1c}
+
+/* minimized: small floating window, page stays usable */
+.wdc.is-mini{inset:auto;left:18px;bottom:18px;background:none;backdrop-filter:none;padding:0}
+.wdc.is-mini .wdc__stage{width:300px;height:200px;border-radius:16px;cursor:pointer}
+.wdc.is-mini .wdc__local{width:90px;bottom:56px;right:8px;border-radius:10px}
+.wdc.is-mini .wdc__bar{bottom:8px;gap:8px;padding:6px 8px}
+.wdc.is-mini .wdc-ctl{width:36px;height:36px;font-size:14px}
+.wdc.is-mini .wdc-ctl--end{width:44px}
+.wdc.is-mini .wdc__name{font-size:15px}
+.wdc.is-mini .wdc-av--xl{width:56px;height:56px;font-size:19px}
+.wdc.is-mini .wdc__top{top:8px;left:8px}
+.wdc.is-mini [data-act="cam"], .wdc.is-mini [data-act="mic"]{display:none}
+
+@media (max-width:640px){
+  .wdc{padding:0}
+  .wdc__stage{width:100%;height:100%;border-radius:0}
+  .wdc__local{bottom:100px;right:12px;width:110px}
+}
+@media (prefers-reduced-motion: reduce){
+  .wdc-ring, .wdc-round--ok i, .wdc-av--pulse::before{animation:none}
+}

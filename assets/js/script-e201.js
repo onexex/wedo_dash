@@ -1,18 +1,4 @@
 $(document).ready(function(){
-          // display message
-        setInterval(function() {
-               
-                                        var xmlhttp = new XMLHttpRequest();
-                                xmlhttp.onreadystatechange = function() {
-                                if (this.readyState == 4 && this.status == 200) {
-                                    $("#com-messages").empty();
-                                    document.getElementById("com-messages").innerHTML = this.responseText;
-                                }
-                                };
-                                    xmlhttp.open("GET", "query/Query-LoadMessages.php?lde201", true);
-                                    xmlhttp.send();
-        }, 1000); 
-
            $(document).on("click", ".btnyespass", function(){
            
               var empidd = $(this).attr("id");
@@ -29,73 +15,6 @@ $(document).ready(function(){
                                     
                             });
            });
-
-      $("#btnsend").click(function(){
-           var ms = $("#mssg").val();
-                  if (ms.trim()==""){
-                      $('#modalWarning').modal('toggle');
-                      $('#modalWarning .alert').html("Please Input Message First !"); 
-
-                  }
-                    else{
-                    var msg = ms.trim();
-                     $.ajax({
-                                  url:'query/query-NewMessage.php', 
-                                  data:{data : msg},
-                                  type:'POST',
-                                                                       
-                                   success:function(data){
-                                       
-                                         $("#mssg").val("");
-                                        
-                                        var xmlhttp = new XMLHttpRequest();
-                                xmlhttp.onreadystatechange = function() {
-                                if (this.readyState == 4 && this.status == 200) {
-                                    $("#com-messages").empty();
-                                    document.getElementById("com-messages").innerHTML = this.responseText;
-                                }
-                                };
-                                    xmlhttp.open("GET", "query/Query-LoadMessages.php?lde201", true);
-                                    xmlhttp.send();
-                                    
-                                   }
-                            });
-                  }
-      });
-     $('#mssg').keyup(function(e){
-          if(e.keyCode == 13)
-          {
-                var ms = $("#mssg").val();
-                  if (ms.trim()==""){
-                            $('#modalWarning').modal('toggle');
-                  $('#modalWarning .alert').html("Please Input Message First !"); 
-                  }
-                    else{
-                    var msg = ms.trim();
-                     $.ajax({
-                                  url:'query/query-NewMessage.php', 
-                                  data:{data : msg},
-                                  type:'POST',
-                                                                       
-                                   success:function(data){
-                                       
-                                         $("#mssg").val("");
-                                        
-                                        var xmlhttp = new XMLHttpRequest();
-                                xmlhttp.onreadystatechange = function() {
-                                if (this.readyState == 4 && this.status == 200) {
-                                    $("#com-messages").empty();
-                                    document.getElementById("com-messages").innerHTML = this.responseText;
-                                }
-                                };
-                                    xmlhttp.open("GET", "query/Query-LoadMessages.php?lde201", true);
-                                    xmlhttp.send();
-                                    
-                                   }
-                            });
-                  }
-          }
-     });
 
     // 201 files → shared PDF viewer (delegated: tiles are re-rendered by live search).
     // The PDF only loads on click, and is unloaded on close.

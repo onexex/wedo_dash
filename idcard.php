@@ -147,8 +147,9 @@ $v = function ($f) { return @filemtime(__DIR__ . '/' . $f) ?: 0; };
 
               <button type="button" class="wd-btn wd-btn--primary idc-printone" id="pvPrint"><i class="fa-solid fa-print"></i> <span>Issue &amp; print</span></button>
               <p class="wd-muted idc-small idc-printhint">
-                In the print dialog choose the card printer, <b>Margins: None</b>, <b>Scale: 100</b>, portrait, two-sided.
-                Each card prints as two pages: front, then back.
+                In the print dialog choose <b>Badgy100</b>, <b>Margins: None</b>, <b>Scale: 100</b>.
+                The printer does one side at a time: the fronts print first, then you turn the cards over,
+                put them back in the feeder and print the backs.
               </p>
             </div>
           </div>
