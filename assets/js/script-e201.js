@@ -1,26 +1,3 @@
-      
-        function fnctshow(){
-         var c = document.getElementsByClassName("bsc-hide");
-         var d = document.getElementsByClassName("bsc-hide1");
-         var e = document.getElementsByClassName("bsc-hide2");
-
-           if (c[0].style.display === "none") {
-              c[0].style.display = "table-row";
-            } else {
-              c[0].style.display = "none";
-            }
-            if (d[0].style.display === "none") {
-              d[0].style.display = "table-row";
-            } else {
-              d[0].style.display = "none";
-            }
-            if (e[0].style.display === "none") {
-              e[0].style.display = "table-row";
-            } else {
-              e[0].style.display = "none";
-            }
-         
-        }
 $(document).ready(function(){
           // display message
         setInterval(function() {
@@ -120,6 +97,26 @@ $(document).ready(function(){
           }
      });
 
+    // 201 files → shared PDF viewer (delegated: tiles are re-rendered by live search).
+    // The PDF only loads on click, and is unloaded on close.
+    $(document).on("click", ".e2-file", function(e){
+        if (e.ctrlKey || e.metaKey || e.shiftKey || e.which === 2) { return; } // let new-tab clicks through
+        e.preventDefault();
+        var src = $(this).data("pdf");
+        var $v  = $("#e201PdfViewer");
+        $v.find(".e201-pdf-title").text($(this).data("title") || "Document");
+        $v.find(".e201-pdf-open").attr("href", src);
+        $v.find(".e201-pdf-frame").attr("src", src);
+        $v.modal("show");
+    });
+    $("#e201PdfViewer").on("hidden.bs.modal", function(){
+        $(this).find(".e201-pdf-frame").attr("src", "about:blank");
+    });
+
+    $(document).on("click", ".e2-salary__toggle", function(){
+        $(this).closest(".e2-salary").toggleClass("is-revealed");
+    });
+
     $('.search-box').on("keyup input", function(){
  
         /* Get input value on change */
@@ -148,6 +145,7 @@ $(document).ready(function(){
         if (this.readyState == 4 && this.status == 200) {
           $("#e201").empty();
           document.getElementById("e201").innerHTML = this.responseText;
+          $('#e201 [data-toggle="tooltip"]').tooltip();
       }
     };
           xmlhttp.open("GET", "query/Query-e201.php?q=" + idname, true);
@@ -286,114 +284,79 @@ $(document).ready(function(){
 
            
 
-  function printthisDiv(){
-        try {
-       
-       
-                             var divToPrint=document.getElementById('e201');
-          // var divtoEdet=document.getElementById('emp-detailscdc');
-          // // var profname=document.getElementById('profname');
-          // var edtoh=document.getElementById('ed-to-hide');
-          
-
-          var x = document.getElementById("cdc-hide");
-          var y = document.getElementById("prof-img");
-          var z = document.getElementById("btnprint");
-          var a = document.getElementById("msg");
-          var e = document.getElementById("emp-pos");
-          var d = document.getElementById("emp-company");
-          var c = document.getElementById("emp-name");
-          var b = document.getElementById("cinfo-title-fd");
-          var f = document.getElementById("Updateinfo");
-          // var g = document.getElementById("sndmessage");
-          // var h = document.getElementById("btnp");
-          
-
-          y.style.cssFloat = "right";
-          // divtoEdet.style.display = "block";
-          x.style.display = "none";
-          y.style.display = "inline-block";
-          c.style.display = "inline-block";
-          z.style.display = "none";
-          a.style.display = "none";
-          f.style.display = "none";
-          // g.style.display = "none";
-          y.style.height = '250px';
-          y.style.width = '250px';
-        var newWin=window.open('','Print-Window');
-
-        newWin.document.open();
-
-        newWin.document.write('<html><head><link rel="stylesheet" href="https://stackpath.bootstrapcdn.com/bootstrap/4.3.1/css/bootstrap.min.css" integrity="sha384-ggOyR0iXCbMQv3Xipma34MD+dH/1fQ784/j6cY/iJTQUOhcWr7x9JvoRxT2MZw1T" crossorigin="anonymous">');
-        newWin.document.write('<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">');
-        newWin.document.write('<script src="https://cdnjs.cloudflare.com/ajax/libs/popper.js/1.14.7/umd/popper.min.js" integrity="sha384-UO2eT0CpHqdSJQ6hJty5KVphtPhzWj9WO1clHTMGa3JDZwrnQq4sF86dIHNDz0W1" crossorigin="anonymous"></script>');
-        newWin.document.write('<script src="https://ajax.googleapis.com/ajax/libs/jquery/3.4.0/jquery.min.js"></script>');
-        newWin.document.write('<script src="assets/js/script.js"></script>');
-        newWin.document.write('<script src="assets/js/script-e201.js"></script>');
-        newWin.document.write('<script src="https://stackpath.bootstrapcdn.com/bootstrap/4.3.1/js/bootstrap.min.js" integrity="sha384-JjSmVgyd0p3pXB1rRibZUAYoIIy6OrQ6VrjIEaFf/nJGzIxFDsf4x0xIM+B07jRM" crossorigin="anonymous"></script>');
-        newWin.document.write('<link rel="stylesheet" type="text/css" href="assets/css/style.css">');
-        newWin.document.write('<link rel="stylesheet" type="text/css" href="assets/css/wedo-theme.css">');
-        newWin.document.write('</head><body onload="window.print()">'
-          + divToPrint.innerHTML + 
-          '</body></html>');
-
-        newWin.document.close();
-
-        setTimeout(function(){newWin.close();},10);
-        x.style.display = "inline-block";
-        z.style.display = "inline-block";
-        a.style.display = "inline-block";
-        f.style.display = "inline-block";
-        // g.style.display = "inline-block";
-             // divtoEdet.style.marginTop = "0px";
-            y.style.display = "none";
-           c.style.marginLeft = "0px";
-
-            }
-        catch(err) {
-          alert(err.message);
-        }
-  }
   function printDiv() {
-    // null-safe helpers — the page only renders some elements (changepasskey,
-    // Updateinfo, etc.) for certain roles, so guard every access.
-    var byId    = function (id) { return document.getElementById(id); };
-    var setDisp = function (id, v) { var el = byId(id); if (el) { el.style.display = v; } };
-    // Hide only interactive chrome. Keep the whole left column (#cdc-hide:
-    // photo + compliance/JD/employment + 201 files) so the printout is complete.
-    var CHROME  = ['msg', 'btnprint', 'changepasskey', 'Updateinfo', 'sndmessage'];
+    // Prints #e201 from a hidden, same-page iframe. (A window.open('') pop-up +
+    // document.write left a stray tab behind on Cancel that showed the main
+    // page's URL over a static snapshot — reloading it broke.)
+    var src = document.getElementById('e201');
+    if (!src) { return; }
 
-    var divToPrint = byId('e201');
-    if (!divToPrint) { return; }
+    var old = document.getElementById('e201PrintFrame');
+    if (old) { old.parentNode.removeChild(old); }
 
-    CHROME.forEach(function (id) { setDisp(id, 'none'); });
-
-    var restore = function () {
-      CHROME.forEach(function (id) { setDisp(id, ''); });
+    // reuse the page's own (cache-busted) stylesheet URLs
+    var cssHref = function (needle, fallback) {
+      var l = document.querySelector('link[href*="' + needle + '"]');
+      return l ? l.href : fallback;
     };
+    var esc = function (s) { return String(s).replace(/"/g, '&quot;'); };
+    var txt = function (s) { return String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;'); };
 
-    var html = divToPrint.innerHTML;
-    var win  = window.open('', 'Print-Window');
-    if (!win) {                       // pop-up blocked
-      restore();
-      alert('Please allow pop-ups for this site to print the 201 file.');
-      return;
-    }
+    // document letterhead + footer (print only)
+    var company = (document.querySelector('.wd-brand__tag') || {}).textContent || 'WeDo BPO Inc';
+    var nameEl  = src.querySelector('.e2-name');
+    var printedOn = new Date().toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' });
+    var printHead =
+      '<header class="e2-doc-head">' +
+        '<img src="assets/images/logos/wedo-logo.png" alt="">' +
+        '<div><strong>Electronic 201 File</strong><span>' + txt(company.trim()) + '</span></div>' +
+        '<div class="e2-doc-head__meta"><b>Confidential</b><span>Printed ' + txt(printedOn) + '</span></div>' +
+      '</header>';
+    var printFoot =
+      '<footer class="e2-doc-foot">' +
+        '<span>' + txt(nameEl ? nameEl.textContent.trim() : '') + ' &middot; 201 File</span>' +
+        '<span>This document contains confidential employee information.</span>' +
+      '</footer>';
 
-    win.document.open();
-    win.document.write(
-      '<html><head><title>201 File</title>' +
-      '<base href="' + document.baseURI + '">' +
-      '<link rel="stylesheet" href="https://maxcdn.bootstrapcdn.com/bootstrap/3.3.7/css/bootstrap.min.css">' +
+    var frame = document.createElement('iframe');
+    frame.id = 'e201PrintFrame';
+    frame.setAttribute('aria-hidden', 'true');
+    frame.style.cssText = 'position:fixed;right:0;bottom:0;width:0;height:0;border:0;visibility:hidden';
+    document.body.appendChild(frame);
+
+    var doc = frame.contentWindow.document;
+    doc.open();
+    doc.write(
+      '<!DOCTYPE html><html><head><meta charset="utf-8"><title>201 File</title>' +
+      '<base href="' + esc(document.baseURI) + '">' +
+      // no Bootstrap here: its @media print block strips all backgrounds, forces
+      // black text and appends "(url)" after every link — the profile doesn't need it
       '<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">' +
-      '<link rel="stylesheet" type="text/css" href="assets/css/wedo-theme.css">' +
-      '<link rel="stylesheet" type="text/css" href="assets/css/e201.css">' +
-      '<style>body{padding:24px;background:#fff}</style>' +
-      '</head><body onload="window.print()">' +
-      '<div class="e201-scope e201-print">' + html + '</div>' +
+      '<link rel="stylesheet" href="' + esc(cssHref('wedo-theme.css', 'assets/css/wedo-theme.css')) + '">' +
+      '<link rel="stylesheet" href="' + esc(cssHref('e201.css', 'assets/css/e201.css')) + '">' +
+      '<style>html,body{background:#fff}body{padding:0}</style>' +
+      '</head><body>' +
+      '<div class="e201-scope e201-print">' + printHead + src.innerHTML + printFoot + '</div>' +
       '</body></html>'
     );
-    win.document.close();
+    doc.close();
 
-    restore();
+    var printed = false;
+    var go = function () {
+      if (printed) { return; }
+      printed = true;
+      var w = frame.contentWindow;
+      var fire = function () {
+        w.focus();
+        w.print();   // blocks until the dialog closes (Print or Cancel)
+        setTimeout(function () { if (frame.parentNode) { frame.parentNode.removeChild(frame); } }, 500);
+      };
+      // Raleway/Biryani come from Google Fonts — wait so the print isn't in a fallback font
+      if (w.document.fonts && w.document.fonts.ready) {
+        w.document.fonts.ready.then(fire, fire);
+      } else { fire(); }
+    };
+    // wait for stylesheets / photo, but don't hang if a CDN is slow
+    frame.onload = function () { setTimeout(go, 150); };
+    setTimeout(go, 3000);
   }

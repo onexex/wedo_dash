@@ -1,89 +1,248 @@
 /* ===========================================================================
-   e201.css — themes the Electronic 201 File page (e201.php) and its live-search
-   twin (query/Query-e201.php) on top of the WeDo design system (wedo-theme.css).
+   e201.css — Electronic 201 File (e201.php + live-search twin query/Query-e201.php,
+   both rendering includes/e201-profile.php) on top of wedo-theme.css.
 
-   Profile-content rules are scoped to .e201-scope, a class set on BOTH:
+   Profile rules are scoped to .e201-scope, a class set on BOTH:
      • the on-page  <div id="e201" class="… e201-scope">
-     • the print-window wrapper  <div class="e201-scope">  (see script-e201.js)
+     • the print-window wrapper  <div class="e201-scope e201-print">  (script-e201.js)
    so the printout matches the screen. Page-only chrome (search box, floating
    message panel, job-description modal) is left global — it is never printed.
    ========================================================================== */
 
-/* ---- Section cards (legacy .emp-details) -------------------------------- */
-.e201-scope .row{margin:0}
-.e201-scope .emp-details{background:var(--surface);border:1px solid var(--border);
-  border-radius:var(--radius-lg);box-shadow:var(--shadow-sm);margin-bottom:18px;overflow:hidden;
-  transition:box-shadow .18s ease,transform .18s ease}
-.e201-scope .emp-details:hover{box-shadow:0 6px 22px rgba(9,21,46,.08);transform:translateY(-1px)}
-.e201-scope .dropdwn-title,.e201-scope .cinfo-title{position:relative;font-family:var(--font-head);
-  font-size:12px;font-weight:700;letter-spacing:.04em;text-transform:uppercase;color:var(--text);
-  margin:0;padding:14px 18px 14px 22px;background:var(--surface-2);border-bottom:1px solid var(--border)}
-.e201-scope .dropdwn-title::before,.e201-scope .cinfo-title::before{content:"";position:absolute;
-  left:0;top:50%;transform:translateY(-50%);width:4px;height:18px;border-radius:0 3px 3px 0;background:var(--brand)}
-.e201-scope .cinfo-title{border-radius:var(--radius-lg) var(--radius-lg) 0 0;margin-top:18px}
-.e201-scope .emp-details hr,.e201-scope .cinfohr{display:none}
-.e201-scope .aaaa,.e201-scope .tbl-hide{padding:2px 4px}
+/* ---- resets for Bootstrap 3 defaults inside the profile ------------------- */
+.e201-scope{margin-top:18px}
+/* :where() keeps these at single-class weight so component padding below wins */
+.e201-scope :where(dl,ol,ul){margin:0;padding:0;list-style:none}
+.e201-scope dt{font-weight:inherit}
+.e201-scope dd{margin:0}
+.e201-scope h2,.e201-scope h3{margin:0}
 
-/* ---- Key / value tables ------------------------------------------------- */
-.e201-scope .table{margin:0;background:none}
-.e201-scope .table th,.e201-scope .table td{border:none;border-top:1px solid var(--border);
-  padding:11px 18px;font-size:13px;color:var(--text-2);vertical-align:middle;font-weight:500}
-.e201-scope .table thead tr:first-child th,.e201-scope .table thead tr:first-child td{border-top:none}
-.e201-scope .table tr:hover th,.e201-scope .table tr:hover td{background:var(--surface-2)}
-.e201-scope .cdd-tr .det-f,.e201-scope .ci-det .info-t{color:var(--text-2);font-weight:600}
-.e201-scope .cdd-tr .com_number,.e201-scope .ci-det th:last-child{color:var(--text);font-weight:600;text-align:right}
-.e201-scope .pos{font-weight:700;color:var(--text)}
-.e201-scope .current-prev{font-style:normal;font-size:10.5px;font-weight:700;color:var(--brand);
-  text-transform:uppercase;letter-spacing:.03em;margin-left:4px}
-.e201-scope .toggle-btn{float:right;color:var(--text-3);font-size:12px}
+.e2-empty{color:var(--text-3);font-weight:400}
+.e2-sub{display:flex;align-items:center;gap:6px;color:var(--text-2);font-size:12.5px;font-weight:500;line-height:1.5}
+.e2-sub i{color:var(--text-3);font-size:11px;width:12px;text-align:center}
+.e2-none{margin:0;padding:18px 20px;color:var(--text-3);font-size:13px}
+.e2-dot{display:inline-block;width:4px;height:4px;border-radius:50%;background:var(--text-3);margin:0 9px;vertical-align:middle}
 
-/* ---- Profile photo + identity ------------------------------------------- */
-.e201-scope #cdc-hide{position:sticky;top:0}
-.e201-scope .prof-img{width:100%;max-width:280px;aspect-ratio:1/1;height:auto;border-radius:var(--radius-lg);
-  border:1px solid var(--border);box-shadow:0 8px 24px rgba(9,21,46,.10);background-size:cover;
-  background-position:center;margin:0 auto 18px;outline:4px solid var(--surface);outline-offset:-4px}
-.e201-scope .emp-name{font-family:var(--font-head);color:var(--text);font-size:24px;font-weight:700;
-  line-height:1.2;margin:0 0 2px;display:flex;align-items:center;gap:10px;flex-wrap:wrap}
-.e201-scope .emp-pos{color:var(--text-2);font-size:14px;font-weight:600;margin:4px 0 0}
-.e201-scope .emp-company{display:inline-block;color:var(--text-2);font-size:12px;font-weight:600;
-  background:var(--surface-2);border:1px solid var(--border);border-radius:var(--radius-pill);
-  padding:3px 11px;margin:6px 6px 0 0}
-.e201-scope .msg{padding:0 0 14px}
-.e201-scope .msg a{display:inline-flex;align-items:center;gap:6px;color:var(--brand);font-weight:600;
-  font-size:13px;text-decoration:none}
-.e201-scope .msg a i{background:var(--brand);color:#fff;border-radius:var(--radius-pill);
-  min-width:18px;height:18px;display:inline-flex;align-items:center;justify-content:center;
-  padding:0 6px;font-size:11px;font-style:normal;font-weight:700}
+/* entrance */
+@keyframes e2-in{from{opacity:0;transform:translateY(8px)}to{opacity:1;transform:none}}
+/* fill-mode "backwards" (not "both"): a forwards-filled transform animation stays
+   "in effect", which turns the card into a containing block for position:fixed
+   descendants and traps modals inside it */
+.e201-scope .e2-hero,.e201-scope .e2-card{animation:e2-in .35s ease backwards}
+.e201-scope .e2-col .e2-card:nth-child(2){animation-delay:.04s}
+.e201-scope .e2-col .e2-card:nth-child(3){animation-delay:.08s}
+.e201-scope .e2-col .e2-card:nth-child(4){animation-delay:.12s}
+@media (prefers-reduced-motion:reduce){.e201-scope .e2-hero,.e201-scope .e2-card{animation:none}}
 
-/* divider under the identity row */
-.e201-scope .cinfohr{display:none}
+/* ======================================================================
+   HERO
+   ====================================================================== */
+.e2-hero{background:var(--surface);border:1px solid var(--border);border-radius:var(--radius-lg);
+  box-shadow:var(--shadow);overflow:hidden;margin-bottom:18px}
 
-/* ---- Action buttons by the name ----------------------------------------- */
-.e201-scope .emp-name a#sndmessage{font-size:16px}
-.e201-scope .btnprint,.e201-scope .btnupdate,.e201-scope .btnresetpass{border:none;border-radius:var(--radius);
-  padding:7px 12px;font-size:13px;color:#fff;margin-left:5px;display:inline-flex;align-items:center;
-  box-shadow:var(--shadow-sm);transition:filter .15s ease,transform .15s ease}
-.e201-scope .btnprint:hover,.e201-scope .btnupdate:hover,.e201-scope .btnresetpass:hover{filter:brightness(.92);transform:translateY(-1px)}
-.e201-scope .btnprint{background:var(--info-text)}
-.e201-scope .btnupdate{background:var(--brand)}
-.e201-scope .btnresetpass{background:var(--ok-text)}
+.e2-hero__cover{position:relative;height:118px;overflow:hidden;
+  background:
+    radial-gradient(circle at 88% -30%,rgba(249,54,39,.55) 0,rgba(249,54,39,0) 55%),
+    radial-gradient(circle at 8% 140%,rgba(31,91,191,.35) 0,rgba(31,91,191,0) 50%),
+    linear-gradient(120deg,var(--navy) 0%,var(--navy-2) 100%)}
+/* fine dot texture */
+.e2-hero__cover::before{content:"";position:absolute;inset:0;opacity:.18;
+  background-image:radial-gradient(rgba(255,255,255,.7) 1px,transparent 1.2px);background-size:16px 16px;
+  -webkit-mask-image:linear-gradient(90deg,transparent 0,#000 60%);mask-image:linear-gradient(90deg,transparent 0,#000 60%)}
+/* brand swoosh */
+.e2-hero__cover::after{content:"";position:absolute;right:-60px;bottom:-90px;width:320px;height:180px;
+  border-radius:50%;border:2px solid rgba(255,255,255,.12);transform:rotate(-12deg)}
 
-/* ---- Electronic 201 file chips ------------------------------------------ */
-.e201-scope .e-files{display:flex;flex-wrap:wrap;gap:10px;padding:14px}
-.e201-scope .e-files .col-lg-2{width:auto;padding:0;float:none}
-.e201-scope .e-files a{display:flex;align-items:center;gap:9px;padding:11px 14px;border:1px solid var(--border);
-  border-radius:var(--radius);background:var(--surface-2);color:var(--text);font-size:12.5px;font-weight:600;
-  text-decoration:none;transition:border-color .15s ease,background .15s ease}
-.e201-scope .e-files a:hover{background:var(--surface);border-color:var(--brand);box-shadow:var(--shadow-sm)}
-.e201-scope .e-files i{color:var(--brand);font-size:20px}
+.e2-hero__body{display:grid;grid-template-columns:auto minmax(0,1fr) auto;align-items:end;gap:22px;
+  padding:0 24px 20px}
 
-/* ---- Hidden / toggle bits ----------------------------------------------- */
-.e201Hide{display:none}
-/* Bootstrap-4 hide utility used by legacy markup (e.g. the Work Schedules
-   block) — undefined under this page's Bootstrap 3, so define it to hide. */
-.d-none{display:none !important}
-.e201-scope .bsc-hide{display:none}
-.e201-scope .bsc-show{cursor:pointer;color:var(--brand)}
+/* positioned + z-index so it paints above the (positioned) cover it overlaps */
+.e2-avatar{position:relative;z-index:1;width:116px;height:116px;border-radius:26px;margin-top:-54px;object-fit:cover;display:block;
+  border:4px solid var(--surface);box-shadow:0 10px 26px rgba(9,21,46,.22);background:var(--surface-2)}
+.e2-avatar--initials{display:flex;align-items:center;justify-content:center;color:#fff;
+  font-family:var(--font-head);font-size:40px;font-weight:700;letter-spacing:.02em;
+  background:linear-gradient(135deg,var(--brand) 0%,var(--brand-700) 100%)}
+
+.e2-ident{min-width:0;padding-top:14px}
+.e2-name{font-family:var(--font-head);font-size:26px;font-weight:700;line-height:1.2;color:var(--text);
+  letter-spacing:-.3px}
+.e2-role{margin-top:3px;color:var(--text-2);font-size:14px;font-weight:600}
+.e2-tags{display:flex;flex-wrap:wrap;gap:6px;margin-top:10px}
+.e2-tags .wd-pill i{font-size:6px}
+.e2-tag{display:inline-flex;align-items:center;gap:6px;font-size:11.5px;font-weight:600;color:var(--text-2);
+  background:var(--surface-2);border:1px solid var(--border);border-radius:var(--radius-pill);padding:3px 11px}
+.e2-tag i{color:var(--text-3);font-size:10.5px}
+
+.e2-actions{display:flex;flex-wrap:wrap;justify-content:flex-end;gap:8px}
+.e2-act{position:relative;display:inline-flex;align-items:center;gap:7px;height:38px;padding:0 14px;
+  border-radius:var(--radius);border:1px solid var(--border-2);background:var(--surface);color:var(--text);
+  font-family:inherit;font-size:12.5px;font-weight:600;cursor:pointer;text-decoration:none;
+  transition:background .15s ease,border-color .15s ease,transform .15s ease,box-shadow .15s ease}
+.e2-act:hover,.e2-act:focus{background:var(--surface-2);color:var(--text);text-decoration:none;
+  transform:translateY(-1px);box-shadow:var(--shadow)}
+.e2-act:focus{outline:none}
+.e2-act:focus-visible{outline:2px solid var(--brand);outline-offset:2px}
+.e2-act i{font-size:13px;color:var(--text-2)}
+.e2-act--primary{background:var(--brand);border-color:var(--brand);color:#fff}
+.e2-act--primary i{color:#fff}
+.e2-act--primary:hover,.e2-act--primary:focus{background:var(--brand-600);border-color:var(--brand-600);color:#fff}
+.e2-act--icon{width:38px;padding:0;justify-content:center}
+.e2-act__badge{position:absolute;top:-7px;right:-7px;min-width:19px;height:19px;padding:0 5px;
+  border-radius:var(--radius-pill);background:var(--brand);color:#fff;font-size:10.5px;font-weight:700;
+  display:flex;align-items:center;justify-content:center;border:2px solid var(--surface)}
+
+/* quick facts */
+.e2-facts{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));border-top:1px solid var(--border);
+  background:linear-gradient(180deg,var(--surface-2) 0%,var(--surface) 100%)}
+.e2-fact{display:flex;align-items:flex-start;gap:12px;padding:16px 22px;min-width:0}
+.e2-fact + .e2-fact{border-left:1px solid var(--border)}
+.e2-fact__icon{flex:0 0 34px;width:34px;height:34px;border-radius:10px;background:var(--brand-tint);
+  color:var(--brand);display:flex;align-items:center;justify-content:center;font-size:14px}
+.e2-fact div{min-width:0;display:flex;flex-direction:column}
+.e2-fact small{font-size:10.5px;font-weight:700;letter-spacing:.06em;text-transform:uppercase;color:var(--text-3)}
+.e2-fact strong{font-size:14px;font-weight:700;color:var(--text);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.e2-fact em{font-style:normal;font-size:12px;color:var(--text-2)}
+
+/* ======================================================================
+   GRID + CARDS
+   ====================================================================== */
+.e2-grid{display:grid;grid-template-columns:minmax(0,1.6fr) minmax(0,1fr);gap:18px;align-items:start}
+.e2-col{display:flex;flex-direction:column;gap:18px;min-width:0}
+
+.e2-card{background:var(--surface);border:1px solid var(--border);border-radius:var(--radius-lg);
+  box-shadow:var(--shadow-sm);overflow:hidden;transition:box-shadow .2s ease}
+.e2-card:hover{box-shadow:0 8px 24px rgba(9,21,46,.07)}
+.e2-card__head{display:flex;align-items:center;justify-content:space-between;gap:10px;padding:14px 20px;
+  border-bottom:1px solid var(--border)}
+.e2-card__head h3{display:flex;align-items:center;gap:10px;font-size:14.5px;font-weight:700;color:var(--text)}
+.e2-card__head h3 i{width:30px;height:30px;border-radius:9px;background:var(--brand-tint);color:var(--brand);
+  display:inline-flex;align-items:center;justify-content:center;font-size:13px}
+.e2-count{min-width:24px;height:22px;padding:0 8px;border-radius:var(--radius-pill);background:var(--surface-2);
+  color:var(--text-2);font-size:11.5px;font-weight:700;display:inline-flex;align-items:center;justify-content:center}
+
+/* key / value grid */
+.e2-dl{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));column-gap:28px;padding:4px 20px 8px}
+.e2-dl__row{padding:12px 0;border-bottom:1px dashed var(--border);min-width:0}
+.e2-dl__row--full{grid-column:1 / -1}
+.e2-dl > .e2-dl__row:nth-last-child(-n+2):not(.e2-dl__row--full){border-bottom:none}
+.e2-dl dt{font-size:10.5px;font-weight:700;letter-spacing:.06em;text-transform:uppercase;color:var(--text-3);margin-bottom:2px}
+.e2-dl dd{font-size:13.5px;font-weight:600;color:var(--text);word-break:break-word}
+.e2-dl dd a{color:var(--info-text)}
+
+/* salary — blurred until revealed */
+.e2-salary{margin:6px 20px 20px;border:1px solid var(--border);border-radius:var(--radius);background:var(--surface-2)}
+.e2-salary__head{display:flex;align-items:center;justify-content:space-between;padding:10px 14px;
+  font-size:12.5px;font-weight:700;color:var(--text)}
+.e2-salary__head > span i{color:var(--text-3);margin-right:8px}
+.e2-salary__toggle{display:inline-flex;align-items:center;gap:6px;border:none;background:none;padding:2px 4px;
+  color:var(--brand);font-size:12px;font-weight:700;cursor:pointer;font-family:inherit}
+.e2-salary__toggle:focus{outline:none}
+.e2-salary__hide,.e2-salary.is-revealed .e2-salary__show{display:none}
+.e2-salary.is-revealed .e2-salary__hide{display:inline}
+.e2-salary__grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));border-top:1px solid var(--border)}
+.e2-salary__grid > div{padding:12px 14px;display:flex;flex-direction:column;min-width:0}
+.e2-salary__grid > div + div{border-left:1px solid var(--border)}
+.e2-salary__grid small{font-size:10.5px;font-weight:700;letter-spacing:.06em;text-transform:uppercase;color:var(--text-3)}
+.e2-salary__grid strong{font-size:15px;font-weight:700;color:var(--text);font-variant-numeric:tabular-nums;
+  filter:blur(6px);user-select:none;transition:filter .25s ease}
+.e2-salary.is-revealed .e2-salary__grid strong{filter:none;user-select:auto}
+
+/* timeline (education, work history) */
+.e2-timeline{position:relative;padding:18px 20px 6px 46px}
+.e2-timeline::before{content:"";position:absolute;left:27px;top:26px;bottom:26px;width:2px;background:var(--border)}
+.e2-timeline__item{position:relative;display:flex;flex-direction:column;padding-bottom:16px}
+.e2-timeline__item::before{content:"";position:absolute;left:-24px;top:4px;width:12px;height:12px;border-radius:50%;
+  background:var(--surface);border:2px solid var(--border-2)}
+.e2-timeline__item.is-current::before{background:var(--brand);border-color:var(--brand);box-shadow:0 0 0 4px var(--brand-tint)}
+.e2-timeline__label{font-size:10.5px;font-weight:700;letter-spacing:.06em;text-transform:uppercase;color:var(--text-3)}
+.e2-timeline__item.is-current .e2-timeline__label{color:var(--brand)}
+.e2-timeline__item strong{font-size:13.5px;font-weight:700;color:var(--text)}
+.e2-timeline__item.is-empty strong{color:var(--text-3);font-weight:500}
+
+/* emergency contacts */
+.e2-contacts{display:grid;grid-template-columns:repeat(auto-fill,minmax(230px,1fr));gap:12px;padding:16px 20px 20px}
+.e2-contact{display:flex;gap:12px;padding:14px;border:1px solid var(--border);border-radius:var(--radius);min-width:0}
+.e2-contact.is-ice{border-color:rgba(249,54,39,.35);background:linear-gradient(180deg,rgba(249,54,39,.04),transparent)}
+.e2-contact__avatar{flex:0 0 38px;width:38px;height:38px;border-radius:50%;background:var(--surface-2);color:var(--text-2);
+  display:flex;align-items:center;justify-content:center;font-family:var(--font-head);font-weight:700;font-size:15px}
+.e2-contact.is-ice .e2-contact__avatar{background:var(--brand-tint);color:var(--brand)}
+.e2-contact__body{display:flex;flex-direction:column;min-width:0}
+.e2-contact__body strong{font-size:13.5px;color:var(--text);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.e2-ice{font-size:9.5px;font-weight:800;letter-spacing:.06em;padding:1px 6px;border-radius:var(--radius-pill);
+  background:var(--brand);color:#fff}
+
+/* government IDs */
+.e2-ids li{display:grid;grid-template-columns:32px minmax(0,1fr) auto;align-items:center;gap:12px;
+  padding:11px 20px;border-bottom:1px solid var(--border)}
+.e2-ids li:last-child{border-bottom:none}
+.e2-ids__icon{width:32px;height:32px;border-radius:9px;background:var(--surface-2);color:var(--text-2);
+  display:flex;align-items:center;justify-content:center;font-size:13px}
+.e2-ids__label{font-size:13px;font-weight:600;color:var(--text-2);min-width:0}
+.e2-ids__label .e2-sub{font-size:11.5px;color:var(--text-3)}
+.e2-ids__val{font-size:13.5px;font-weight:700;color:var(--text);font-variant-numeric:tabular-nums;
+  letter-spacing:.02em;text-align:right;word-break:break-all}
+
+/* job description */
+.e2-jd{padding:8px 20px 12px}
+.e2-jd li{position:relative;padding:8px 0 8px 26px;font-size:13px;color:var(--text);border-bottom:1px dashed var(--border)}
+.e2-jd li:last-child{border-bottom:none}
+.e2-jd li::before{content:"\f00c";font-family:"Font Awesome 6 Free";font-weight:900;position:absolute;left:0;top:9px;
+  width:16px;height:16px;border-radius:50%;background:var(--ok-bg);color:var(--ok-text);font-size:8.5px;
+  display:flex;align-items:center;justify-content:center}
+.e2-jd li.e2-none{padding:10px 0;border:none}
+.e2-jd li.e2-none::before{display:none}
+
+/* 201 files */
+.e2-files{display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:10px;padding:16px 20px 20px}
+.e2-file{display:flex;align-items:center;gap:10px;padding:11px 12px;border:1px solid var(--border);
+  border-radius:var(--radius);background:var(--surface);color:var(--text);text-decoration:none;min-width:0;
+  transition:border-color .15s ease,box-shadow .15s ease,transform .15s ease}
+.e2-file:hover,.e2-file:focus{border-color:var(--brand);box-shadow:var(--shadow);transform:translateY(-1px);
+  color:var(--text);text-decoration:none}
+.e2-file i{flex:0 0 auto;font-size:22px;color:var(--danger-text)}
+.e2-file span{display:flex;flex-direction:column;min-width:0;font-size:12.5px;font-weight:700;line-height:1.3;
+  overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.e2-file small{font-size:10.5px;font-weight:500;color:var(--text-3)}
+
+/* not found */
+.e2-notfound{text-align:center;padding:60px 20px;background:var(--surface);border:1px dashed var(--border-2);
+  border-radius:var(--radius-lg);color:var(--text-2)}
+.e2-notfound i{font-size:34px;color:var(--text-3);margin-bottom:12px}
+.e2-notfound h3{font-size:18px;margin-bottom:4px}
+.e2-notfound p{margin:0;font-size:13px}
+
+/* Shared PDF viewer (#e201PdfViewer, page-level) */
+#e201PdfViewer .mdl-files{width:min(1000px,94vw);margin:3vh auto}
+#e201PdfViewer .modal-title{display:flex;align-items:center;gap:10px;min-width:0;padding-right:16px}
+#e201PdfViewer .modal-title i{color:var(--danger-text)}
+#e201PdfViewer .modal-title span{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+#e201PdfViewer .modal-header{display:flex;align-items:center;justify-content:space-between}
+#e201PdfViewer .modal-header::before,#e201PdfViewer .modal-header::after{display:none}
+#e201PdfViewer .modal-body{padding:0;background:#525659}
+#e201PdfViewer .e201-pdf-frame{display:block;width:100%;height:78vh;border:0}
+#e201PdfViewer .modal-footer{display:flex;justify-content:flex-end;gap:8px}
+#e201PdfViewer .modal-footer::before,#e201PdfViewer .modal-footer::after{display:none}
+
+/* ---- responsive --------------------------------------------------------- */
+/* "screen and" so paper (~720px wide) keeps the desktop layout instead of collapsing */
+@media screen and (max-width:1180px){
+  .e2-grid{grid-template-columns:minmax(0,1fr)}
+  .e2-facts{grid-template-columns:repeat(2,minmax(0,1fr))}
+  .e2-fact:nth-child(3){border-left:none}
+  .e2-fact:nth-child(n+3){border-top:1px solid var(--border)}
+}
+@media screen and (max-width:760px){
+  .e2-hero__body{grid-template-columns:minmax(0,1fr);justify-items:center;text-align:center;gap:12px;padding:0 16px 18px}
+  .e2-ident{padding-top:0}
+  .e2-tags,.e2-actions{justify-content:center}
+  .e2-facts{grid-template-columns:minmax(0,1fr)}
+  .e2-fact + .e2-fact{border-left:none;border-top:1px solid var(--border)}
+  .e2-dl{grid-template-columns:minmax(0,1fr)}
+  .e2-dl > .e2-dl__row:nth-last-child(2){border-bottom:1px dashed var(--border)}
+  .e2-salary__grid{grid-template-columns:minmax(0,1fr)}
+  .e2-salary__grid > div + div{border-left:none;border-top:1px solid var(--border)}
+  .e201-search{max-width:none}
+}
 
 /* ===== Page-only chrome (never printed) =================================== */
 
@@ -96,8 +255,8 @@
   border:1px solid var(--border);border-radius:var(--radius);box-shadow:0 8px 24px rgba(0,0,0,.12);
   z-index:30;max-height:320px;overflow:auto}
 .dv-livesearch:empty{display:none}
-.dv-livesearch a{display:block;padding:9px 12px;font-size:13px;color:var(--text);
-  border-bottom:1px solid var(--border);cursor:pointer;text-decoration:none}
+.dv-livesearch a{display:block;padding:9px 12px;font-size:13px;color:var(--text);text-align:left;
+  border-bottom:1px solid var(--border);cursor:pointer;text-decoration:none;white-space:normal;border-radius:0}
 .dv-livesearch a:last-child{border-bottom:none}
 .dv-livesearch a:hover{background:var(--surface-2)}
 
@@ -125,41 +284,43 @@
 .EmpListJD a i{float:right;color:var(--danger-text);cursor:pointer}
 .ListJD a i{float:right;color:var(--ok-text);cursor:pointer}
 
-/* ===== Print window (wrapper carries .e201-print) =========================
-   The print is rendered in a dedicated pop-up that clones the profile markup.
-   These rules force a predictable two-column paper layout independent of the
-   Bootstrap grid breakpoint, and make backgrounds/accents actually print. */
-.e201-print{max-width:940px;margin:0 auto;color:#1a1a1a;font-size:11.5px;
-  -webkit-print-color-adjust:exact;print-color-adjust:exact}
-.e201-print *{-webkit-print-color-adjust:exact;print-color-adjust:exact}
+/* ===== Print (wrapper carries .e201-print) ================================
+   printDiv() renders #e201 into a hidden iframe, wrapped in a letterhead/footer.
+   The print should look like the screen: same components, colours forced on,
+   interactivity and motion stripped.
+   Lay out at a desktop width, then zoom to the paper: 870px x .82 ~ 713px, inside
+   both A4 (190mm ~ 718px) and Letter at 10mm margins. Keeps the screen's
+   proportions instead of squeezing the screen design into ~720px. */
+.e201-print{width:870px;zoom:.82;margin:0 auto;-webkit-print-color-adjust:exact;print-color-adjust:exact}
+.e201-print *{-webkit-print-color-adjust:exact;print-color-adjust:exact;animation:none !important;transition:none !important}
+.e201-print.e201-scope{margin-top:0}
+.e201-print .e2-hero,.e201-print .e2-card,.e201-print .e2-contact,.e201-print .e2-timeline__item{break-inside:avoid}
+.e201-print .e2-grid,.e201-print .e2-col{gap:14px}
+.e201-print .e2-hero{margin-bottom:14px;box-shadow:none}
+.e201-print .e2-card{box-shadow:none}
+.e201-print .e2-file:hover{box-shadow:none;transform:none}
+/* narrower than the screen: let long values wrap instead of ellipsing */
+.e201-print .e2-fact strong,.e201-print .e2-contact__body strong,.e201-print .e2-file span{white-space:normal}
+.e201-print .e2-card:hover{box-shadow:none}
 
-/* fixed two-column layout, independent of the Bootstrap breakpoint */
-.e201-print .row{display:block}
-.e201-print .row::after{content:"";display:table;clear:both}
-.e201-print #cdc-hide,.e201-print .col-lg-8{float:left;padding:0 10px;position:static}
-.e201-print #cdc-hide{width:38%}
-.e201-print .col-lg-8{width:62%}
+/* letterhead / footer (added by printDiv) */
+.e2-doc-head{display:flex;align-items:center;gap:14px;padding:0 4px 14px;margin-bottom:16px;
+  border-bottom:2px solid var(--navy)}
+.e2-doc-head img{height:40px;width:auto}
+.e2-doc-head > div{display:flex;flex-direction:column;line-height:1.25}
+.e2-doc-head strong{font-family:var(--font-head);font-size:19px;font-weight:700;color:var(--text)}
+.e2-doc-head span{font-size:12px;color:var(--text-2)}
+.e2-doc-head__meta{margin-left:auto;align-items:flex-end;text-align:right}
+.e2-doc-head__meta b{font-size:10.5px;font-weight:800;letter-spacing:.1em;text-transform:uppercase;
+  color:var(--brand);border:1.5px solid var(--brand);border-radius:4px;padding:1px 8px;margin-bottom:3px}
+.e2-doc-foot{display:flex;justify-content:space-between;gap:12px;margin-top:16px;padding:10px 4px 0;
+  border-top:1px solid var(--border);font-size:11px;color:var(--text-3)}
 
-/* Photo: the background-image div doesn't print reliably, so use the real
-   <img id="prof-img"> instead — float it beside the name as a header. */
-.e201-print .prof-img{display:none !important}
-.e201-print #prof-img{display:block !important;width:96px;height:96px;object-fit:cover;
-  float:left;margin:0 12px 6px 0;border:1px solid #bbb;border-radius:6px}
-.e201-print .emp-name{font-size:18px;display:block}
-.e201-print .emp-pos{font-size:12px}
-
-/* Cards: let values wrap instead of being clipped; tighten for paper */
-.e201-print .emp-details{break-inside:avoid;box-shadow:none;transform:none !important;
-  overflow:visible;margin-bottom:10px}
-.e201-print .emp-details:hover{transform:none}
-.e201-print .dropdwn-title,.e201-print .cinfo-title{padding:8px 10px 8px 14px;font-size:10.5px}
-.e201-print .table th,.e201-print .table td{padding:6px 10px;font-size:11px;
-  white-space:normal;word-break:break-word}
-.e201-print .cinfo-title{margin-top:12px}
-.e201-print .e-files a:hover{box-shadow:none}
+/* salary only prints when it was revealed on screen */
+.e201-print .e2-salary:not(.is-revealed){display:none}
+.e201-print .e2-salary__toggle{display:none}
 
 /* chrome that must never appear on paper */
-.e201-print .msg,.e201-print .btnprint,.e201-print .btnupdate,.e201-print .btnresetpass,
-.e201-print #sndmessage,.e201-print .com-container{display:none !important}
+.e201-print .e2-actions,.e201-print .modal,.e201-print .com-container{display:none !important}
 
-@page{margin:12mm}
+@page{margin:10mm}
