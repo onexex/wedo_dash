@@ -81,6 +81,8 @@
     cur.x = x; cur.y = y;
     bubble.classList.toggle('is-snapping', !!animate && !mqCalm.matches);
     bubble.style.transform = 'translate3d(' + Math.round(x) + 'px,' + Math.round(y) + 'px,0)';
+    // the message chat heads stack above the bubble and follow it (assets/js/wedo-msg-heads.js)
+    document.dispatchEvent(new CustomEvent('wdcb:moved', { detail: { x: x, y: y, animate: !!animate } }));
   }
 
   function place(animate) {
