@@ -402,7 +402,7 @@
                       <li class="li-child"><a href="maintenance?philhealth"><i class="fa fa-plus-square-o"></i>PhilHealth Contribution</a></li>
                          <li class="li-child"><a href="maintenance?silloan"><i class="fa fa-plus-square-o"></i>SIL LOAN</a></li>
                   <?php } ?>
-                   <li class="li-child"><a href="maintenance?parentalfamilydetails"><i class="fa fa-plus-square-o"></i>Family Details for Parental</a></li>
+                   <?php if(isset($row['pfam']) && $row['pfam']==2) { ?><li class="li-child"><a href="maintenance?parentalfamilydetails"><i class="fa fa-plus-square-o"></i>Family Details for Parental</a></li><?php } ?>
                   <!-- <li class="li-child"><a href="#" data-toggle="modal" data-target="#myModal"><i class="fa fa-calendar"></i>Holiday Logger</a></li> -->
                   </ul>
               </ul>

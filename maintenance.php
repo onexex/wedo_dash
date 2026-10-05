@@ -15,6 +15,21 @@ if (session_status() === PHP_SESSION_NONE) { session_start(); }
 		exit;
 	}
 
+	// Family Details for Parental is gated by the `pfam` access right (==2).
+	// Missing column = migration not run = no access.
+	if (isset($_GET['parentalfamilydetails'])) {
+		include 'w_conn.php';
+		$pfamOk = false;
+		try {
+			$pfampdo = new PDO("mysql:host=$servername;dbname=$db", $username, $password);
+			$pfampdo->setAttribute(PDO::ATTR_ERRMODE, PDO::ERRMODE_EXCEPTION);
+			$st = $pfampdo->prepare("SELECT pfam FROM accessrights WHERE EmpID = :id");
+			$st->execute([':id' => $_SESSION['id']]);
+			$pfamOk = ((int) $st->fetchColumn() === 2);
+		} catch (PDOException $e) { $pfamOk = false; }
+		if (!$pfamOk) { header('location: 404?'); exit; }
+	}
+
 	//this include is the SQL of UPDATE (runs the per-row edit form POSTs, which
 	//redirect via header() — must stay before any output below).
 	include 'query/Query-updatemaintenance.php';

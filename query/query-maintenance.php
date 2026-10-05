@@ -416,6 +416,16 @@
 		   {
 		die("ERROR: Could not connect. " . $e->getMessage());
 		   }
+		// gated by the `pfam` access right (==2), same as the page
+		$pfam = 0;
+		if (!empty($_SESSION['id']) && $_SESSION['id'] != "0") {
+			try {
+				$st = $pdo->prepare("SELECT pfam FROM accessrights WHERE EmpID = :id");
+				$st->execute([':id' => $_SESSION['id']]);
+				$pfam = (int) $st->fetchColumn();
+			} catch (PDOException $e) { $pfam = 0; }
+		}
+		if ($pfam !== 2) { http_response_code(403); echo "Forbidden"; exit; }
 		// insert into dars
 		$sql = "INSERT INTO parentalrel (EmpID,DateofBirth,Name) VALUES (:eid,:dob,:nm)";
 		   $stmt = $pdo->prepare($sql);
