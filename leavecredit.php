@@ -173,7 +173,8 @@
 		.lc-notice--warn { border-color: var(--warn); background: var(--warn-bg); }
 		.lc-notice--warn > i { color: var(--warn-text); }
 		.lc-yearnote { margin: 0 0 16px; color: var(--text-3); font-size: 13px; }
-		.lc-yearnote i { color: var(--brand-700); margin-right: 4px; }
+		.lc-yearnote i { color: var(--ok); margin-right: 4px; }
+		.lc-actions { display: inline-flex; gap: 6px; vertical-align: middle; }
 		.lc-help { color: var(--text-3); font-size: 13px; margin: 0 0 14px; }
 		.lc-error { color: var(--danger-text); font-size: 13px; margin: 10px 0 0; white-space: pre-line; }
 		.lc-yeartable { max-height: 55vh; }
@@ -255,8 +256,8 @@
 				<thead>
 					<tr>
 						<th>Employee Name</th>
+						<th><?php echo $lcYear; ?> Leave Credit</th>
 						<th>Used Credit</th>
-						<th>Current Credit Earned</th>
 						<th>Remaining Credit</th>
 						<th class="lc-actioncol" style="text-align:center"><?php echo $lcManage ? 'Actions' : 'View Details'; ?></th>
 					</tr>
@@ -397,10 +398,11 @@
 
 							<tr>
 								<td><b><?php echo htmlspecialchars(strtoupper($row['EmpLN']) . ", " . $row['EmpFN']); ?></b></td>
-								<td><span style="color:var(--danger-text);font-weight:600"><?php echo number_format($usedCredit, 2); ?></span></td>
-								<td><span style="color:var(--brand-700);font-weight:600"><?php echo htmlspecialchars($creditEarned); ?></span></td>
-								<td><span class="wd-pill wd-pill--ok"><?php echo number_format(($cth), 4); ?></span></td>
+								<td><span style="font-weight:600"><?php echo $lcN($rawCTH); ?></span></td>
+								<td><span style="color:var(--danger-text);font-weight:600"><?php echo $lcN($usedCredit); ?></span></td>
+								<td><span class="wd-pill wd-pill--ok"><?php echo $lcN($cth); ?></span></td>
 								<td class="lc-actioncol" style="text-align:center">
+									<div class="lc-actions">
 									<button type="button" class="wd-iconbtn" style="width:32px;height:32px;font-size:14px" data-toggle="modal" data-target="#myModal<?php echo $id; ?>" title="View leave history">
 										<i class="fa-solid fa-eye"></i>
 									</button>
@@ -411,6 +413,7 @@
 										<i class="fa-solid fa-pen"></i>
 									</button>
 									<?php endif; ?>
+									</div>
 								</td>
 							</tr>
 
