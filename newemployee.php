@@ -36,7 +36,7 @@
     <script src="https://unpkg.com/sweetalert/dist/sweetalert.min.js"></script>
 
     <!-- WeDo design system (loaded AFTER bootstrap so it wins) -->
-    <link rel="stylesheet" href="assets/css/wedo-theme.css">
+    <link rel="stylesheet" href="assets/css/wedo-theme.css?v=<?php echo @filemtime('assets/css/wedo-theme.css'); ?>">
 
     <script src="assets/js/script.js"></script>
     <script src="assets/js/script-newemployee.js"></script>

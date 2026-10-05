@@ -35,7 +35,7 @@ if (isset($_SESSION['id']) && $_SESSION['id']!="0"){}
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
 
     <!-- WeDo design system (loaded AFTER bootstrap so it wins) -->
-    <link rel="stylesheet" href="assets/css/wedo-theme.css">
+    <link rel="stylesheet" href="assets/css/wedo-theme.css?v=<?php echo @filemtime('assets/css/wedo-theme.css'); ?>">
 
     <script src="assets/js/script-eo.js"></script>
     <script src="assets/js/script-reports.js"></script>

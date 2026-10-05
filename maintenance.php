@@ -38,7 +38,7 @@ if (session_status() === PHP_SESSION_NONE) { session_start(); }
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/v4-shims.min.css">
 
   <!-- WeDo design system (loaded AFTER bootstrap so it wins) -->
-  <link rel="stylesheet" type="text/css" href="assets/css/wedo-theme.css">
+  <link rel="stylesheet" type="text/css" href="assets/css/wedo-theme.css?v=<?php echo @filemtime('assets/css/wedo-theme.css'); ?>">
 
   <script type="text/javascript" src="assets/js/script.js"></script>
   <script type="text/javascript" src="assets/js/script-maintenance.js"></script>

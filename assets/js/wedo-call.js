@@ -163,6 +163,11 @@
   function setUnread(n) {
     n = Math.max(0, parseInt(n, 10) || 0);
     titleWithCount(n);
+    // the sidebar's Messages row carries the same count (includes/wd-header.php)
+    Array.prototype.forEach.call(document.querySelectorAll('[data-wd-unread]'), function (b) {
+      b.textContent = n > 99 ? '99+' : String(n);
+      b.hidden = n === 0;
+    });
     if (!inbox.btn || n === inbox.n) { return; }
     var rose = n > inbox.n;
     inbox.n = n;

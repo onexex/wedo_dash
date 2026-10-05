@@ -79,7 +79,7 @@ if (session_status() === PHP_SESSION_NONE) { session_start(); }
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
 
     <!-- WeDo design system (loaded AFTER bootstrap so it wins) -->
-    <link rel="stylesheet" href="assets/css/wedo-theme.css">
+    <link rel="stylesheet" href="assets/css/wedo-theme.css?v=<?php echo @filemtime('assets/css/wedo-theme.css'); ?>">
 
     <script type="text/javascript" src="assets/js/script.js"></script>
     <script type="text/javascript" src="assets/js/script-home.js"></script>
@@ -143,7 +143,7 @@ if (session_status() === PHP_SESSION_NONE) { session_start(); }
           // absolute base so the theme CSS resolves inside the blank popup
           var base = location.origin + location.pathname.replace(/[^\/]*$/, '');
           var head = ''
-            + '<link rel="stylesheet" href="' + base + 'assets/css/wedo-theme.css">'
+            + '<link rel="stylesheet" href="' + base + 'assets/css/wedo-theme.css?v=<?php echo @filemtime('assets/css/wedo-theme.css'); ?>">'
             + '<style>'
             +   '@page{margin:12mm}'
             +   'body{background:#fff;padding:0;color:var(--text);font-family:var(--font-body)}'
