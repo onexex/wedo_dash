@@ -6,24 +6,24 @@
 
 include 'ReportController.php';
 $handle = new ReportController();
-$resultdata = $handle->runQuery("SELECT Companies.CompanyDesc as Companies,EmpDetails.EmpID as Employees_ID , t.EmpFN as FirstName ,t.EmpLN as LastName ,t.EmpMN as MiddleName ,EmpProfiles.EmpGender as Gender ,EmpProfiles.EmpDOB as BirthDate, TIMESTAMPDIFF(YEAR, EmpProfiles.EmpDOB, NOW()) AS Age,EmpProfiles.EmpCS as Status,EmpProfiles.EmpMobile as ContactNo, EmpProfiles.EmpCitezen as Citizen, EmpProfiles.EmpReligion as Religion,EmpProfiles.EmpEmail as Email, CONCAT(EmpProfiles.EmpAddress1, ' ' ,EmpProfiles.EmpAddDis) as Street_No_Name,  EmpProfiles.EmpAddCity as City, EmpProfiles.EmpAddProv as Province, EmpProfiles.EmpAddZip as Zip_Code, EmpProfiles.EmpAddCountry as Country,  Departments.DepartmentDesc as Departments, Positions.PositionDesc as Positions,Joblevel.JobLevelDesc as Joblevel, EmpDetails.EmpDateHired as DateHired, EStatus.StatusEmpDesc as StatusDesc, EmpStatus.EmpStatDesc as Employment_Status, CONCAT(WorkSchedule.TimeFrom, '-',WorkSchedule.TimeTo) as WorkSchedule,Workdays.WDesc as Workdays,agency.AgencyName as Agency,CONCAT(Employees.EmpFN,' ', Employees.EmpLN,' ' ,Employees.EmpMN) as IMMEDIATE_SUPERIOR , EmpProfiles.EmpSSS as SSS, EmpProfiles.EmpPHNo as PhilHealth, EmpProfiles.EmpPINo as Pagibig, EmpProfiles.EmpUMIDNo as UMID, EmpProfiles.EmpTIN as TIN, EmpProfiles.EmpPPNo as Passport_No,EmpProfiles.EmpPPED as Passport_Expiry_Date, EmpProfiles.EmpPPIA as Issuing_Authority,  EmpDetails.EmpDateResigned as DateResigned,EmpDetails2.EmpBasic as Basic_Salary,EmpDetails2.EmpHRate as Hourly_Rate,EmpDetails2.EmpAllowance as Allowance, hmo.HMO_ID as HMO_ID,hmo.HMO_PROVIDER as HMO_Name,EmpProfiles.EmpHMONumber as HMO_No,EmpProfiles.EmpPP as Previous_Position,EmpProfiles.EmpPPSD as Previous_Position_SD,EmpProfiles.EmpPPDept as Previous_Position_Dep,EmpProfiles.EmpPPPos as Previous_Position
+$resultdata = $handle->runQuery("SELECT companies.CompanyDesc as Companies,empdetails.EmpID as Employees_ID , t.EmpFN as FirstName ,t.EmpLN as LastName ,t.EmpMN as MiddleName ,empprofiles.EmpGender as Gender ,empprofiles.EmpDOB as BirthDate, TIMESTAMPDIFF(YEAR, empprofiles.EmpDOB, NOW()) AS Age,empprofiles.EmpCS as Status,empprofiles.EmpMobile as ContactNo, empprofiles.EmpCitezen as Citizen, empprofiles.EmpReligion as Religion,empprofiles.EmpEmail as Email, CONCAT(empprofiles.EmpAddress1, ' ' ,empprofiles.EmpAddDis) as Street_No_Name,  empprofiles.EmpAddCity as City, empprofiles.EmpAddProv as Province, empprofiles.EmpAddZip as Zip_Code, empprofiles.EmpAddCountry as Country,  departments.DepartmentDesc as Departments, positions.PositionDesc as Positions,joblevel.JobLevelDesc as Joblevel, empdetails.EmpDateHired as DateHired, estatus.StatusEmpDesc as StatusDesc, empstatus.EmpStatDesc as Employment_Status, CONCAT(workschedule.TimeFrom, '-',workschedule.TimeTo) as WorkSchedule,workdays.WDesc as Workdays,agency.AgencyName as Agency,CONCAT(employees.EmpFN,' ', employees.EmpLN,' ' ,employees.EmpMN) as IMMEDIATE_SUPERIOR , empprofiles.EmpSSS as SSS, empprofiles.EmpPHNo as PhilHealth, empprofiles.EmpPINo as Pagibig, empprofiles.EmpUMIDNo as UMID, empprofiles.EmpTIN as TIN, empprofiles.EmpPPNo as Passport_No,empprofiles.EmpPPED as Passport_Expiry_Date, empprofiles.EmpPPIA as Issuing_Authority,  empdetails.EmpDateResigned as DateResigned,empdetails2.EmpBasic as Basic_Salary,empdetails2.EmpHRate as Hourly_Rate,empdetails2.EmpAllowance as Allowance, hmo.HMO_ID as HMO_ID,hmo.HMO_PROVIDER as HMO_Name,empprofiles.EmpHMONumber as HMO_No,empprofiles.EmpPP as Previous_Position,empprofiles.EmpPPSD as Previous_Position_SD,empprofiles.EmpPPDept as Previous_Position_Dep,empprofiles.EmpPPPos as Previous_Position
                                                                           
-                              FROM EmpDetails 
-                              LEFT JOIN EmpStatus ON EmpDetails.EmpStatID=EmpStatus.EmpStatID
+                              FROM empdetails 
+                              LEFT JOIN empstatus ON empdetails.EmpStatID=empstatus.EmpStatID
                               LEFT JOIN hmo ON hmo.HMO_ID=hmo.HMO_ID
-                              LEFT JOIN agency ON agency.AgencyID=EmpDetails.AgencyID
-                              LEFT JOIN WorkSchedule ON EmpDetails.EmpWSID=WorkSchedule.WorkSchedID
-                              LEFT JOIN Workdays ON EmpDetails.EmpRDID=Workdays.WID
-                              LEFT JOIN Companies ON EmpDetails.EmpCompID=Companies.CompanyID
-                              LEFT JOIN EmpDetails2 ON EmpDetails2.EmpID = EmpDetails.EmpID
-                              LEFT JOIN EmpProfiles ON EmpProfiles.EmpID=EmpDetails.EmpID                       
-                              INNER JOIN Employees as t ON  EmpProfiles.EmpID=t.EmpID
-                              LEFT JOIN Employees  ON EmpDetails.EmpISID=Employees.EmpID
-                              LEFT JOIN EStatus ON EStatus.ID=t.EmpStatusID
-                              LEFT JOIN Positions ON Positions.PSID=t.PosID
-                              LEFT JOIN Joblevel ON Joblevel.JobLevelID=Positions.EmpJobLevelID
-                              LEFT JOin Departments ON Positions.DepartmentID=Departments.DepartmentID 
-                              WHERE EmpDetails.EmpCompID='" . $_SESSION['CompID']  . "'
+                              LEFT JOIN agency ON agency.AgencyID=empdetails.AgencyID
+                              LEFT JOIN workschedule ON empdetails.EmpWSID=workschedule.WorkSchedID
+                              LEFT JOIN workdays ON empdetails.EmpRDID=workdays.WID
+                              LEFT JOIN companies ON empdetails.EmpCompID=companies.CompanyID
+                              LEFT JOIN empdetails2 ON empdetails2.EmpID = empdetails.EmpID
+                              LEFT JOIN empprofiles ON empprofiles.EmpID=empdetails.EmpID                       
+                              INNER JOIN employees as t ON  empprofiles.EmpID=t.EmpID
+                              LEFT JOIN employees  ON empdetails.EmpISID=employees.EmpID
+                              LEFT JOIN estatus ON estatus.ID=t.EmpStatusID
+                              LEFT JOIN positions ON positions.PSID=t.PosID
+                              LEFT JOIN joblevel ON joblevel.JobLevelID=positions.EmpJobLevelID
+                              LEFT JOin departments ON positions.DepartmentID=departments.DepartmentID 
+                              WHERE empdetails.EmpCompID='" . $_SESSION['CompID']  . "'
                               order by LastName ASC ");
  $todayF =date("Y-m-d"); 
 
@@ -350,32 +350,32 @@ table#tab th, table#tab td {
       <?php
         include 'w_conn.php';
 
-$statement = $pdo->prepare("SELECT EmpDetails.Seq_ID,hmo.HMO_ID,hmo.HMO_PROVIDER,agency.AgencyID,agency.AgencyName,EmpDetails.EmpID,EmpDetails.EmpDateHired                               , EmpDetails.EmpDateResigned,EmpStatus.EmpStatDesc,EmpStatus.EmpStatID,WorkSchedule.WorkSchedID,
-                                  WorkSchedule.TimeFrom,WorkSchedule.TimeTo,Workdays.WID,Workdays.WDesc,Companies.CompanyID,Companies.CompanyDesc,EmpDetails2.EmpBasic,
-                                     EmpDetails2.EmpHRate,EmpDetails2.EmpAllowance,Employees.EmpID as ids, Employees.EmpFN AS fn,Employees.EmpLN as ln,Employees.EmpMN as mn,
-                                     EmpProfiles.EmpAddress1,EmpProfiles.EmpDOB,EmpProfiles.EmpGender,EmpProfiles.EmpEmail,EmpProfiles.EmpMobile,
-                                     EmpProfiles.EmpPPNo,EmpProfiles.EmpPINo,EmpProfiles.EmpPHNo,EmpProfiles.EmpSSS,EmpProfiles.EmpTIN,
-                                     EmpProfiles.EmpUMIDNo,EmpProfiles.EmpCitezen,EmpProfiles.EmpReligion,EmpProfiles.EmpPhone,EmpProfiles.EmpPPIA ,
-                                     EmpProfiles.EmpPP,EmpProfiles.EmpPPSD,EmpProfiles.EmpPPDept,EmpProfiles.EmpPPPos,EmpProfiles.EmpCS,EmpProfiles.EmpPPED,
-                                     EmpProfiles.EmpHMONumber ,
-                                     EmpProfiles.EmpAddDis,EmpProfiles.EmpAddCity,EmpProfiles.EmpAddProv,EmpProfiles.EmpAddZip,EmpProfiles.EmpAddCountry,
-                                     EmpProfiles.EmpPPAth,EStatus.StatusEmpDesc,t.EmpFN,t.EmpLN,t.EmpMN,Positions.PositionDesc,Positions.PSID,Departments.DepartmentDesc,departments.DepartmentID,Joblevel.JobLevelDesc,Departments.DepartmentID
+$statement = $pdo->prepare("SELECT empdetails.Seq_ID,hmo.HMO_ID,hmo.HMO_PROVIDER,agency.AgencyID,agency.AgencyName,empdetails.EmpID,empdetails.EmpDateHired                               , empdetails.EmpDateResigned,empstatus.EmpStatDesc,empstatus.EmpStatID,workschedule.WorkSchedID,
+                                  workschedule.TimeFrom,workschedule.TimeTo,workdays.WID,workdays.WDesc,companies.CompanyID,companies.CompanyDesc,empdetails2.EmpBasic,
+                                     empdetails2.EmpHRate,empdetails2.EmpAllowance,employees.EmpID as ids, employees.EmpFN AS fn,employees.EmpLN as ln,employees.EmpMN as mn,
+                                     empprofiles.EmpAddress1,empprofiles.EmpDOB,empprofiles.EmpGender,empprofiles.EmpEmail,empprofiles.EmpMobile,
+                                     empprofiles.EmpPPNo,empprofiles.EmpPINo,empprofiles.EmpPHNo,empprofiles.EmpSSS,empprofiles.EmpTIN,
+                                     empprofiles.EmpUMIDNo,empprofiles.EmpCitezen,empprofiles.EmpReligion,empprofiles.EmpPhone,empprofiles.EmpPPIA ,
+                                     empprofiles.EmpPP,empprofiles.EmpPPSD,empprofiles.EmpPPDept,empprofiles.EmpPPPos,empprofiles.EmpCS,empprofiles.EmpPPED,
+                                     empprofiles.EmpHMONumber ,
+                                     empprofiles.EmpAddDis,empprofiles.EmpAddCity,empprofiles.EmpAddProv,empprofiles.EmpAddZip,empprofiles.EmpAddCountry,
+                                     empprofiles.EmpPPAth,estatus.StatusEmpDesc,t.EmpFN,t.EmpLN,t.EmpMN,positions.PositionDesc,positions.PSID,departments.DepartmentDesc,departments.DepartmentID,joblevel.JobLevelDesc,departments.DepartmentID
                                                                          
-                              FROM EmpDetails 
-                              LEFT JOIN EmpStatus ON EmpDetails.EmpStatID=EmpStatus.EmpStatID
+                              FROM empdetails 
+                              LEFT JOIN empstatus ON empdetails.EmpStatID=empstatus.EmpStatID
                               LEFT JOIN hmo ON hmo.HMO_ID=hmo.HMO_ID
-                              LEFT JOIN agency ON agency.AgencyID=EmpDetails.AgencyID
-                              LEFT JOIN WorkSchedule ON EmpDetails.EmpWSID=WorkSchedule.WorkSchedID
-                              LEFT JOIN Workdays ON EmpDetails.EmpRDID=Workdays.WID
-                              LEFT JOIN Companies ON EmpDetails.EmpCompID=Companies.CompanyID
-                              LEFT JOIN EmpDetails2 ON EmpDetails2.EmpID = EmpDetails.EmpID
-                              LEFT JOIN Employees  ON EmpDetails.EmpISID=Employees.EmpID
-                              LEFT JOIN EmpProfiles ON EmpProfiles.EmpID=EmpDetails.EmpID                       
-                              INNER JOIN Employees as t ON  EmpProfiles.EmpID=t.EmpID
-                              LEFT JOIN EStatus ON EStatus.ID=t.EmpStatusID
-                              LEFT JOIN Positions ON Positions.PSID=t.PosID
-                              LEFT JOIN Joblevel ON Joblevel.JobLevelID=Positions.EmpJobLevelID
-                              LEFT JOin Departments ON Positions.DepartmentID=Departments.DepartmentID order by t.EmpLN ASC ");
+                              LEFT JOIN agency ON agency.AgencyID=empdetails.AgencyID
+                              LEFT JOIN workschedule ON empdetails.EmpWSID=workschedule.WorkSchedID
+                              LEFT JOIN workdays ON empdetails.EmpRDID=workdays.WID
+                              LEFT JOIN companies ON empdetails.EmpCompID=companies.CompanyID
+                              LEFT JOIN empdetails2 ON empdetails2.EmpID = empdetails.EmpID
+                              LEFT JOIN employees  ON empdetails.EmpISID=employees.EmpID
+                              LEFT JOIN empprofiles ON empprofiles.EmpID=empdetails.EmpID                       
+                              INNER JOIN employees as t ON  empprofiles.EmpID=t.EmpID
+                              LEFT JOIN estatus ON estatus.ID=t.EmpStatusID
+                              LEFT JOIN positions ON positions.PSID=t.PosID
+                              LEFT JOIN joblevel ON joblevel.JobLevelID=positions.EmpJobLevelID
+                              LEFT JOin departments ON positions.DepartmentID=departments.DepartmentID order by t.EmpLN ASC ");
 $statement->execute();
 
 $id=0;
