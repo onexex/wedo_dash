@@ -278,23 +278,23 @@
                   $dtf=$_POST['dtfrom'];
                   $dtt=$_POST['dtto'];
                   if ($id=="all"){
-                     $resultdata = ("SELECT Companies.CompanyDesc as Companies,EmpDetails.EmpID as Employees_ID, t.EmpFN as FirstName ,t.EmpLN as LastName ,t.EmpMN as MiddleName , EmpProfiles.EmpSSS as SSS, EmpProfiles.EmpPINo as Pagibig,EmpProfiles.EmpPHNo as PhilHealth,  EmpProfiles.EmpUMIDNo as UMID, EmpProfiles.EmpTIN as TIN, EmpProfiles.EmpPPNo as Passport_No,EmpProfiles.EmpPPED as Passport_Expiry_Date, EmpProfiles.EmpPPIA as Issuing_Authority
+                     $resultdata = ("SELECT companies.CompanyDesc as Companies,empdetails.EmpID as Employees_ID, t.EmpFN as FirstName ,t.EmpLN as LastName ,t.EmpMN as MiddleName , empprofiles.EmpSSS as SSS, empprofiles.EmpPINo as Pagibig,empprofiles.EmpPHNo as PhilHealth,  empprofiles.EmpUMIDNo as UMID, empprofiles.EmpTIN as TIN, empprofiles.EmpPPNo as Passport_No,empprofiles.EmpPPED as Passport_Expiry_Date, empprofiles.EmpPPIA as Issuing_Authority
 
-                              FROM EmpDetails 
-                              LEFT JOIN EmpProfiles ON EmpProfiles.EmpID=EmpDetails.EmpID
-                              LEFT JOIN Employees as t ON  EmpProfiles.EmpID=t.EmpID 
-                              LEFT JOIN Companies ON EmpDetails.EmpCompID=Companies.CompanyID                                              
+                              FROM empdetails 
+                              LEFT JOIN empprofiles ON empprofiles.EmpID=empdetails.EmpID
+                              LEFT JOIN employees as t ON  empprofiles.EmpID=t.EmpID 
+                              LEFT JOIN companies ON empdetails.EmpCompID=companies.CompanyID                                              
                               order by LastName ASC ");
                       $statement = $pdo->prepare($resultdata);
                    $statement->execute();
                   }
                   else{
-                         $resultdata = ("SELECT Companies.CompanyDesc as Companies,EmpDetails.EmpID as Employees_ID, t.EmpFN as FirstName ,t.EmpLN as LastName ,t.EmpMN as MiddleName , EmpProfiles.EmpSSS as SSS, EmpProfiles.EmpPINo as Pagibig,EmpProfiles.EmpPHNo as PhilHealth,  EmpProfiles.EmpUMIDNo as UMID, EmpProfiles.EmpTIN as TIN, EmpProfiles.EmpPPNo as Passport_No,EmpProfiles.EmpPPED as Passport_Expiry_Date, EmpProfiles.EmpPPIA as Issuing_Authority
+                         $resultdata = ("SELECT companies.CompanyDesc as Companies,empdetails.EmpID as Employees_ID, t.EmpFN as FirstName ,t.EmpLN as LastName ,t.EmpMN as MiddleName , empprofiles.EmpSSS as SSS, empprofiles.EmpPINo as Pagibig,empprofiles.EmpPHNo as PhilHealth,  empprofiles.EmpUMIDNo as UMID, empprofiles.EmpTIN as TIN, empprofiles.EmpPPNo as Passport_No,empprofiles.EmpPPED as Passport_Expiry_Date, empprofiles.EmpPPIA as Issuing_Authority
 
-                              FROM EmpDetails 
-                              LEFT JOIN EmpProfiles ON EmpProfiles.EmpID=EmpDetails.EmpID
-                              LEFT JOIN Employees as t ON  EmpProfiles.EmpID=t.EmpID 
-                              LEFT JOIN Companies ON EmpDetails.EmpCompID=Companies.CompanyID where EmpProfiles.EmpID=:idn                                            
+                              FROM empdetails 
+                              LEFT JOIN empprofiles ON empprofiles.EmpID=empdetails.EmpID
+                              LEFT JOIN employees as t ON  empprofiles.EmpID=t.EmpID 
+                              LEFT JOIN companies ON empdetails.EmpCompID=companies.CompanyID where empprofiles.EmpID=:idn                                            
                               order by LastName ASC ");
                         $statement = $pdo->prepare($resultdata);
                         $statement->bindParam(':idn' , $id);

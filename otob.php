@@ -67,11 +67,11 @@
 				                  $id=$_SESSION['id'];
 				                  $isid=$_SESSION['EmpISID'];
 				                  $statement = $pdo->prepare("SELECT *                                          
-				                              FROM Employees 
-				                              INNER JOIN EmpDetails ON Employees.EmpID=EmpDetails.EmpID
-				                              INNER JOIN Companies ON EmpDetails.EmpCompID=Companies.CompanyID
-				                              INNER JOIN Departments ON EmpDetails.EmpdepID=Departments.DepartmentID 
-				                              INNER JOIN Positions ON Positions.PSID=Employees.PosID where Employees.EmpID=:id order by Employees.EmpLN ASC ");
+				                              FROM employees 
+				                              INNER JOIN empdetails ON employees.EmpID=empdetails.EmpID
+				                              INNER JOIN companies ON empdetails.EmpCompID=companies.CompanyID
+				                              INNER JOIN departments ON empdetails.EmpdepID=departments.DepartmentID 
+				                              INNER JOIN positions ON positions.PSID=employees.PosID where employees.EmpID=:id order by employees.EmpLN ASC ");
 				                  $statement->bindParam(':id' , $id);
 				                  $statement->execute();
 				                  $row = $statement->fetch();
@@ -192,7 +192,7 @@
                           }
                       $id=$_SESSION['id'];
                   $statement = $pdo->prepare("SELECT * from obs as a 
-                                  INNER JOIN Status as b on a.OBStatus=b.StatusID  
+                                  INNER JOIN status as b on a.OBStatus=b.StatusID  
                                   where a.EmpID=:id ");
 
                   $statement->bindParam(':id' , $id);

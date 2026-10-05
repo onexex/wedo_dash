@@ -6,24 +6,24 @@
 
 include 'ReportController.php';
 $handle = new ReportController();
-$resultdata = $handle->runQuery("SELECT Companies.CompanyDesc as Companies,EmpDetails.EmpID as Employees_ID , t.EmpFN as FirstName ,t.EmpLN as LastName ,t.EmpMN as MiddleName,Positions.PositionDesc as Positions, Departments.DepartmentDesc as Departments, EmpDetails.EmpDateHired as DateHired,  Joblevel.JobLevelDesc as Joblevel, EStatus.StatusEmpDesc as StatusDesc,CONCAT(Employees.EmpFN,' ', Employees.EmpLN,' ' ,Employees.EmpMN) as IMMEDIATE_SUPERIOR ,EmpStatus.EmpStatDesc as Employment_Status,EmpDetails.EmpDateResigned as DateResigned,Workdays.WDesc as Workdays, CONCAT(WorkSchedule.TimeFrom, '-',WorkSchedule.TimeTo) as WorkSchedule,EmpDetails2.EmpBasic as Basic_Salary,EmpDetails2.EmpHRate as Hourly_Rate,EmpDetails2.EmpAllowance as Allowance
+$resultdata = $handle->runQuery("SELECT companies.CompanyDesc as Companies,empdetails.EmpID as Employees_ID , t.EmpFN as FirstName ,t.EmpLN as LastName ,t.EmpMN as MiddleName,positions.PositionDesc as Positions, departments.DepartmentDesc as Departments, empdetails.EmpDateHired as DateHired,  joblevel.JobLevelDesc as Joblevel, estatus.StatusEmpDesc as StatusDesc,CONCAT(employees.EmpFN,' ', employees.EmpLN,' ' ,employees.EmpMN) as IMMEDIATE_SUPERIOR ,empstatus.EmpStatDesc as Employment_Status,empdetails.EmpDateResigned as DateResigned,workdays.WDesc as Workdays, CONCAT(workschedule.TimeFrom, '-',workschedule.TimeTo) as WorkSchedule,empdetails2.EmpBasic as Basic_Salary,empdetails2.EmpHRate as Hourly_Rate,empdetails2.EmpAllowance as Allowance
                                                                           
-                              FROM EmpDetails 
-                              LEFT JOIN EmpStatus ON EmpDetails.EmpStatID=EmpStatus.EmpStatID
+                              FROM empdetails 
+                              LEFT JOIN empstatus ON empdetails.EmpStatID=empstatus.EmpStatID
                               LEFT JOIN hmo ON hmo.HMO_ID=hmo.HMO_ID
-                              LEFT JOIN agency ON agency.AgencyID=EmpDetails.AgencyID
-                              LEFT JOIN WorkSchedule ON EmpDetails.EmpWSID=WorkSchedule.WorkSchedID
-                              LEFT JOIN Workdays ON EmpDetails.EmpRDID=Workdays.WID
-                              LEFT JOIN Companies ON EmpDetails.EmpCompID=Companies.CompanyID
-                              LEFT JOIN EmpDetails2 ON EmpDetails2.EmpID = EmpDetails.EmpID
-                              LEFT JOIN EmpProfiles ON EmpProfiles.EmpID=EmpDetails.EmpID                       
-                              INNER JOIN Employees as t ON  EmpProfiles.EmpID=t.EmpID
-                              LEFT JOIN Employees  ON EmpDetails.EmpISID=Employees.EmpID
-                              LEFT JOIN EStatus ON EStatus.ID=t.EmpStatusID
-                              LEFT JOIN Positions ON Positions.PSID=t.PosID
-                              LEFT JOIN Joblevel ON Joblevel.JobLevelID=Positions.EmpJobLevelID
-                              LEFT JOin Departments ON Positions.DepartmentID=Departments.DepartmentID 
-                                WHERE EmpDetails.EmpCompID='" . $_SESSION['CompID']  . "'
+                              LEFT JOIN agency ON agency.AgencyID=empdetails.AgencyID
+                              LEFT JOIN workschedule ON empdetails.EmpWSID=workschedule.WorkSchedID
+                              LEFT JOIN workdays ON empdetails.EmpRDID=workdays.WID
+                              LEFT JOIN companies ON empdetails.EmpCompID=companies.CompanyID
+                              LEFT JOIN empdetails2 ON empdetails2.EmpID = empdetails.EmpID
+                              LEFT JOIN empprofiles ON empprofiles.EmpID=empdetails.EmpID                       
+                              INNER JOIN employees as t ON  empprofiles.EmpID=t.EmpID
+                              LEFT JOIN employees  ON empdetails.EmpISID=employees.EmpID
+                              LEFT JOIN estatus ON estatus.ID=t.EmpStatusID
+                              LEFT JOIN positions ON positions.PSID=t.PosID
+                              LEFT JOIN joblevel ON joblevel.JobLevelID=positions.EmpJobLevelID
+                              LEFT JOin departments ON positions.DepartmentID=departments.DepartmentID 
+                                WHERE empdetails.EmpCompID='" . $_SESSION['CompID']  . "'
                               order by LastName ASC ");
  $todayF =date("Y-m-d"); 
 
