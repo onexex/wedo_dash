@@ -45,7 +45,7 @@
     <script src="https://maxcdn.bootstrapcdn.com/bootstrap/3.3.7/js/bootstrap.min.js"></script>
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
     <script src="https://unpkg.com/sweetalert/dist/sweetalert.min.js"></script>
-    <link rel="stylesheet" href="assets/css/wedo-theme.css">
+    <link rel="stylesheet" href="assets/css/wedo-theme.css?v=<?php echo @filemtime('assets/css/wedo-theme.css'); ?>">
     <link rel="stylesheet" href="assets/css/employee-form.css?v=<?php echo filemtime(__DIR__ . '/assets/css/employee-form.css'); ?>">
     <script src="assets/js/script.js"></script>
     <style>

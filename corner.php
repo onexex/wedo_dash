@@ -137,7 +137,7 @@ if (isset($_SESSION['id']) && $_SESSION['id'] != "0") {
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
 
     <!-- WeDo design system (loaded AFTER bootstrap so it wins) -->
-    <link rel="stylesheet" href="assets/css/wedo-theme.css">
+    <link rel="stylesheet" href="assets/css/wedo-theme.css?v=<?php echo @filemtime('assets/css/wedo-theme.css'); ?>">
     <link rel="stylesheet" type="text/css" href="assets/css/wedo-calendar.css?v=<?php echo @filemtime(__DIR__ . '/assets/css/wedo-calendar.css'); ?>">
 
     <script type="text/javascript" src="assets/js/script.js"></script>

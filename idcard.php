@@ -51,7 +51,7 @@ $v = function ($f) { return @filemtime(__DIR__ . '/' . $f) ?: 0; };
     <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Roboto+Condensed:wght@400;500;700&display=swap">
 
     <!-- WeDo design system (after bootstrap so it wins) -->
-    <link rel="stylesheet" href="assets/css/wedo-theme.css">
+    <link rel="stylesheet" href="assets/css/wedo-theme.css?v=<?php echo @filemtime('assets/css/wedo-theme.css'); ?>">
     <link rel="stylesheet" href="assets/css/idcard.css?v=<?php echo $v('assets/css/idcard.css'); ?>">
     <script type="text/javascript" src="assets/js/script.js"></script>
     <script src="assets/js/idcard-render.js?v=<?php echo $v('assets/js/idcard-render.js'); ?>"></script>
