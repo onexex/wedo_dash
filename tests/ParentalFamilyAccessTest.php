@@ -67,7 +67,7 @@ final class ParentalFamilyAccessTest extends AppTestCase
         $count = fn() => (int) self::db()->query("SELECT COUNT(*) FROM parentalrel")->fetchColumn();
 
         $this->assertSame(403, $this->request('query/query-maintenance.php', ['familyparental' => ''], $post, $this->asEmployee())['status']);
-        $this->assertSame(403, $this->request('query/query-maintenance.php', ['familyparental' => ''], $post)['status'], 'not logged in');
+        $this->assertSame(401, $this->request('query/query-maintenance.php', ['familyparental' => ''], $post)['status'], 'not logged in');
         $this->assertSame(1, $count());
 
         $this->grant(self::ADMIN);
