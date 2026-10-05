@@ -1,8 +1,7 @@
 <?php if (session_status() === PHP_SESSION_NONE) { session_start(); }
-  if (isset($_SESSION['id']) && $_SESSION['id']!="0"){
-
-  }
-  else{ header ('location: login.php'); }
+  // AJAX-only partial: a logged-out caller gets 401 and nothing else
+  // (the old redirect had no exit, so the rows were still sent).
+  if (!isset($_SESSION['id']) || $_SESSION['id'] == "0") { http_response_code(401); exit; }
 
                 include 'w_conn.php';
 ?>
