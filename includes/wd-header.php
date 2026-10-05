@@ -95,7 +95,7 @@ function wd_can($ar, $k) { return isset($ar[$k]) && $ar[$k] == 2; }
       /* mirror of includes/header.php section gates so nothing is dropped */
       $wd_show_reports = wd_can($ar,'alasv')||wd_can($ar,'lilov')||wd_can($ar,'darv')||wd_can($ar,'access_13')||wd_can($ar,'access_13_attachement')
                        ||wd_can($ar,'eov')||wd_can($ar,'coe')||wd_can($ar,'payslipt')||wd_can($ar,'obv')||wd_can($ar,'atv')
-                       ||wd_can($ar,'fdetls')||wd_can($ar,'lcreaditview');
+                       ||wd_can($ar,'fdetls')||wd_can($ar,'lcreaditview')||wd_can($ar,'lcreditedit');
       $wd_show_mgmt = wd_can($ar,'arights')||wd_can($ar,'ams')||wd_can($ar,'payeereg')||wd_can($ar,'bookletreg')||wd_can($ar,'eemployee')
                     ||wd_can($ar,'e201d')||wd_can($ar,'EF')||wd_can($ar,'schedv')||wd_can($ar,'idcard');
       /* Maintenance is now its own top-level section (leveled with Management),
@@ -135,7 +135,7 @@ function wd_can($ar, $k) { return isset($ar[$k]) && $ar[$k] == 2; }
         <?php if(wd_can($ar,'darv')): ?><a class="wd-nav<?php echo wd_on('dar',$wd_active); ?>" href="dar"><i class="fa-solid fa-chart-column"></i> Daily Activity Viewer</a><?php endif; ?>
         <?php if(wd_can($ar,'eov')): ?><a class="wd-nav<?php echo wd_on('earlyoutviewer',$wd_active); ?>" href="earlyoutviewer"><i class="fa-solid fa-chart-column"></i> Early Out Viewer</a><?php endif; ?>
         <?php if(wd_can($ar,'fdetls')): ?><a class="wd-nav<?php echo wd_on('FamilyDetails',$wd_active); ?>" href="FamilyDetails"><i class="fa-solid fa-chart-column"></i> Family Details</a><?php endif; ?>
-        <?php if(wd_can($ar,'lcreaditview')): ?><a class="wd-nav<?php echo wd_on('leavecredit',$wd_active); ?>" href="leavecredit"><i class="fa-solid fa-wallet"></i> Leave Credit Viewer</a><?php endif; ?>
+        <?php if(wd_can($ar,'lcreaditview')||wd_can($ar,'lcreditedit')): ?><a class="wd-nav<?php echo wd_on('leavecredit',$wd_active); ?>" href="leavecredit"><i class="fa-solid fa-wallet"></i> Leave Credit Viewer</a><?php endif; ?>
         <?php if(wd_can($ar,'coe')): ?><a class="wd-nav<?php echo wd_on('coe',$wd_active); ?>" href="coe"><i class="fa-solid fa-file"></i> My Documents (COE)</a><?php endif; ?>
         <?php if(wd_can($ar,'payslipt')): ?><a class="wd-nav<?php echo wd_on('payslip',$wd_active); ?>" href="payslip"><i class="fa-solid fa-file"></i> My Documents (Payslip)</a><?php endif; ?>
         <?php if(wd_can($ar,'obv')): ?><a class="wd-nav<?php echo wd_on('obviewer',$wd_active); ?>" href="obviewer"><i class="fa-solid fa-chart-column"></i> Official Business Viewer</a><?php endif; ?>

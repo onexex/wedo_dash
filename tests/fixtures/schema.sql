@@ -61,6 +61,7 @@ CREATE TABLE `accessrights` (
   `dashboard` int(11) NOT NULL DEFAULT 1,
   `logintheme` int(11) NOT NULL DEFAULT 1,
   `lcreaditview` int(11) NOT NULL DEFAULT 1,
+  `lcreditedit` int(11) NOT NULL DEFAULT 1,
   `SPPContrib` int(11) NOT NULL DEFAULT 1,
   `ams` int(11) NOT NULL DEFAULT 1,
   `payroll` int(10) NOT NULL DEFAULT 1,
@@ -307,8 +308,30 @@ CREATE TABLE `credit` (
   `EmpID` varchar(50) NOT NULL,
   `CT` float NOT NULL,
   `CTH` float NOT NULL,
-  PRIMARY KEY (`sid`)
-) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci;
+  PRIMARY KEY (`sid`),
+  UNIQUE KEY `ux_credit_emp` (`EmpID`)
+) ENGINE=InnoDB DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci;
+CREATE TABLE `credit_years` (
+  `leave_year` smallint(6) NOT NULL,
+  `started_by` varchar(50) NOT NULL,
+  `started_at` datetime NOT NULL DEFAULT current_timestamp(),
+  `employees` int(11) NOT NULL DEFAULT 0,
+  PRIMARY KEY (`leave_year`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
+CREATE TABLE `credit_log` (
+  `id` int(11) NOT NULL AUTO_INCREMENT,
+  `EmpID` varchar(50) NOT NULL,
+  `leave_year` smallint(6) NOT NULL,
+  `action` varchar(10) NOT NULL,
+  `old_ct` decimal(9,4) DEFAULT NULL,
+  `old_cth` decimal(9,4) DEFAULT NULL,
+  `new_ct` decimal(9,4) NOT NULL,
+  `new_cth` decimal(9,4) NOT NULL,
+  `changed_by` varchar(50) NOT NULL,
+  `changed_at` datetime NOT NULL DEFAULT current_timestamp(),
+  PRIMARY KEY (`id`),
+  KEY `ix_credit_log_emp` (`EmpID`,`changed_at`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
 /*!40101 SET character_set_client = @saved_cs_client */;
 /*!40101 SET @saved_cs_client     = @@character_set_client */;
 /*!40101 SET character_set_client = utf8 */;
