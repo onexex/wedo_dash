@@ -98,6 +98,31 @@ final class ProfileChangeRequestTest extends AppTestCase
         $this->assertEquals($before, $this->employeeSnapshot(self::EMP));
     }
 
+    private function addFamily(?array $session): array
+    {
+        return $this->request('insert-fdetails.php', [], ['name' => '["Injected Kin"]', 'a' => '["Somewhere"]', 'rel' => '["Sibling"]',
+                                                          'conno' => '["09170000000"]', 'ice' => '["1"]', 'empID' => self::EMP], $session);
+    }
+
+    private function injectedKin(): int
+    {
+        return count($this->rows('SELECT FSID FROM fdetails WHERE FDetID=? AND FName=?', [self::EMP, 'Injected Kin']));
+    }
+
+    /** Regression: the registration family endpoint had no rights check and its login redirect didn't stop. */
+    public function testEmployeeCannotAddFamilyRowsThroughTheRegistrationEndpoint(): void
+    {
+        $this->assertSame(403, $this->addFamily($this->asEmployee())['status']);
+        $this->assertSame(401, $this->addFamily(null)['status']);
+        $this->assertSame(0, $this->injectedKin());
+    }
+
+    public function testHrCanStillAddFamilyRowsThroughTheRegistrationEndpoint(): void
+    {
+        $this->assertSame(200, $this->addFamily($this->asAdmin())['status']);
+        $this->assertSame(1, $this->injectedKin());
+    }
+
     public function testEmployee201PageOffersUpdateMyInfo(): void
     {
         $res = $this->request('e201.php', [], [], $this->asEmployee());

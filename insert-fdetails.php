@@ -1,6 +1,9 @@
 <?php if (session_status() === PHP_SESSION_NONE) { session_start(); }
-  if (isset($_SESSION['id']) && $_SESSION['id']!="0"){}
-  else{ header ('location: login.php'); }
+  if (!isset($_SESSION['id']) || $_SESSION['id'] == "0") {
+      http_response_code(401);
+      echo "Your session has expired. Please sign in again.";
+      exit;
+  }
 ?>
 <?php
 include 'w_conn.php';
@@ -18,6 +21,17 @@ catch(PDOException $e)
    {
 die("ERROR: Could not connect. " . $e->getMessage());
    }
+
+// Adding family rows is HR-only: "Update 201 Files" (edit profile) or
+// "Enroll Employee" (registration). Employees go through a change request.
+$__ar = $pdo->prepare('SELECT updte, eemployee FROM accessrights WHERE EmpID = ?');
+$__ar->execute([$_SESSION['id']]);
+$__r = $__ar->fetch(PDO::FETCH_ASSOC);
+if (!$__r || ((string)$__r['updte'] !== '2' && (string)$__r['eemployee'] !== '2')) {
+    http_response_code(403);
+    echo "You don't have permission to add family details.";
+    exit;
+}
 $nameArr = json_decode($_POST["name"]);
 $addArr = json_decode($_POST["a"]);
 $rellArr = json_decode($_POST["rel"]);
