@@ -114,6 +114,11 @@ a{color:var(--brand);text-decoration:none}
   background:var(--brand);color:#fff;font-size:11px;font-weight:700;line-height:1;
   display:inline-flex;align-items:center;justify-content:center}
 .wd-nav.is-active .wd-nav__badge{background:#fff;color:var(--brand)}
+/* the same count on a collapsed group header, so pending items show without opening it;
+   once the group is open the item's own badge takes over */
+.wd-navgroup__label{display:inline-flex;align-items:center}
+.wd-navgroup .wd-nav__badge{letter-spacing:normal}
+.wd-navsection:not(.is-collapsed) > .wd-navgroup .wd-nav__badge{display:none}
 
 .wd-main{flex:1;min-width:0;height:100vh;display:flex;flex-direction:column}
 .wd-topbar{flex:0 0 var(--topbar-h);height:var(--topbar-h);display:flex;align-items:center;gap:14px;padding:0 22px;
