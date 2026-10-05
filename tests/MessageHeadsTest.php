@@ -183,7 +183,7 @@ final class MessageHeadsTest extends AppTestCase
 
         // older pages (includes/header.php) get them too
         // (the old header has warnings of its own against the test fixture; only ours must be clean)
-        $body = $this->request('PersonalInfo.php', [], [], $this->as(self::ADMIN, 1))['body'];
+        $body = $this->request('Familydetails.php', [], [], $this->as(self::ADMIN, 1))['body'];
         $this->assertDoesNotMatchRegularExpression('/(Warning|Notice|Fatal error|Uncaught)\b.*?msg-heads/i', $body);
         $this->assertLessThan(strpos($body, 'assets/js/wedo-call.js'), strpos($body, 'window.WD_HEADS'));
 
