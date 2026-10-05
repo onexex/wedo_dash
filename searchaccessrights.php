@@ -52,6 +52,7 @@ function ar_group($title) {
 ar_group('Modules');
 ar_row('fa-folder',          'Electronic 201 File',                'e201',          $row);
 ar_row('fa-calendar-check',  'Leave Credit Overview',              'lcreaditview',  $row);
+ar_row('fa-calendar-plus',   'Leave Credit Management',            'lcreditedit',   $row);
 ar_row('fa-calendar-check',  'Automated Leave Application System', 'alas',          $row);
 ar_row('fa-file',            'Check Register',                     'checkregister', $row);
 ar_row('fa-file-lines',      'Memo Generator',                     'memo',          $row);

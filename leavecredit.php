@@ -60,12 +60,26 @@
     }
 
   }
-//   if ($_SESSION['UserType']<>1){
-//   	header('location: index.php');
-//   }
-?>
-<?php
 	date_default_timezone_set('Asia/Manila');
+	if (empty($_SESSION['id']) || $_SESSION['id'] == "0") { header('location: login'); exit(); }
+
+	/* access gate BEFORE any output so the redirect can fire */
+	include 'w_conn.php';
+	require_once __DIR__ . '/includes/leave-credit-lib.php';
+	try {
+		$lcpdo = new PDO("mysql:host=$servername;dbname=$db;charset=utf8mb4", $username, $password);
+		$lcpdo->setAttribute(PDO::ATTR_ERRMODE, PDO::ERRMODE_EXCEPTION);
+	} catch (PDOException $e) { die("ERROR: Could not connect."); }
+	if (!lc_can_view($lcpdo)) { header('location: 404?'); exit(); }
+
+	$lcManage  = lc_can_manage($lcpdo);
+	$lcYear    = (int) date('Y');
+	$lcStarted = lc_year_record($lcpdo, $lcYear);
+	$lcMissing = $lcManage ? lc_missing($lcpdo) : [];
+	$lcRows    = (!$lcStarted && $lcManage) ? lc_rows($lcpdo) : [];
+	$lcPending = (!$lcStarted && $lcManage) ? lc_pending_before($lcpdo, $lcYear) : 0;
+	$lcE = function ($s) { return htmlspecialchars((string) $s, ENT_QUOTES, 'UTF-8'); };
+	$lcN = function ($f) { return rtrim(rtrim(number_format((float) $f, 4, '.', ''), '0'), '.'); };
 ?>
 <!DOCTYPE html>
 <html lang="en">
@@ -147,6 +161,24 @@
 		.captionText { font-weight: 600; color: var(--text); margin: 2px 0; }
 		.wd-card__foot { display: flex; gap: 10px; padding: 14px 20px; border-top: 1px solid var(--border); flex-wrap: wrap; }
 
+		/* New leave year + edit credit */
+		.lc-headactions { display: flex; gap: 10px; flex-wrap: wrap; align-items: center; }
+		.lc-headactions .wd-pill { margin-left: 4px; }
+		.lc-notice {
+			display: flex; gap: 12px; align-items: flex-start; margin: 0 0 16px;
+			padding: 12px 16px; border: 1px solid var(--border); border-radius: var(--radius);
+			background: var(--surface-2); color: var(--text-2); font-size: 13.5px; line-height: 1.5;
+		}
+		.lc-notice > i { margin-top: 3px; color: var(--text-3); }
+		.lc-notice--warn { border-color: var(--warn); background: var(--warn-bg); }
+		.lc-notice--warn > i { color: var(--warn-text); }
+		.lc-yearnote { margin: 0 0 16px; color: var(--text-3); font-size: 13px; }
+		.lc-yearnote i { color: var(--brand-700); margin-right: 4px; }
+		.lc-help { color: var(--text-3); font-size: 13px; margin: 0 0 14px; }
+		.lc-error { color: var(--danger-text); font-size: 13px; margin: 10px 0 0; white-space: pre-line; }
+		.lc-yeartable { max-height: 55vh; }
+		.lc-yeartable .wd-input { padding: 7px 10px; }
+
 		@media print {
 			.captionText { display: block !important; }
 			/* the on-screen body scrolls inside .wd-tablewrap (max-height:40vh) —
@@ -168,7 +200,48 @@
 			<h1>Leave Credits</h1>
 			<p>Earned, used and remaining leave credits &mdash; as of <?php echo date("F d, Y"); ?>.</p>
 		</div>
+		<?php if ($lcManage): ?>
+		<div class="lc-headactions">
+			<?php if ($lcMissing): ?>
+			<button type="button" class="wd-btn wd-btn--ghost" id="lcAddBtn"><i class="fa-solid fa-user-plus"></i> Add employee <span class="wd-pill wd-pill--warn"><?php echo count($lcMissing); ?></span></button>
+			<?php endif; ?>
+			<?php if (!$lcStarted): ?>
+			<button type="button" class="wd-btn wd-btn--primary" data-toggle="modal" data-target="#lcYearModal"><i class="fa-solid fa-calendar-plus"></i> Start <?php echo $lcYear; ?> leave year</button>
+			<?php endif; ?>
+		</div>
+		<?php endif; ?>
 	</div>
+
+	<?php if ($lcManage && !$lcStarted): ?>
+	<div class="lc-notice lc-notice--warn">
+		<i class="fa-solid fa-triangle-exclamation"></i>
+		<div>
+			<b>The <?php echo $lcYear; ?> leave year hasn't started.</b>
+			Everyone's remaining credit is still what was left from <?php echo $lcYear - 1; ?>.
+			Click <b>Start <?php echo $lcYear; ?> leave year</b> to enter each employee's <?php echo $lcYear; ?> leave credit.
+		</div>
+	</div>
+	<?php elseif ($lcManage && $lcStarted): ?>
+	<p class="lc-yearnote">
+		<i class="fa-solid fa-circle-check"></i>
+		<?php if ($lcStarted['started_by'] === 'manual'): ?>
+			<?php echo $lcYear; ?> leave credits were set directly in the database. From January <?php echo $lcYear + 1; ?> you can start each year here.
+		<?php else: ?>
+			The <?php echo $lcYear; ?> leave year was started on <?php echo $lcE(date('F j, Y', strtotime($lcStarted['started_at']))); ?> by <?php echo $lcE($lcStarted['started_name'] ?: $lcStarted['started_by']); ?>.
+		<?php endif; ?>
+	</p>
+	<?php endif; ?>
+
+	<?php if ($lcMissing): ?>
+	<div class="lc-notice">
+		<i class="fa-solid fa-circle-info"></i>
+		<div>
+			<b><?php echo count($lcMissing); ?> active <?php echo count($lcMissing) === 1 ? 'employee has' : 'employees have'; ?> no leave credits</b>
+			(<?php echo $lcE(implode(', ', array_map(function ($m) { return $m['EmpFN'] . ' ' . $m['EmpLN']; }, $lcMissing))); ?>),
+			so their paid leave is approved without pay. Use <b>Add employee</b> to give them a leave credit.
+		</div>
+	</div>
+	<?php endif; ?>
 
 	<section class="wd-card">
 		<div class="wd-card__head">
@@ -185,7 +258,7 @@
 						<th>Used Credit</th>
 						<th>Current Credit Earned</th>
 						<th>Remaining Credit</th>
-						<th class="lc-actioncol" style="text-align:center">View Details</th>
+						<th class="lc-actioncol" style="text-align:center"><?php echo $lcManage ? 'Actions' : 'View Details'; ?></th>
 					</tr>
 				</thead>
 				<tbody>
@@ -210,6 +283,8 @@
 
 						while ($row = $stmt->fetch()) {
 							$id = $row['EmpID'];
+							$rawCT = $row['CT'];
+							$rawCTH = $row['CTH'];
 							$cth = $row['CTH']; // Total per year (e.g. 15)
 							$ct = $row['CT'];   // Currently set credit
 							$dor = $row['EmpDOR'];
@@ -329,6 +404,13 @@
 									<button type="button" class="wd-iconbtn" style="width:32px;height:32px;font-size:14px" data-toggle="modal" data-target="#myModal<?php echo $id; ?>" title="View leave history">
 										<i class="fa-solid fa-eye"></i>
 									</button>
+									<?php if ($lcManage): ?>
+									<button type="button" class="wd-iconbtn lc-edit" style="width:32px;height:32px;font-size:14px" title="Edit leave credit"
+										data-emp="<?php echo $lcE($id); ?>" data-name="<?php echo $lcE($row['EmpFN'] . ' ' . $row['EmpLN']); ?>"
+										data-ct="<?php echo $lcN($rawCT); ?>" data-cth="<?php echo $lcN($rawCTH); ?>">
+										<i class="fa-solid fa-pen"></i>
+									</button>
+									<?php endif; ?>
 								</td>
 							</tr>
 
@@ -382,6 +464,164 @@
 			<button class="wd-btn wd-btn--primary" type="button" onclick="exportLeaveCredit()"><i class="fa-solid fa-file-excel"></i> Export to Excel</button>
 		</div>
 	</section>
+
+	<?php if ($lcManage): ?>
+	<?php if (!$lcStarted): ?>
+	<!-- Start the new leave year: HR enters each employee's leave credit for the year -->
+	<div class="modal fade" id="lcYearModal" role="dialog">
+		<div class="modal-dialog modal-lg">
+			<div class="modal-content">
+				<div class="modal-header">
+					<button type="button" class="close" data-dismiss="modal">&times;</button>
+					<h4 class="modal-title">Start <?php echo $lcYear; ?> leave year</h4>
+				</div>
+				<form id="lcYearForm" autocomplete="off">
+				<div class="modal-body">
+					<p class="lc-help">
+						Enter each employee's <b><?php echo $lcYear; ?> leave credit</b>. Their remaining credit is reset to that number.
+						Unused <?php echo $lcYear - 1; ?> credit is <b>not carried over</b>. This can only be done once for <?php echo $lcYear; ?>.
+					</p>
+					<?php if ($lcPending > 0): ?>
+					<div class="lc-notice lc-notice--warn">
+						<i class="fa-solid fa-triangle-exclamation"></i>
+						<div><b><?php echo $lcPending; ?> leave <?php echo $lcPending === 1 ? 'filing' : 'filings'; ?> dated <?php echo $lcYear - 1; ?> or earlier <?php echo $lcPending === 1 ? 'is' : 'are'; ?> still awaiting approval.</b>
+						If <?php echo $lcPending === 1 ? 'it is' : 'they are'; ?> approved after you start <?php echo $lcYear; ?>, the days come out of the <?php echo $lcYear; ?> credit. Approve or decline <?php echo $lcPending === 1 ? 'it' : 'them'; ?> first.</div>
+					</div>
+					<?php endif; ?>
+					<input type="hidden" name="action" value="start_year">
+					<input type="hidden" name="year" value="<?php echo $lcYear; ?>">
+					<input type="hidden" name="token" value="<?php echo $lcE(lc_csrf_token()); ?>">
+					<div class="wd-tablewrap lc-yeartable">
+					<table class="wd-table">
+						<thead>
+							<tr>
+								<th>Employee</th>
+								<th><?php echo $lcYear - 1; ?> leave credit</th>
+								<th>Unused (dropped)</th>
+								<th style="width:150px"><?php echo $lcYear; ?> leave credit</th>
+							</tr>
+						</thead>
+						<tbody>
+						<?php foreach ($lcRows as $r): ?>
+							<tr>
+								<td><b><?php echo $lcE(strtoupper($r['EmpLN']) . ', ' . $r['EmpFN']); ?></b></td>
+								<td><?php echo $lcN($r['CTH']); ?></td>
+								<td class="wd-muted"><?php echo $lcN($r['CT']); ?></td>
+								<td><input type="text" inputmode="decimal" class="wd-input lc-amt" required
+									name="credit[<?php echo $lcE($r['EmpID']); ?>]" value="<?php echo $lcN($r['CTH']); ?>"></td>
+							</tr>
+						<?php endforeach; ?>
+						</tbody>
+					</table>
+					</div>
+					<p class="lc-error" id="lcYearErr" hidden></p>
+				</div>
+				<div class="modal-footer">
+					<button type="button" class="wd-btn wd-btn--ghost" data-dismiss="modal">Cancel</button>
+					<button type="submit" class="wd-btn wd-btn--primary" id="lcYearSave"><i class="fa-solid fa-calendar-plus"></i> Start <?php echo $lcYear; ?></button>
+				</div>
+				</form>
+			</div>
+		</div>
+	</div>
+	<?php endif; ?>
+
+	<!-- Edit one employee's leave credit, or add an employee who has none -->
+	<div class="modal fade" id="lcEditModal" role="dialog">
+		<div class="modal-dialog">
+			<div class="modal-content">
+				<div class="modal-header">
+					<button type="button" class="close" data-dismiss="modal">&times;</button>
+					<h4 class="modal-title" id="lcEditTitle">Edit leave credit</h4>
+				</div>
+				<form id="lcEditForm" autocomplete="off">
+				<div class="modal-body">
+					<input type="hidden" name="action" value="save">
+					<input type="hidden" name="token" value="<?php echo $lcE(lc_csrf_token()); ?>">
+					<input type="hidden" name="emp" id="lcEmp">
+					<div class="wd-field" id="lcPickWrap">
+						<label for="lcPick">Employee</label>
+						<select class="wd-input" id="lcPick">
+							<?php foreach ($lcMissing as $m): ?>
+							<option value="<?php echo $lcE($m['EmpID']); ?>"><?php echo $lcE(strtoupper($m['EmpLN']) . ', ' . $m['EmpFN']); ?></option>
+							<?php endforeach; ?>
+						</select>
+					</div>
+					<div class="wd-field">
+						<label for="lcCth"><?php echo $lcYear; ?> leave credit</label>
+						<input type="text" inputmode="decimal" class="wd-input" name="cth" id="lcCth" required>
+					</div>
+					<div class="wd-field">
+						<label for="lcCt">Remaining credit</label>
+						<input type="text" inputmode="decimal" class="wd-input" name="ct" id="lcCt" required>
+						<p class="lc-help" style="margin:6px 0 0">Leave credit minus the days already used this year.</p>
+					</div>
+					<p class="lc-error" id="lcEditErr" hidden></p>
+				</div>
+				<div class="modal-footer">
+					<button type="button" class="wd-btn wd-btn--ghost" data-dismiss="modal">Cancel</button>
+					<button type="submit" class="wd-btn wd-btn--primary" id="lcEditSave"><i class="fa-solid fa-floppy-disk"></i> Save</button>
+				</div>
+				</form>
+			</div>
+		</div>
+	</div>
+
+	<script>
+	$(function () {
+		function post(form, btn, err) {
+			$(err).prop('hidden', true).text('');
+			$(btn).prop('disabled', true);
+			$.post('query/leavecredit-action.php', $(form).serialize(), null, 'json')
+				.done(function () { location.reload(); })
+				.fail(function (x) {
+					var msg = (x.responseJSON && x.responseJSON.msg) || 'Something went wrong — please try again.';
+					$(err).text(msg).prop('hidden', false);
+					$(btn).prop('disabled', false);
+				});
+		}
+
+		$('#lcYearForm').on('submit', function (e) {
+			e.preventDefault();
+			if (!confirm('Start the <?php echo $lcYear; ?> leave year? Unused <?php echo $lcYear - 1; ?> credits will be dropped. This cannot be undone from the screen.')) { return; }
+			post(this, '#lcYearSave', '#lcYearErr');
+		});
+
+		// edit an existing row
+		$(document).on('click', '.lc-edit', function () {
+			var b = $(this);
+			$('#lcEditTitle').text('Edit leave credit — ' + b.data('name'));
+			$('#lcPickWrap').hide();
+			$('#lcEmp').val(b.data('emp'));
+			$('#lcCth').val(b.data('cth'));
+			$('#lcCt').val(b.data('ct'));
+			$('#lcEditErr').prop('hidden', true);
+			$('#lcEditModal').modal('show');
+		});
+
+		// add an active employee who has no credit row
+		$('#lcAddBtn').on('click', function () {
+			$('#lcEditTitle').text('Add employee to leave credits');
+			$('#lcPickWrap').show();
+			$('#lcEmp').val($('#lcPick').val());
+			$('#lcCth, #lcCt').val('');
+			$('#lcEditErr').prop('hidden', true);
+			$('#lcEditModal').modal('show');
+		});
+		$('#lcPick').on('change', function () { $('#lcEmp').val(this.value); });
+
+		// adding: remaining follows the leave credit until HR types its own value
+		$('#lcCth').on('input', function () {
+			if ($('#lcPickWrap').is(':visible')) { $('#lcCt').val(this.value); }
+		});
+
+		$('#lcEditForm').on('submit', function (e) {
+			e.preventDefault();
+			post(this, '#lcEditSave', '#lcEditErr');
+		});
+	});
+	</script>
+	<?php endif; ?>
 
 	<?php include 'includes/wd-footer.php'; ?>
 </body>
