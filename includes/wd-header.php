@@ -83,135 +83,169 @@ $wd_active = $wd_active ?? '';
 function wd_on($k, $a) { return $k === $a ? ' is-active' : ''; }
 function wd_can($ar, $k) { return isset($ar[$k]) && $ar[$k] == 2; }
 ?>
+<?php
+  /* --------------------------------------------------------------------------
+     Sidebar menu. One list drives the markup: each page = [access, active key,
+     link, icon, label(, badge)]. access = an accessrights column (shown when
+     == 2), a list of columns (any of them), or true (everyone). Icons are
+     Lucide symbols bundled in assets/icons/wd-nav.svg (only the ones used).
+     -------------------------------------------------------------------------- */
+  function wd_icon($name, $cls = '') {
+      static $v = null;
+      if ($v === null) { $v = @filemtime(dirname(__DIR__) . '/assets/icons/wd-nav.svg') ?: 0; }   // cache-buster
+      return '<svg class="wd-i' . ($cls ? ' ' . $cls : '') . '" aria-hidden="true"><use href="assets/icons/wd-nav.svg?v=' . $v . '#i-' . $name . '"/></svg>';
+  }
+  function wd_allowed($ar, $access) {
+      if ($access === true) { return true; }
+      foreach ((array) $access as $k) { if (wd_can($ar, $k)) { return true; } }
+      return false;
+  }
+  $wdBadge = function ($n, $title = '') {
+      if ($n <= 0) { return ''; }
+      return '<span class="wd-nav__badge"' . ($title !== '' ? ' title="' . htmlspecialchars($title) . '"' : '') . '>' . ($n > 99 ? '99+' : (int) $n) . '</span>';
+  };
+
+  $wdSections = [
+    ['key' => 'modules', 'label' => 'Modules', 'icon' => 'layout-grid', 'tone' => 'mod',
+     'badge' => $wdPcrCount, 'badgeTitle' => 'Profile change requests awaiting review', 'items' => [
+      ['alas',                'alas',            'alas',                     'calendar-check', 'Automated Leave Application'],
+      ['checkregister',       'checkregister',   'checkregister',            'receipt-text',   'Check Register'],
+      ['eo',                  'earlyout',        'earlyout',                 'door-open',      'Early Out Application'],
+      ['e201',                'e201',            'e201',                     'folder-open',    'Electronic 201 File'],
+      ['updte',               'profilerequests', 'profilerequests',          'user-check',     'Profile Change Requests', $wdPcrCount],
+      ['memo',                'memo',            'memo',                     'file-pen-line',  'Memorandum Generator'],
+      ['ob',                  'ob',              'ob',                       'route',          'Official Business Trip Tracker'],
+      ['ot',                  'otfilling',       'otfilling',                'clock-plus',     'Overtime Filing'],
+      ['payroll',             'payroll',         'payroll',                  'banknote',       'Payroll Management System'],
+      ['debitadvise',         'debitadvise',     'debitadvise',              'file-text',      'PMS-Debit Advise (Letter)'],
+      ['debitadvisesettings', 'debitsetting',    'maintenance?debitsetting', 'file-cog',       'PMS-Debit Advise (Settings)'],
+      ['sob',                 'SendToOB',        'SendToOB',                 'send',           'Send to OBT Filing'],
+    ]],
+    ['key' => 'reports', 'label' => 'Reports', 'icon' => 'chart-column', 'tone' => 'rep', 'items' => [
+      ['access_13_attachement', 'attachement_13', 'attachement_13', 'paperclip',       '13<sup>th</sup> Month Attachment'],
+      ['alasv',                 'alasviewer',     'alasviewer',     'calendar-search', 'ALAS Viewer'],
+      ['lilov',                 'liloviewer',     'liloviewer',     'clock',           'Attendance Viewer'],
+      ['darv',                  'dar',            'dar',            'activity',        'Daily Activity Viewer'],
+      ['eov',                   'earlyoutviewer', 'earlyoutviewer', 'log-out',         'Early Out Viewer'],
+      ['fdetls',                'FamilyDetails',  'FamilyDetails',  'users',           'Family Details'],
+      [['lcreaditview', 'lcreditedit'], 'leavecredit', 'leavecredit', 'wallet',      'Leave Credit Viewer'],
+      ['coe',                   'coe',            'coe',            'file-badge',      'My Documents (COE)'],
+      ['payslipt',              'payslip',        'payslip',        'receipt',         'My Documents (Payslip)'],
+      ['obv',                   'obviewer',       'obviewer',       'map',             'Official Business Viewer'],
+      ['atv',                   'overtimeviewer', 'overtimeviewer', 'timer',           'Overtime Viewer'],
+      ['access_13',             'generalreport',  'generalreport',  'calendar-range',  'YTD 13<sup>th</sup> Month'],
+    ]],
+    ['key' => 'management', 'label' => 'Management', 'icon' => 'briefcase-business', 'tone' => 'mgt', 'items' => [
+      ['arights',    'accessrights',    'accessrights.php', 'shield-check',   'Access Rights'],
+      ['ams',        'ams',             'ams',              'archive',        'Archived Management System'],
+      ['bookletreg', 'bookletregistry', 'bookletregistry',  'book-open',      'Booklet Management System'],
+      ['e201d',      'e201files',       'e201files',        'file-stack',     'Electronic 201 Document'],
+      ['EF',         'scheduler',       'scheduler',        'calendar-days',  'Employee Scheduler'],
+      ['eemployee',  'newemployee',     'newemployee',      'user-plus',      'Enroll Employee'],
+      ['idcard',     'idcard',          'idcard',           'id-card',        'ID Card Generator'],
+      ['payeereg',   'payeereg',        'payeereg',         'book-user',      'Payee Management System'],
+      ['schedv',     'schedviewer',     'schedviewer',      'calendar-clock', 'Schedule Viewer'],
+    ]],
+    ['key' => 'maintenance', 'label' => 'Maintenance', 'icon' => 'wrench', 'tone' => 'mnt', 'items' => [
+      ['agncy',      'agency',                'maintenance?agency',                'building-2',      'Agencies'],
+      ['classf',     'classification',        'maintenance?classification',        'tags',            'Classifications'],
+      ['comp',       'company',               'maintenance?company',               'building',        'Companies'],
+      ['dep',        'department',            'maintenance?department',            'network',         'Departments'],
+      ['est',        'employeestatus',        'maintenance?employeestatus',        'user-cog',        'Employee Status'],
+      ['eoval',      'eovalidation',          'maintenance?eovalidation',          'door-open',       'EO Validation'],
+      [true,         'parentalfamilydetails', 'maintenance?parentalfamilydetails', 'baby',            'Family Details for Parental'],
+      ['hmo',        'hmo',                   'maintenance?hmo',                   'heart-pulse',     'HMOs'],
+      ['hldy',       'holiday',               'maintenance?holiday',               'calendar-heart',  'Holiday Logger'],
+      ['jl',         'joblevel',              'maintenance?joblevel',              'layers',          'Job Levels'],
+      ['logintheme', 'logintheme',            'logintheme',                        'palette',         'Login Theme'],
+      ['lval',       'leavevalidation',       'maintenance?leavevalidation',       'calendar-cog',    'Leave Validation'],
+      ['gprdv',      'lilovalidation',        'maintenance?lilovalidation',        'fingerprint',     'Lilo Validation'],
+      ['obval',      'obvalidation',          'maintenance?obvalidation',          'map-pin-check',   'OB Validation'],
+      ['otfs',       'otfsm',                 'maintenance?otfsm',                 'clock-alert',     'OT Filing System Maintenance'],
+      ['SPPContrib', 'pagibig',               'maintenance?pagibig',               'piggy-bank',      'Pagibig Contribution'],
+      ['SPPContrib', 'philhealth',            'maintenance?philhealth',            'stethoscope',     'PhilHealth Contribution'],
+      ['pos',        'position',              'maintenance?position',              'badge',           'Positions'],
+      ['rel',        'relationship',          'maintenance?relationship',          'heart-handshake', 'Relationships'],
+      ['SPPContrib', 'silloan',               'maintenance?silloan',               'hand-coins',      'SIL LOAN'],
+      ['SPPContrib', 'sss',                   'maintenance?sss',                   'shield',          'SSS Contribution'],
+      ['tlv',        'typesofleave',          'maintenance?typesofleave',          'list-checks',     'Types of Leaves'],
+      ['ur',         'userrole',              'maintenance?userrole',              'key-round',       'User Roles'],
+      ['wt',         'worktime',              'maintenance?worktime',              'sun-moon',        'Work Shifts'],
+    ]],
+  ];
+
+  /* one top-level menu row: icon chip + label (+ badge) */
+  $wdTop = function ($key, $href, $icon, $label, $tone = 'top', $badge = '', $extra = '') use ($wd_active) {
+      return '<a class="wd-nav wd-nav--top' . wd_on($key, $wd_active) . '" href="' . $href . '"' . $extra . '>'
+           . '<span class="wd-nav__chip wd-tone--' . $tone . '">' . wd_icon($icon) . '</span>'
+           . '<span class="wd-nav__label">' . $label . '</span>' . $badge . '</a>';
+  };
+?>
 <div class="wd-app">
+  <script>try{if(localStorage.getItem('wd-rail')==='1'){document.currentScript.parentNode.classList.add('is-rail');}}catch(e){}</script>
   <aside class="wd-sidebar" id="wdSidebar">
-    <div class="wd-brand"><img src="assets/images/logos/wedo-logo.png" alt="WeDo BPO Inc." style="height:46px;width:auto"></div>
+    <div class="wd-brand">
+      <img class="wd-brand__img" src="assets/images/logos/wedo-logo.png" alt="WeDo BPO Inc." style="height:40px;width:auto">
+      <span class="wd-brand__mark" aria-hidden="true"><?php echo htmlspecialchars(mb_strtoupper(mb_substr($_SESSION['CompanyName'] ?: 'W', 0, 1))); ?></span>
+      <button class="wd-railbtn" type="button" id="wdRailBtn" aria-label="Collapse menu" title="Collapse menu"><?php echo wd_icon('panel-left-close', 'wd-railbtn__close') . wd_icon('panel-left-open', 'wd-railbtn__open'); ?></button>
+    </div>
     <div class="wd-brand__tag"><?php echo htmlspecialchars($_SESSION['CompanyName'] ?: 'WeDo BPO'); ?></div>
 
-    <?php if(wd_can($ar,'dashboard')): ?><a class="wd-nav<?php echo wd_on('dashboard',$wd_active); ?>" href="dashboard"><i class="fa-solid fa-chart-pie"></i> Dashboard</a><?php endif; ?>
-    <a class="wd-nav<?php echo wd_on('index',$wd_active); ?>" href="index"><i class="fa-solid fa-gauge"></i> Home</a>
+    <label class="wd-navsearch" title="Search pages (Ctrl+K)">
+      <?php echo wd_icon('search'); ?>
+      <input type="search" id="wdNavSearch" placeholder="Search pages" autocomplete="off" aria-label="Search pages" aria-controls="wdNavList">
+      <kbd class="wd-navsearch__kbd">Ctrl K</kbd>
+    </label>
 
-    <?php
-      /* mirror of includes/header.php section gates so nothing is dropped */
-      $wd_show_reports = wd_can($ar,'alasv')||wd_can($ar,'lilov')||wd_can($ar,'darv')||wd_can($ar,'access_13')||wd_can($ar,'access_13_attachement')
-                       ||wd_can($ar,'eov')||wd_can($ar,'coe')||wd_can($ar,'payslipt')||wd_can($ar,'obv')||wd_can($ar,'atv')
-                       ||wd_can($ar,'fdetls')||wd_can($ar,'lcreaditview')||wd_can($ar,'lcreditedit');
-      $wd_show_mgmt = wd_can($ar,'arights')||wd_can($ar,'ams')||wd_can($ar,'payeereg')||wd_can($ar,'bookletreg')||wd_can($ar,'eemployee')
-                    ||wd_can($ar,'e201d')||wd_can($ar,'EF')||wd_can($ar,'schedv')||wd_can($ar,'idcard');
-      /* Maintenance is now its own top-level section (leveled with Management),
-         no longer nested inside Management. */
-      $wd_show_maint = wd_can($ar,'agncy')||wd_can($ar,'comp')||wd_can($ar,'dep')
-                    ||wd_can($ar,'pos')||wd_can($ar,'jl')||wd_can($ar,'hmo')||wd_can($ar,'est')||wd_can($ar,'rel')||wd_can($ar,'classf')
-                    ||wd_can($ar,'wt')||wd_can($ar,'tlv')||wd_can($ar,'lval')||wd_can($ar,'ur')||wd_can($ar,'otfs')||wd_can($ar,'hldy')
-                    ||wd_can($ar,'gprdv')||wd_can($ar,'obval')||wd_can($ar,'eoval')||wd_can($ar,'SPPContrib')
-                    ||wd_can($ar,'logintheme');
-    ?>
+    <nav class="wd-navlist" id="wdNavList" aria-label="Main menu">
+      <?php if(wd_can($ar,'dashboard')) { echo $wdTop('dashboard', 'dashboard', 'chart-pie', 'Dashboard'); } ?>
+      <?php echo $wdTop('index', 'index', 'house', 'Home'); ?>
+      <?php echo $wdTop('messages', 'messages', 'message-circle', 'Messages', 'top',
+                        '<span class="wd-nav__badge" data-wd-unread' . ($wdUnreadMsg > 0 ? '' : ' hidden') . '>' . ($wdUnreadMsg > 99 ? '99+' : (int) $wdUnreadMsg) . '</span>'); ?>
 
-    <div class="wd-navsection is-collapsed">
-      <button class="wd-navgroup" type="button" onclick="this.closest('.wd-navsection').classList.toggle('is-collapsed')"><span class="wd-navgroup__label">Modules<?php if($wdPcrCount > 0): ?><span class="wd-nav__badge" title="Profile change requests awaiting review"><?php echo $wdPcrCount > 99 ? '99+' : (int)$wdPcrCount; ?></span><?php endif; ?></span> <i class="fa-solid fa-chevron-down"></i></button>
-      <div class="wd-navitems">
-        <?php if(wd_can($ar,'alas')): ?><a class="wd-nav<?php echo wd_on('alas',$wd_active); ?>" href="alas"><i class="fa-solid fa-calendar-check"></i> Automated Leave Application</a><?php endif; ?>
-        <?php if(wd_can($ar,'checkregister')): ?><a class="wd-nav<?php echo wd_on('checkregister',$wd_active); ?>" href="checkregister"><i class="fa-solid fa-file-lines"></i> Check Register</a><?php endif; ?>
-        <?php if(wd_can($ar,'eo')): ?><a class="wd-nav<?php echo wd_on('earlyout',$wd_active); ?>" href="earlyout"><i class="fa-solid fa-calendar-minus"></i> Early Out Application</a><?php endif; ?>
-        <?php if(wd_can($ar,'e201')): ?><a class="wd-nav<?php echo wd_on('e201',$wd_active); ?>" href="e201"><i class="fa-solid fa-folder"></i> Electronic 201 File</a><?php endif; ?>
-        <?php if(wd_can($ar,'updte')): ?><a class="wd-nav wd-nav--badge<?php echo wd_on('profilerequests',$wd_active); ?>" href="profilerequests"><i class="fa-solid fa-user-check"></i> <span class="wd-nav__label">Profile Change Requests</span><?php if($wdPcrCount > 0): ?><span class="wd-nav__badge"><?php echo $wdPcrCount > 99 ? '99+' : (int)$wdPcrCount; ?></span><?php endif; ?></a><?php endif; ?>
-        <?php if(wd_can($ar,'memo')): ?><a class="wd-nav<?php echo wd_on('memo',$wd_active); ?>" href="memo"><i class="fa-solid fa-sticky-note"></i> Memorandum Generator</a><?php endif; ?>
-        <?php if(wd_can($ar,'ob')): ?><a class="wd-nav<?php echo wd_on('ob',$wd_active); ?>" href="ob"><i class="fa-solid fa-briefcase"></i> Official Business Trip Tracker</a><?php endif; ?>
-        <?php if(wd_can($ar,'ot')): ?><a class="wd-nav<?php echo wd_on('otfilling',$wd_active); ?>" href="otfilling"><i class="fa-solid fa-business-time"></i> Overtime Filing</a><?php endif; ?>
-        <?php if(wd_can($ar,'payroll')): ?><a class="wd-nav<?php echo wd_on('payroll',$wd_active); ?>" href="payroll"><i class="fa-solid fa-money-bill-wave"></i> Payroll Management System</a><?php endif; ?>
-        <?php if(wd_can($ar,'debitadvise')): ?><a class="wd-nav<?php echo wd_on('debitadvise',$wd_active); ?>" href="debitadvise"><i class="fa-solid fa-file-invoice-dollar"></i> PMS-Debit Advise (Letter)</a><?php endif; ?>
-        <?php if(wd_can($ar,'debitadvisesettings')): ?><a class="wd-nav<?php echo wd_on('debitsetting',$wd_active); ?>" href="maintenance?debitsetting"><i class="fa-solid fa-file-invoice-dollar"></i> PMS-Debit Advise (Settings)</a><?php endif; ?>
-        <?php if(wd_can($ar,'sob')): ?><a class="wd-nav<?php echo wd_on('SendToOB',$wd_active); ?>" href="SendToOB"><i class="fa-solid fa-plane"></i> Send to OBT Filing</a><?php endif; ?>
+      <?php foreach ($wdSections as $sec):
+        $items = array_filter($sec['items'], function ($it) use ($ar) { return wd_allowed($ar, $it[0]); });
+        if (!$items) { continue; }
+      ?>
+      <div class="wd-navsection is-collapsed" data-sec="<?php echo $sec['key']; ?>">
+        <button class="wd-navgroup" type="button" aria-expanded="false" title="<?php echo $sec['label']; ?>">
+          <span class="wd-nav__chip wd-tone--<?php echo $sec['tone']; ?>"><?php echo wd_icon($sec['icon']); ?></span>
+          <span class="wd-navgroup__label"><?php echo $sec['label']; ?><?php echo $wdBadge($sec['badge'] ?? 0, $sec['badgeTitle'] ?? ''); ?></span>
+          <?php echo wd_icon('chevron-right', 'wd-navgroup__chev'); ?>
+        </button>
+        <div class="wd-navitems">
+          <?php foreach ($items as $it): ?>
+          <a class="wd-nav wd-nav--sub<?php echo wd_on($it[1], $wd_active); ?>" href="<?php echo $it[2]; ?>"><?php echo wd_icon($it[3]); ?><span class="wd-nav__label"><?php echo $it[4]; ?></span><?php echo $wdBadge($it[5] ?? 0); ?></a>
+          <?php endforeach; ?>
+        </div>
       </div>
-    </div>
+      <?php endforeach; ?>
 
-    <?php if($wd_show_reports): ?>
-    <div class="wd-navsection is-collapsed">
-      <button class="wd-navgroup" type="button" onclick="this.closest('.wd-navsection').classList.toggle('is-collapsed')">Reports <i class="fa-solid fa-chevron-down"></i></button>
-      <div class="wd-navitems">
-        <?php if(wd_can($ar,'access_13_attachement')): ?><a class="wd-nav<?php echo wd_on('attachement_13',$wd_active); ?>" href="attachement_13"><i class="fa-solid fa-chart-column"></i> 13<sup>th</sup> Month Attachment</a><?php endif; ?>
-        <?php if(wd_can($ar,'alasv')): ?><a class="wd-nav<?php echo wd_on('alasviewer',$wd_active); ?>" href="alasviewer"><i class="fa-solid fa-chart-column"></i> ALAS Viewer</a><?php endif; ?>
-        <?php if(wd_can($ar,'lilov')): ?><a class="wd-nav<?php echo wd_on('liloviewer',$wd_active); ?>" href="liloviewer"><i class="fa-solid fa-chart-column"></i> Attendance Viewer</a><?php endif; ?>
-        <?php if(wd_can($ar,'darv')): ?><a class="wd-nav<?php echo wd_on('dar',$wd_active); ?>" href="dar"><i class="fa-solid fa-chart-column"></i> Daily Activity Viewer</a><?php endif; ?>
-        <?php if(wd_can($ar,'eov')): ?><a class="wd-nav<?php echo wd_on('earlyoutviewer',$wd_active); ?>" href="earlyoutviewer"><i class="fa-solid fa-chart-column"></i> Early Out Viewer</a><?php endif; ?>
-        <?php if(wd_can($ar,'fdetls')): ?><a class="wd-nav<?php echo wd_on('FamilyDetails',$wd_active); ?>" href="FamilyDetails"><i class="fa-solid fa-chart-column"></i> Family Details</a><?php endif; ?>
-        <?php if(wd_can($ar,'lcreaditview')||wd_can($ar,'lcreditedit')): ?><a class="wd-nav<?php echo wd_on('leavecredit',$wd_active); ?>" href="leavecredit"><i class="fa-solid fa-wallet"></i> Leave Credit Viewer</a><?php endif; ?>
-        <?php if(wd_can($ar,'coe')): ?><a class="wd-nav<?php echo wd_on('coe',$wd_active); ?>" href="coe"><i class="fa-solid fa-file"></i> My Documents (COE)</a><?php endif; ?>
-        <?php if(wd_can($ar,'payslipt')): ?><a class="wd-nav<?php echo wd_on('payslip',$wd_active); ?>" href="payslip"><i class="fa-solid fa-file"></i> My Documents (Payslip)</a><?php endif; ?>
-        <?php if(wd_can($ar,'obv')): ?><a class="wd-nav<?php echo wd_on('obviewer',$wd_active); ?>" href="obviewer"><i class="fa-solid fa-chart-column"></i> Official Business Viewer</a><?php endif; ?>
-        <?php if(wd_can($ar,'atv')): ?><a class="wd-nav<?php echo wd_on('overtimeviewer',$wd_active); ?>" href="overtimeviewer"><i class="fa-solid fa-chart-column"></i> Overtime Viewer</a><?php endif; ?>
-        <?php if(wd_can($ar,'access_13')): ?><a class="wd-nav<?php echo wd_on('generalreport',$wd_active); ?>" href="generalreport"><i class="fa-solid fa-chart-column"></i> YTD 13<sup>th</sup> Month</a><?php endif; ?>
+      <?php if(wd_can($ar,'gcorner')):
+        $wdCornerName = trim($_SESSION['CompanyName'] . ' Corner');
+        $wdCornerTip  = $wdUnseenAnn > 0
+          ? $wdCornerName . ' — ' . $wdUnseenAnn . ' new announcement' . ($wdUnseenAnn > 1 ? 's' : '')
+          : $wdCornerName;
+        echo $wdTop('corner', 'corner', 'megaphone', htmlspecialchars($wdCornerName), 'cor', $wdBadge($wdUnseenAnn), ' title="' . htmlspecialchars($wdCornerTip) . '"');
+      endif; ?>
+      <?php if($_SESSION['UserType']==5) { echo $wdTop('reset', 'Reset', 'triangle-alert', 'Reset Data', 'cor'); } ?>
+      <p class="wd-navempty" id="wdNavEmpty" hidden>No pages match.</p>
+    </nav>
+
+    <div class="wd-account">
+      <div class="wd-avatar wd-account__av" title="<?php echo htmlspecialchars($wdName); ?>"><?php echo htmlspecialchars($wdInitials); ?></div>
+      <div class="wd-account__who">
+        <div class="wd-account__name"><?php echo htmlspecialchars($wdName); ?></div>
+        <div class="wd-account__role"><?php echo htmlspecialchars($wdPosition); ?></div>
       </div>
+      <a class="wd-account__btn" data-toggle="modal" data-target="#changepass" href="#" title="Change password" aria-label="Change password"><?php echo wd_icon('settings'); ?></a>
+      <a class="wd-account__btn" href="login.php?logout" title="Sign out" aria-label="Sign out"><?php echo wd_icon('log-out'); ?></a>
     </div>
-    <?php endif; ?>
-
-    <?php if($wd_show_mgmt): ?>
-    <div class="wd-navsection is-collapsed">
-      <button class="wd-navgroup" type="button" onclick="this.closest('.wd-navsection').classList.toggle('is-collapsed')">Management <i class="fa-solid fa-chevron-down"></i></button>
-      <div class="wd-navitems">
-        <?php if(wd_can($ar,'arights')): ?><a class="wd-nav<?php echo wd_on('accessrights',$wd_active); ?>" href="accessrights.php"><i class="fa-solid fa-lock"></i> Access Rights</a><?php endif; ?>
-        <?php if(wd_can($ar,'ams')): ?><a class="wd-nav<?php echo wd_on('ams',$wd_active); ?>" href="ams"><i class="fa-solid fa-box-archive"></i> Archived Management System</a><?php endif; ?>
-        <?php if(wd_can($ar,'bookletreg')): ?><a class="wd-nav<?php echo wd_on('bookletregistry',$wd_active); ?>" href="bookletregistry"><i class="fa-solid fa-box-archive"></i> Booklet Management System</a><?php endif; ?>
-        <?php if(wd_can($ar,'e201d')): ?><a class="wd-nav<?php echo wd_on('e201files',$wd_active); ?>" href="e201files"><i class="fa-solid fa-file-pdf"></i> Electronic 201 Document</a><?php endif; ?>
-        <?php if(wd_can($ar,'EF')): ?><a class="wd-nav<?php echo wd_on('scheduler',$wd_active); ?>" href="scheduler"><i class="fa-solid fa-calendar-days"></i> Employee Scheduler</a><?php endif; ?>
-        <?php if(wd_can($ar,'eemployee')): ?><a class="wd-nav<?php echo wd_on('newemployee',$wd_active); ?>" href="newemployee"><i class="fa-solid fa-user-plus"></i> Enroll Employee</a><?php endif; ?>
-        <?php if(wd_can($ar,'idcard')): ?><a class="wd-nav<?php echo wd_on('idcard',$wd_active); ?>" href="idcard"><i class="fa-solid fa-id-card"></i> ID Card Generator</a><?php endif; ?>
-        <?php if(wd_can($ar,'payeereg')): ?><a class="wd-nav<?php echo wd_on('payeereg',$wd_active); ?>" href="payeereg"><i class="fa-solid fa-box-archive"></i> Payee Management System</a><?php endif; ?>
-        <?php if(wd_can($ar,'schedv')): ?><a class="wd-nav<?php echo wd_on('schedviewer',$wd_active); ?>" href="schedviewer"><i class="fa-solid fa-chart-column"></i> Schedule Viewer</a><?php endif; ?>
-      </div>
-    </div>
-    <?php endif; ?>
-
-    <?php if($wd_show_maint): ?>
-    <div class="wd-navsection is-collapsed">
-      <button class="wd-navgroup" type="button" onclick="this.closest('.wd-navsection').classList.toggle('is-collapsed')">Maintenance <i class="fa-solid fa-chevron-down"></i></button>
-      <div class="wd-navitems">
-        <?php if(wd_can($ar,'agncy')): ?><a class="wd-nav<?php echo wd_on('agency',$wd_active); ?>" href="maintenance?agency"><i class="fa-solid fa-square-plus"></i> Agencies</a><?php endif; ?>
-        <?php if(wd_can($ar,'classf')): ?><a class="wd-nav<?php echo wd_on('classification',$wd_active); ?>" href="maintenance?classification"><i class="fa-solid fa-square-plus"></i> Classifications</a><?php endif; ?>
-        <?php if(wd_can($ar,'comp')): ?><a class="wd-nav<?php echo wd_on('company',$wd_active); ?>" href="maintenance?company"><i class="fa-solid fa-square-plus"></i> Companies</a><?php endif; ?>
-        <?php if(wd_can($ar,'dep')): ?><a class="wd-nav<?php echo wd_on('department',$wd_active); ?>" href="maintenance?department"><i class="fa-solid fa-square-plus"></i> Departments</a><?php endif; ?>
-        <?php if(wd_can($ar,'est')): ?><a class="wd-nav<?php echo wd_on('employeestatus',$wd_active); ?>" href="maintenance?employeestatus"><i class="fa-solid fa-square-plus"></i> Employee Status</a><?php endif; ?>
-        <?php if(wd_can($ar,'eoval')): ?><a class="wd-nav<?php echo wd_on('eovalidation',$wd_active); ?>" href="maintenance?eovalidation"><i class="fa-solid fa-square-plus"></i> EO Validation</a><?php endif; ?>
-        <a class="wd-nav<?php echo wd_on('parentalfamilydetails',$wd_active); ?>" href="maintenance?parentalfamilydetails"><i class="fa-solid fa-square-plus"></i> Family Details for Parental</a>
-        <?php if(wd_can($ar,'hmo')): ?><a class="wd-nav<?php echo wd_on('hmo',$wd_active); ?>" href="maintenance?hmo"><i class="fa-solid fa-square-plus"></i> HMOs</a><?php endif; ?>
-        <?php if(wd_can($ar,'hldy')): ?><a class="wd-nav<?php echo wd_on('holiday',$wd_active); ?>" href="maintenance?holiday"><i class="fa-solid fa-square-plus"></i> Holiday Logger</a><?php endif; ?>
-        <?php if(wd_can($ar,'jl')): ?><a class="wd-nav<?php echo wd_on('joblevel',$wd_active); ?>" href="maintenance?joblevel"><i class="fa-solid fa-square-plus"></i> Job Levels</a><?php endif; ?>
-        <?php if(wd_can($ar,'logintheme')): ?><a class="wd-nav<?php echo wd_on('logintheme',$wd_active); ?>" href="logintheme"><i class="fa-solid fa-wand-magic-sparkles"></i> Login Theme</a><?php endif; ?>
-        <?php if(wd_can($ar,'lval')): ?><a class="wd-nav<?php echo wd_on('leavevalidation',$wd_active); ?>" href="maintenance?leavevalidation"><i class="fa-solid fa-square-plus"></i> Leave Validation</a><?php endif; ?>
-        <?php if(wd_can($ar,'gprdv')): ?><a class="wd-nav<?php echo wd_on('lilovalidation',$wd_active); ?>" href="maintenance?lilovalidation"><i class="fa-solid fa-square-plus"></i> Lilo Validation</a><?php endif; ?>
-        <?php if(wd_can($ar,'obval')): ?><a class="wd-nav<?php echo wd_on('obvalidation',$wd_active); ?>" href="maintenance?obvalidation"><i class="fa-solid fa-square-plus"></i> OB Validation</a><?php endif; ?>
-        <?php if(wd_can($ar,'otfs')): ?><a class="wd-nav<?php echo wd_on('otfsm',$wd_active); ?>" href="maintenance?otfsm"><i class="fa-solid fa-square-plus"></i> OT Filing System Maintenance</a><?php endif; ?>
-        <?php if(wd_can($ar,'SPPContrib')): ?><a class="wd-nav<?php echo wd_on('pagibig',$wd_active); ?>" href="maintenance?pagibig"><i class="fa-solid fa-square-plus"></i> Pagibig Contribution</a><?php endif; ?>
-        <?php if(wd_can($ar,'SPPContrib')): ?><a class="wd-nav<?php echo wd_on('philhealth',$wd_active); ?>" href="maintenance?philhealth"><i class="fa-solid fa-square-plus"></i> PhilHealth Contribution</a><?php endif; ?>
-        <?php if(wd_can($ar,'pos')): ?><a class="wd-nav<?php echo wd_on('position',$wd_active); ?>" href="maintenance?position"><i class="fa-solid fa-square-plus"></i> Positions</a><?php endif; ?>
-        <?php if(wd_can($ar,'rel')): ?><a class="wd-nav<?php echo wd_on('relationship',$wd_active); ?>" href="maintenance?relationship"><i class="fa-solid fa-square-plus"></i> Relationships</a><?php endif; ?>
-        <?php if(wd_can($ar,'SPPContrib')): ?><a class="wd-nav<?php echo wd_on('silloan',$wd_active); ?>" href="maintenance?silloan"><i class="fa-solid fa-square-plus"></i> SIL LOAN</a><?php endif; ?>
-        <?php if(wd_can($ar,'SPPContrib')): ?><a class="wd-nav<?php echo wd_on('sss',$wd_active); ?>" href="maintenance?sss"><i class="fa-solid fa-square-plus"></i> SSS Contribution</a><?php endif; ?>
-        <?php if(wd_can($ar,'tlv')): ?><a class="wd-nav<?php echo wd_on('typesofleave',$wd_active); ?>" href="maintenance?typesofleave"><i class="fa-solid fa-square-plus"></i> Types of Leaves</a><?php endif; ?>
-        <?php if(wd_can($ar,'ur')): ?><a class="wd-nav<?php echo wd_on('userrole',$wd_active); ?>" href="maintenance?userrole"><i class="fa-solid fa-square-plus"></i> User Roles</a><?php endif; ?>
-        <?php if(wd_can($ar,'wt')): ?><a class="wd-nav<?php echo wd_on('worktime',$wd_active); ?>" href="maintenance?worktime"><i class="fa-solid fa-square-plus"></i> Work Shifts</a><?php endif; ?>
-      </div>
-    </div>
-    <?php endif; ?>
-
-    <?php if(wd_can($ar,'gcorner')):
-      $wdCornerName = trim($_SESSION['CompanyName'] . ' Corner');
-      $wdCornerTip  = $wdUnseenAnn > 0
-        ? $wdCornerName . ' — ' . $wdUnseenAnn . ' new announcement' . ($wdUnseenAnn > 1 ? 's' : '')
-        : $wdCornerName;
-    ?>
-    <a class="wd-nav wd-nav--badge<?php echo wd_on('corner',$wd_active); ?>" href="corner" title="<?php echo htmlspecialchars($wdCornerTip); ?>">
-      <i class="fa-solid fa-bullhorn"></i>
-      <span class="wd-nav__label"><?php echo htmlspecialchars($wdCornerName); ?></span>
-      <?php if($wdUnseenAnn > 0): ?><span class="wd-nav__badge"><?php echo $wdUnseenAnn > 99 ? '99+' : (int)$wdUnseenAnn; ?></span><?php endif; ?>
-    </a><?php endif; ?>
-    <?php if($_SESSION['UserType']==5): ?><a class="wd-nav" href="Reset"><i class="fa-solid fa-triangle-exclamation"></i> Reset Data</a><?php endif; ?>
   </aside>
 
   <div class="wd-main">
     <header class="wd-topbar">
       <button class="wd-iconbtn wd-menu-toggle" type="button" onclick="document.querySelector('.wd-app').classList.toggle('is-collapsed')" aria-label="Toggle menu"><i class="fa-solid fa-bars"></i></button>
-      <div class="wd-search"><i class="fa-solid fa-magnifying-glass"></i><input placeholder="Search&hellip;"></div>
       <div style="flex:1"></div>
       <?php $wdMsgLabel = $wdUnreadMsg > 0 ? (int)$wdUnreadMsg . ' unread conversation' . ($wdUnreadMsg > 1 ? 's' : '') : 'Messages'; ?>
       <a href="messages" class="wd-iconbtn wd-inbox<?php echo $wdUnreadMsg > 0 ? ' has-unread' : ''; ?>" id="wdMsgBtn" data-unread="<?php echo (int)$wdUnreadMsg; ?>" title="<?php echo $wdMsgLabel; ?>" aria-label="<?php echo $wdMsgLabel; ?>"><i class="fa-regular fa-envelope"></i><span class="wd-inbox__badge"<?php echo $wdUnreadMsg > 0 ? '' : ' hidden'; ?>><?php echo $wdUnreadMsg > 99 ? '99+' : (int)$wdUnreadMsg; ?></span></a>
@@ -227,38 +261,111 @@ function wd_can($ar, $k) { return isset($ar[$k]) && $ar[$k] == 2; }
       </div>
     </header>
     <script>
-      if(window.innerWidth<=900){var a=document.querySelector('.wd-app');if(a)a.classList.add('is-collapsed');}
-      // keep the active page's section (and any parent section, if nested)
-      // expanded on load, so navigating within a group doesn't collapse it and
-      // force a re-click. Also flag it is-current so the section header stays lit
-      // ("you are in Management") even after the user collapses the group — so
-      // clicking a group never leaves them wondering where they are.
+      /* Sidebar behaviour. Runs right after the sidebar is parsed, before first paint. */
       (function(){
-        var active = document.querySelector('.wd-sidebar .wd-nav.is-active');
-        for(var sec = active && active.closest('.wd-navsection'); sec; sec = sec.parentElement && sec.parentElement.closest('.wd-navsection')){
-          sec.classList.remove('is-collapsed');
-          sec.classList.add('is-current');
-        }
-      })();
-      // full label as a hover tooltip, so ellipsis-truncated menu items stay readable
-      document.querySelectorAll('.wd-sidebar .wd-nav').forEach(function(n){ if(!n.title) n.title = n.textContent.trim(); });
+        var app = document.querySelector('.wd-app');
+        var side = document.getElementById('wdSidebar');
+        if(!app || !side) return;
+        if(window.innerWidth<=900){ app.classList.add('is-collapsed'); }
+        function sGet(k){ try{ return localStorage.getItem(k); }catch(e){ return null; } }
+        function sSet(k,v){ try{ localStorage.setItem(k,v); }catch(e){} }
+        var sections = side.querySelectorAll('.wd-navsection');
 
-      // Accordion: opening one section collapses the others, so expanding a group
-      // never pushes the rest of the menu far down / forces a long scroll.
-      (function(){
-        var groups = document.querySelectorAll('.wd-sidebar .wd-navgroup');
-        groups.forEach(function(btn){
-          btn.addEventListener('click', function(){
-            var sec = btn.closest('.wd-navsection');
-            // the inline onclick has just toggled `sec`; if it is now open, close siblings
-            if(sec && !sec.classList.contains('is-collapsed')){
-              document.querySelectorAll('.wd-sidebar .wd-navsection').forEach(function(other){
-                if(other !== sec) other.classList.add('is-collapsed');
-              });
-              // bring the just-opened section into view within the sidebar
-              sec.scrollIntoView({block:'nearest'});
+        function setOpen(sec, open){
+          sec.classList.toggle('is-collapsed', !open);
+          var b = sec.querySelector('.wd-navgroup');
+          if(b) b.setAttribute('aria-expanded', open ? 'true' : 'false');
+        }
+        // accordion: one section open at a time, so the menu never grows into a long scroll
+        function openOnly(sec){
+          sections.forEach(function(o){ setOpen(o, o === sec); });
+          sSet('wd-nav-open', sec ? sec.getAttribute('data-sec') : '');
+        }
+
+        // open the section holding the current page and keep it lit ("you are in Reports");
+        // otherwise reopen whichever section was open last
+        var active = side.querySelector('.wd-nav.is-active');
+        var cur = active && active.closest('.wd-navsection');
+        if(cur){ cur.classList.add('is-current'); setOpen(cur, true); }
+        else {
+          var last = sGet('wd-nav-open');
+          var sec = last && side.querySelector('.wd-navsection[data-sec="'+last+'"]');
+          if(sec) setOpen(sec, true);
+        }
+
+        sections.forEach(function(sec){
+          sec.querySelector('.wd-navgroup').addEventListener('click', function(){
+            if(app.classList.contains('is-rail')){ setRail(false); openOnly(sec); return; }   // icon strip: expand and show it
+            if(sec.classList.contains('is-collapsed')){ openOnly(sec); sec.scrollIntoView({block:'nearest'}); }
+            else { setOpen(sec, false); sSet('wd-nav-open', ''); }
+          });
+        });
+
+        // full label as a hover tooltip (labels can be ellipsised; the icon strip shows none)
+        side.querySelectorAll('.wd-nav').forEach(function(n){ if(!n.title) n.title = n.textContent.trim(); });
+
+        /* ---- collapse to an icon strip (desktop), remembered ---- */
+        var railBtn = document.getElementById('wdRailBtn');
+        function setRail(on){
+          app.classList.toggle('is-rail', on);
+          sSet('wd-rail', on ? '1' : '0');
+          if(railBtn){ var t = on ? 'Expand menu' : 'Collapse menu'; railBtn.title = t; railBtn.setAttribute('aria-label', t); }
+        }
+        if(railBtn){
+          if(app.classList.contains('is-rail')){ railBtn.title = 'Expand menu'; railBtn.setAttribute('aria-label', 'Expand menu'); }
+          railBtn.addEventListener('click', function(){ setRail(!app.classList.contains('is-rail')); });
+        }
+
+        /* ---- search pages ---- */
+        var q = document.getElementById('wdNavSearch'), empty = document.getElementById('wdNavEmpty');
+        var links = side.querySelectorAll('.wd-navlist .wd-nav');
+        var saved = null;   // which sections were open before searching
+        function filter(){
+          var term = q.value.trim().toLowerCase();
+          side.classList.toggle('is-searching', term !== '');
+          if(term && saved === null){ saved = []; sections.forEach(function(s){ if(!s.classList.contains('is-collapsed')) saved.push(s); }); }
+          var hits = 0;
+          links.forEach(function(a){
+            var sec = a.closest('.wd-navsection');
+            var hay = (a.textContent + ' ' + (sec ? sec.querySelector('.wd-navgroup__label').textContent : '')).toLowerCase();
+            var show = !term || hay.indexOf(term) >= 0;
+            a.classList.toggle('is-hidden', !show);
+            if(show && term) hits++;
+          });
+          sections.forEach(function(s){
+            var any = !!s.querySelector('.wd-nav:not(.is-hidden)');
+            s.classList.toggle('is-hidden', term !== '' && !any);
+            if(term) setOpen(s, any);
+          });
+          if(!term && saved !== null){ sections.forEach(function(s){ setOpen(s, saved.indexOf(s) >= 0); }); saved = null; }
+          empty.hidden = !term || hits > 0;
+        }
+        if(q){
+          // icon strip: the search icon expands the menu and puts the cursor in the box
+          q.closest('.wd-navsearch').addEventListener('click', function(){
+            if(app.classList.contains('is-rail')){ setRail(false); setTimeout(function(){ q.focus(); }, 0); }
+          });
+          q.addEventListener('input', filter);
+          q.addEventListener('keydown', function(e){
+            if(e.key === 'Enter'){
+              var first = side.querySelector('.wd-navlist .wd-nav:not(.is-hidden)');
+              if(first && q.value.trim()){ e.preventDefault(); window.location.href = first.href; }
+            } else if(e.key === 'Escape'){
+              q.value = ''; filter(); q.blur();
+            } else if(e.key === 'ArrowDown'){
+              var f = side.querySelector('.wd-navlist .wd-nav:not(.is-hidden)');
+              if(f){ e.preventDefault(); f.focus(); }
             }
           });
+        }
+        // Ctrl+K / Cmd+K: jump to the page search from anywhere
+        document.addEventListener('keydown', function(e){
+          if((e.ctrlKey || e.metaKey) && !e.altKey && (e.key === 'k' || e.key === 'K') && q){
+            e.preventDefault();
+            app.classList.remove('is-collapsed');
+            if(app.classList.contains('is-rail')) setRail(false);
+            q.focus(); q.select();
+          }
         });
       })();
     </script>

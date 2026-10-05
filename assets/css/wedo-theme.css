@@ -51,42 +51,120 @@ a{color:var(--brand);text-decoration:none}
 /* ---------- App shell (fixed: sidebar + content scroll independently) ---------- */
 .wd-app{display:flex;height:100vh;overflow:hidden}
 
-.wd-sidebar{width:var(--sidebar-w);flex:0 0 var(--sidebar-w);background:var(--navy);color:rgba(255,255,255,.64);
-  padding:18px 14px;display:flex;flex-direction:column;gap:2px;height:100vh;overflow-y:auto;
-  transition:margin-left .2s ease}
+.wd-sidebar{width:var(--sidebar-w);flex:0 0 var(--sidebar-w);background:var(--navy);color:#aab3c5;
+  padding:14px 12px 12px;display:flex;flex-direction:column;gap:2px;height:100vh;overflow:hidden;
+  transition:margin-left .2s ease,width .2s ease,flex-basis .2s ease}
 .wd-app.is-collapsed .wd-sidebar{margin-left:calc(-1 * var(--sidebar-w))}
-/* the sidebar is a fixed-height flex column; without this, expanding a long group
-   (e.g. Maintenance) makes flexbox squash the other rows instead of scrolling */
 .wd-sidebar > *{flex-shrink:0}
-.wd-brand{display:flex;align-items:center;justify-content:center;gap:10px;padding:8px 6px 4px}
-.wd-brand img{display:block}
-.wd-brand__logo{width:34px;height:34px;border-radius:9px;background:var(--brand);color:#fff;
-  display:flex;align-items:center;justify-content:center;font-family:var(--font-head);font-weight:700;font-size:17px}
-.wd-brand__name{font-family:var(--font-head);font-weight:600;color:#fff;font-size:15px;line-height:1.1}
-.wd-brand__tag{font-size:11px;color:rgba(255,255,255,.5);font-style:italic;text-align:center;
-  padding:4px 8px 14px;margin-bottom:6px;border-bottom:1px solid rgba(255,255,255,.08)}
-.wd-navsection{display:flex;flex-direction:column}
-.wd-navgroup{display:flex;align-items:center;justify-content:space-between;width:100%;background:none;border:none;
-  font-family:inherit;font-size:11px;letter-spacing:.09em;text-transform:uppercase;color:rgba(255,255,255,.42);
-  padding:16px 9px 7px;cursor:pointer;text-align:left}
-.wd-navgroup:hover{color:rgba(255,255,255,.72)}
-/* no white default-outline box after a mouse click; keep a subtle ring for keyboard focus */
-.wd-navgroup:focus{outline:none}
-.wd-navgroup:focus-visible{outline:none;color:rgba(255,255,255,.72)}
-.wd-navgroup i{font-size:10px;transition:transform .2s ease}
-.wd-navsection .wd-navitems{display:flex;flex-direction:column;gap:1px;overflow:hidden;max-height:3000px;transition:max-height .25s ease}
-.wd-navsection.is-collapsed .wd-navitems{max-height:0}
-.wd-navsection.is-collapsed .wd-navgroup i{transform:rotate(-90deg)}
-/* current section: keep the group header lit (brand accent + bright label) so the
-   user always sees which section they're in — even after collapsing the group */
-.wd-navsection.is-current > .wd-navgroup{color:#fff;box-shadow:inset 2px 0 0 var(--brand)}
-.wd-navsection.is-current > .wd-navgroup:hover,
-.wd-navsection.is-current > .wd-navgroup:focus-visible{color:#fff}
+/* Lucide line icons (assets/icons/wd-nav.svg) */
+.wd-sidebar .wd-i{width:16px;height:16px;flex:0 0 16px;fill:none;stroke:currentColor;stroke-width:1.9;
+  stroke-linecap:round;stroke-linejoin:round}
+.wd-sidebar .is-hidden{display:none !important}
 
-/* nested sub-group (e.g. Maintenance inside Management) */
-.wd-navsub{margin:2px 0 2px 10px;border-left:1px solid rgba(255,255,255,.08)}
-.wd-navsub .wd-navgroup{padding:9px 9px 7px;font-size:10.5px}
-.wd-navsub .wd-nav{font-size:12.5px;padding:7px 11px}
+/* brand row: logo + collapse button */
+.wd-brand{display:flex;align-items:center;gap:10px;padding:2px 0 2px 6px;min-height:44px}
+.wd-brand img{display:block}
+.wd-brand__mark{display:none;width:36px;height:36px;border-radius:10px;background:var(--brand);color:#fff;
+  align-items:center;justify-content:center;font-family:var(--font-head);font-weight:700;font-size:16px}
+.wd-railbtn{margin-left:auto;width:30px;height:30px;padding:0;border:0;border-radius:8px;background:transparent;
+  color:#7d879b;display:flex;align-items:center;justify-content:center;cursor:pointer;transition:background .15s,color .15s}
+.wd-railbtn:hover,.wd-railbtn:focus-visible{background:rgba(255,255,255,.07);color:#fff;outline:none}
+.wd-sidebar .wd-railbtn .wd-i{width:18px;height:18px;flex-basis:18px}
+.wd-railbtn__open{display:none}
+.wd-brand__tag{font-size:11.5px;color:#7d879b;padding:0 8px 12px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+
+/* page search (Ctrl+K) */
+.wd-navsearch{display:flex;align-items:center;gap:8px;height:36px;padding:0 10px;margin:0 0 8px;border-radius:10px;
+  background:rgba(255,255,255,.06);border:1px solid rgba(255,255,255,.08);color:#7d879b;cursor:text;font-weight:400;
+  transition:border-color .15s,background .15s}
+.wd-navsearch:focus-within{border-color:rgba(249,54,39,.55);background:rgba(255,255,255,.09)}
+.wd-navsearch input{flex:1;min-width:0;height:100%;border:0;background:none;outline:none;color:#fff;font:inherit;font-size:13px;padding:0}
+.wd-navsearch input::placeholder{color:#7d879b}
+.wd-navsearch input::-webkit-search-cancel-button{filter:invert(1);opacity:.45}
+.wd-navsearch__kbd{font-family:inherit;font-size:10.5px;line-height:17px;color:#7d879b;background:none;box-shadow:none;
+  border:1px solid rgba(255,255,255,.14);border-radius:5px;padding:0 5px;white-space:nowrap}
+.wd-navsearch:focus-within .wd-navsearch__kbd{display:none}
+
+/* the menu itself scrolls; brand, search and account stay put */
+.wd-navlist{flex:1 1 auto;min-height:0;overflow-y:auto;overflow-x:hidden;display:flex;flex-direction:column;gap:2px;
+  margin:0 -4px;padding:0 4px 8px;scrollbar-width:thin;scrollbar-color:rgba(255,255,255,.14) transparent}
+.wd-navlist > *{flex-shrink:0}
+.wd-navempty{margin:6px 10px;font-size:12.5px;color:#7d879b}
+
+/* rows */
+.wd-nav{display:flex;align-items:center;gap:11px;min-height:38px;padding:0 10px;border-radius:9px;position:relative;
+  white-space:nowrap;font-size:13.5px;line-height:1.3;color:#b4bccb;cursor:pointer;text-decoration:none;
+  transition:background .15s,color .15s}
+.wd-nav:hover,.wd-nav:focus-visible{background:rgba(255,255,255,.06);color:#fff;text-decoration:none;outline:none}
+.wd-nav__label{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.wd-nav__chip{position:relative;width:28px;height:28px;flex:0 0 28px;border-radius:8px;display:flex;align-items:center;justify-content:center}
+.wd-tone--top{background:rgba(255,255,255,.07);color:#dbe2ee}
+.wd-tone--mod{background:rgba(99,102,241,.2);color:#a5b4fc}
+.wd-tone--rep{background:rgba(20,184,166,.18);color:#5eead4}
+.wd-tone--mgt{background:rgba(245,158,11,.18);color:#fcd34d}
+.wd-tone--mnt{background:rgba(148,163,184,.16);color:#cbd5e1}
+.wd-tone--cor{background:rgba(249,54,39,.18);color:#ff8a7e}
+.wd-nav--top.is-active{background:rgba(249,54,39,.16);color:#fff;font-weight:600}
+.wd-nav--top.is-active .wd-nav__chip{background:var(--brand);color:#fff}
+
+/* sections: a row with its own icon; pages hang below it on a guide line */
+.wd-navsection{display:flex;flex-direction:column}
+.wd-navgroup{display:flex;align-items:center;gap:11px;width:100%;min-height:38px;padding:0 10px;border:0;border-radius:9px;
+  background:none;font:inherit;font-size:13.5px;color:#b4bccb;cursor:pointer;text-align:left;transition:background .15s,color .15s}
+.wd-navgroup:hover,.wd-navgroup:focus-visible{background:rgba(255,255,255,.06);color:#fff}
+.wd-navgroup:focus{outline:none}
+.wd-navgroup__label{flex:1;min-width:0;display:flex;align-items:center;white-space:nowrap}
+.wd-sidebar .wd-navgroup__chev{width:14px;height:14px;flex-basis:14px;color:#5f6a80;transition:transform .2s ease}
+.wd-navsection:not(.is-collapsed) > .wd-navgroup .wd-navgroup__chev{transform:rotate(90deg)}
+/* current section stays lit ("you are in Reports"), even when collapsed */
+.wd-navsection.is-current > .wd-navgroup{color:#fff;font-weight:600}
+.wd-navitems{display:flex;flex-direction:column;gap:1px;overflow:hidden;max-height:3000px;margin:2px 0 6px 23px;
+  padding-left:10px;border-left:1px solid rgba(255,255,255,.09);transition:max-height .25s ease}
+.wd-navsection.is-collapsed .wd-navitems{max-height:0;margin-top:0;margin-bottom:0}
+.wd-nav--sub{min-height:34px;gap:10px;font-size:13px;color:#9aa4b6}
+.wd-sidebar .wd-nav--sub .wd-i{width:15px;height:15px;flex-basis:15px;opacity:.75}
+.wd-nav--sub:hover .wd-i,.wd-nav--sub.is-active .wd-i{opacity:1}
+.wd-nav--sub.is-active{background:rgba(249,54,39,.16);color:#fff;font-weight:600}
+.wd-nav--sub.is-active::before{content:"";position:absolute;left:-10px;top:8px;bottom:8px;width:2px;border-radius:2px;background:var(--brand)}
+
+/* count badges; a section's count shows on its header only while it's closed */
+.wd-nav__badge{flex:0 0 auto;margin-left:8px;min-width:18px;height:18px;padding:0 6px;border-radius:var(--radius-pill);
+  background:var(--brand);color:#fff;font-size:11px;font-weight:700;line-height:1;
+  display:inline-flex;align-items:center;justify-content:center}
+.wd-nav__badge[hidden]{display:none}
+.wd-navgroup .wd-nav__badge{letter-spacing:normal}
+.wd-navsection:not(.is-collapsed) > .wd-navgroup .wd-nav__badge{display:none}
+
+/* account card */
+.wd-account{display:flex;align-items:center;gap:10px;margin-top:6px;padding:10px 0 0 4px;border-top:1px solid rgba(255,255,255,.08)}
+.wd-account__av{width:34px;height:34px;flex:0 0 34px;font-size:12.5px;background:#1f3a8a}
+.wd-account__who{flex:1;min-width:0;line-height:1.25}
+.wd-account__name{color:#fff;font-size:13px;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.wd-account__role{color:#7d879b;font-size:11.5px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.wd-account__btn{width:30px;height:30px;flex:0 0 30px;border-radius:8px;display:flex;align-items:center;justify-content:center;color:#7d879b}
+.wd-account__btn:hover,.wd-account__btn:focus-visible{background:rgba(255,255,255,.07);color:#fff;text-decoration:none;outline:none}
+
+/* icon strip (desktop): labels hide, a section's icon expands the menu again */
+@media (min-width:901px){
+  .wd-app.is-rail{--sidebar-w:72px}
+  .wd-app.is-rail .wd-sidebar{padding:14px 10px 12px}
+  .wd-app.is-rail .wd-brand{flex-direction:column;gap:8px;padding:2px 0}
+  .wd-app.is-rail .wd-brand__img,.wd-app.is-rail .wd-brand__tag,.wd-app.is-rail .wd-navsearch input,
+  .wd-app.is-rail .wd-navsearch__kbd,.wd-app.is-rail .wd-nav__label,.wd-app.is-rail .wd-navgroup__label,
+  .wd-app.is-rail .wd-navgroup__chev,.wd-app.is-rail .wd-navitems,.wd-app.is-rail .wd-account__who,
+  .wd-app.is-rail .wd-account__btn,.wd-app.is-rail .wd-navempty{display:none}
+  .wd-app.is-rail .wd-brand__mark{display:flex}
+  .wd-app.is-rail .wd-railbtn{margin:0 0 6px}
+  .wd-app.is-rail .wd-railbtn__close{display:none}
+  .wd-app.is-rail .wd-railbtn__open{display:block}
+  .wd-app.is-rail .wd-navsearch{justify-content:center;padding:0;cursor:pointer}
+  .wd-app.is-rail .wd-nav,.wd-app.is-rail .wd-navgroup{justify-content:center;padding:0}
+  .wd-app.is-rail .wd-nav--top .wd-nav__badge{position:absolute;top:1px;right:6px;margin:0;min-width:16px;height:16px;padding:0 4px;font-size:10px}
+  .wd-app.is-rail .wd-navgroup:has(.wd-nav__badge) .wd-nav__chip::after{content:"";position:absolute;top:-2px;right:-2px;
+    width:9px;height:9px;border-radius:50%;background:var(--brand);border:2px solid var(--navy)}
+  .wd-app.is-rail .wd-account{justify-content:center;padding-left:0}
+}
+@media (max-width:900px){ .wd-railbtn{display:none} }
 
 /* user menu (avatar dropdown) */
 .wd-user{position:relative}
@@ -102,24 +180,6 @@ a{color:var(--brand);text-decoration:none}
 .wd-usermenu__item:hover{background:var(--surface-2)}
 .wd-usermenu__item i{width:16px;color:var(--text-2)}
 .wd-usermenu__item--danger,.wd-usermenu__item--danger i{color:var(--danger-text)}
-.wd-nav{display:block;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;padding:9px 11px;border-radius:9px;
-  font-size:13px;line-height:1.4;color:rgba(255,255,255,.66);cursor:pointer;transition:background .15s,color .15s}
-.wd-nav i{display:inline-block;width:18px;margin-right:9px;font-size:15px;text-align:center;vertical-align:middle}
-.wd-nav:hover{background:rgba(255,255,255,.07);color:#fff}
-.wd-nav.is-active{background:var(--brand);color:#fff;font-weight:600;box-shadow:var(--shadow-sm)}
-/* nav item carrying a count badge: keep label ellipsised, pin badge right */
-.wd-nav--badge{display:flex;align-items:center}
-.wd-nav--badge .wd-nav__label{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
-.wd-nav__badge{flex:0 0 auto;margin-left:8px;min-width:18px;height:18px;padding:0 6px;border-radius:var(--radius-pill);
-  background:var(--brand);color:#fff;font-size:11px;font-weight:700;line-height:1;
-  display:inline-flex;align-items:center;justify-content:center}
-.wd-nav.is-active .wd-nav__badge{background:#fff;color:var(--brand)}
-/* the same count on a collapsed group header, so pending items show without opening it;
-   once the group is open the item's own badge takes over */
-.wd-navgroup__label{display:inline-flex;align-items:center}
-.wd-navgroup .wd-nav__badge{letter-spacing:normal}
-.wd-navsection:not(.is-collapsed) > .wd-navgroup .wd-nav__badge{display:none}
-
 .wd-main{flex:1;min-width:0;height:100vh;display:flex;flex-direction:column}
 .wd-topbar{flex:0 0 var(--topbar-h);height:var(--topbar-h);display:flex;align-items:center;gap:14px;padding:0 22px;
   background:var(--surface);border-bottom:1px solid var(--border);z-index:5}
