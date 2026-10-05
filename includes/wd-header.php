@@ -108,7 +108,7 @@ function wd_can($ar, $k) { return isset($ar[$k]) && $ar[$k] == 2; }
     ?>
 
     <div class="wd-navsection is-collapsed">
-      <button class="wd-navgroup" type="button" onclick="this.closest('.wd-navsection').classList.toggle('is-collapsed')">Modules <i class="fa-solid fa-chevron-down"></i></button>
+      <button class="wd-navgroup" type="button" onclick="this.closest('.wd-navsection').classList.toggle('is-collapsed')"><span class="wd-navgroup__label">Modules<?php if($wdPcrCount > 0): ?><span class="wd-nav__badge" title="Profile change requests awaiting review"><?php echo $wdPcrCount > 99 ? '99+' : (int)$wdPcrCount; ?></span><?php endif; ?></span> <i class="fa-solid fa-chevron-down"></i></button>
       <div class="wd-navitems">
         <?php if(wd_can($ar,'alas')): ?><a class="wd-nav<?php echo wd_on('alas',$wd_active); ?>" href="alas"><i class="fa-solid fa-calendar-check"></i> Automated Leave Application</a><?php endif; ?>
         <?php if(wd_can($ar,'checkregister')): ?><a class="wd-nav<?php echo wd_on('checkregister',$wd_active); ?>" href="checkregister"><i class="fa-solid fa-file-lines"></i> Check Register</a><?php endif; ?>

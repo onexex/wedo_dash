@@ -289,9 +289,12 @@ final class ProfileChangeRequestTest extends AppTestCase
         $this->assertStringContainsString('Juan Dela Cruz', $res['body']);
         $this->assertStringContainsString('Makati City', $res['body']);
         $this->assertMatchesRegularExpression('/Profile Change Requests<\/span><span class="wd-nav__badge">1</', $res['body']);
+        // same count on the Modules group header, so it shows while the group is collapsed
+        $this->assertMatchesRegularExpression('/>Modules<span class="wd-nav__badge"[^>]*>1</', $res['body']);
 
         $res = $this->request('profilerequests.php', [], [], $this->asEmployee());
         $this->assertNoPhpErrors($res['body']);
+        $this->assertStringContainsString('>Modules</span>', $res['body']);
         $this->assertStringContainsString('Not available', $res['body']);
         $this->assertStringNotContainsString('Makati City', $res['body']);
     }
