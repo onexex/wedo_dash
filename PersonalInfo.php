@@ -5,14 +5,14 @@
 
 include 'ReportController.php';
 $handle = new ReportController();
-$resultdata = $handle->runQuery("SELECT Companies.CompanyDesc as Companies,EmpDetails.EmpID as Employees_ID , t.EmpFN as FirstName ,t.EmpLN as LastName ,t.EmpMN as MiddleName,EmpProfiles.EmpGender as Gender, EmpProfiles.EmpDOB as Birthdate,TIMESTAMPDIFF(YEAR, EmpProfiles.EmpDOB, NOW()) AS Age, EmpProfiles.EmpCS as Status,hmo.HMO_PROVIDER as HMO_Name, EmpProfiles.EmpHMONumber as Employee_HM0, EmpProfiles.EmpMobile as MobileNo,CONCAT(EmpProfiles.EmpAddress1, ' ' ,EmpProfiles.EmpAddDis) as Street_No_Name,  EmpProfiles.EmpAddCity as City, EmpProfiles.EmpAddProv as Province, EmpProfiles.EmpAddZip as Zip_Code, EmpProfiles.EmpAddCountry as Country, EmpProfiles.EmpCitezen as Citizen, EmpProfiles.EmpEmail as Email, EmpProfiles.EmpReligion as Religion
+$resultdata = $handle->runQuery("SELECT companies.CompanyDesc as Companies,empdetails.EmpID as Employees_ID , t.EmpFN as FirstName ,t.EmpLN as LastName ,t.EmpMN as MiddleName,empprofiles.EmpGender as Gender, empprofiles.EmpDOB as Birthdate,TIMESTAMPDIFF(YEAR, empprofiles.EmpDOB, NOW()) AS Age, empprofiles.EmpCS as Status,hmo.HMO_PROVIDER as HMO_Name, empprofiles.EmpHMONumber as Employee_HM0, empprofiles.EmpMobile as MobileNo,CONCAT(empprofiles.EmpAddress1, ' ' ,empprofiles.EmpAddDis) as Street_No_Name,  empprofiles.EmpAddCity as City, empprofiles.EmpAddProv as Province, empprofiles.EmpAddZip as Zip_Code, empprofiles.EmpAddCountry as Country, empprofiles.EmpCitezen as Citizen, empprofiles.EmpEmail as Email, empprofiles.EmpReligion as Religion
                                                                           
-                              FROM EmpDetails 
-                              LEFT JOIN hmo ON hmo.HMO_ID=EmpDetails.HMO_ID
-                              LEFT JOIN Companies ON EmpDetails.EmpCompID=Companies.CompanyID
-                              LEFT JOIN EmpProfiles ON EmpProfiles.EmpID=EmpDetails.EmpID                       
-                              INNER JOIN Employees as t ON  EmpProfiles.EmpID=t.EmpID
-                              LEFT JOIN EStatus ON EStatus.ID=t.EmpStatusID WHERE EmpDetails.EmpCompID='" . $_SESSION['CompID']  . "'
+                              FROM empdetails 
+                              LEFT JOIN hmo ON hmo.HMO_ID=empdetails.HMO_ID
+                              LEFT JOIN companies ON empdetails.EmpCompID=companies.CompanyID
+                              LEFT JOIN empprofiles ON empprofiles.EmpID=empdetails.EmpID                       
+                              INNER JOIN employees as t ON  empprofiles.EmpID=t.EmpID
+                              LEFT JOIN estatus ON estatus.ID=t.EmpStatusID WHERE empdetails.EmpCompID='" . $_SESSION['CompID']  . "'
                              order by LastName ASC ");
  $todayF =date("Y-m-d"); 
 
