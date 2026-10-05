@@ -244,8 +244,11 @@
   }
 
   function pollIncoming() {
-    return api({ action: 'incoming' }).then(function (j) {
+    var q = { action: 'incoming' };
+    if (window.WDHeads) { q.hs = window.WDHeads.sig(); }     // chat heads (assets/js/wedo-msg-heads.js)
+    return api(q).then(function (j) {
       if (typeof j.unread === 'number') { setUnread(j.unread); }
+      if (window.WDHeads && typeof j.hs === 'string') { window.WDHeads.update(j); }
       setEnabled(!j.disabled);
       // calls not set up on this server: keep checking in slowly — it still keeps me "online" for Messages
       if (j.disabled) { ringerDelay = 20000; return; }

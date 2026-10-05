@@ -3,8 +3,10 @@
    Query-calls.php  —  JSON API for video calls (see includes/msg-calls.php).
    Used by assets/js/wedo-call.js on every signed-in page.
 
-   GET  action=incoming                          a call ringing for me right now (or null) + my unread
-                                                 conversations (top-bar envelope badge); also marks me online
+   GET  action=incoming[&hs=SIG]                 a call ringing for me right now (or null) + my unread
+                                                 conversations (top-bar envelope badge); also marks me online.
+                                                 With hs: the chat-heads signature, plus the heads
+                                                 themselves when it differs from SIG (msg-heads-lib.php)
    GET  action=state&id=N&after=SIGID            call + members + signals addressed to me; keeps me "present"
    POST action=start&with=EmpID|grp:ID&token     call a person or a whole group
    POST action=join&id=N&token                   answer / join a group call late   (alias: answer)
@@ -39,6 +41,7 @@ if (!isset($_SESSION['id']) || $_SESSION['id'] == "0") {
 
 include 'w_conn.php';
 require_once __DIR__ . '/../includes/msg-calls.php';
+require_once __DIR__ . '/../includes/msg-heads-lib.php';
 
 $me       = (string) $_SESSION['id'];
 $userType = $_SESSION['UserType'] ?? '';
@@ -59,9 +62,19 @@ $action = ['answer' => 'join', 'hangup' => 'leave'][$action] ?? $action;
 // the ringer checks in from every page, so it also keeps my "online" status fresh site-wide
 if ($action === 'incoming') { msg_touch($pdo, $me); }
 
+/** The check-in's message part: unread count for the envelope, and chat heads when the page shows them. */
+function call_inbox(PDO $pdo, string $me): array
+{
+    if (!isset($_GET['hs'])) { return ['unread' => msg_unread_threads($pdo, $me)]; }
+    $s   = mh_state($pdo, $me, (string) $_GET['hs']);
+    $out = ['unread' => $s['total'], 'hs' => $s['sig']];
+    if ($s['heads'] !== null) { $out['heads'] = $s['heads']; }
+    return $out;
+}
+
 if (!call_ready($pdo)) {
     // migrations not applied yet: the ringer quietly does nothing
-    if ($action === 'incoming') { call_out(200, ['status' => 'ok', 'call' => null, 'disabled' => true, 'unread' => msg_unread_threads($pdo, $me)]); }
+    if ($action === 'incoming') { call_out(200, ['status' => 'ok', 'call' => null, 'disabled' => true] + call_inbox($pdo, $me)); }
     // 409, not 5xx: some hosts swap a 5xx body for their own HTML error page, which the browser can't read
     call_out(409, ['status' => 'error', 'code' => 'disabled', 'msg' => 'Video calls aren’t set up on this server yet.']);
 }
@@ -69,7 +82,7 @@ if (!call_ready($pdo)) {
 /* ---------------------------------------------------------------- reads */
 if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
     if ($action === 'incoming') {
-        call_out(200, ['status' => 'ok', 'call' => call_incoming($pdo, $me), 'unread' => msg_unread_threads($pdo, $me)]);
+        call_out(200, ['status' => 'ok', 'call' => call_incoming($pdo, $me)] + call_inbox($pdo, $me));
     }
     if ($action === 'state') {
         $call = call_for_member($pdo, (int) ($_GET['id'] ?? 0), $me);
