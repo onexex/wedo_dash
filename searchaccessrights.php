@@ -113,6 +113,7 @@ ar_row('fa-square-plus', 'Holiday Logger',                'hldy',               
 ar_row('fa-square-plus', 'LiLo Validation',               'gprdv',               $row);
 ar_row('fa-square-plus', 'OB Validation',                 'obval',               $row);
 ar_row('fa-square-plus', 'EO Validation',                 'eoval',               $row);
+ar_row('fa-square-plus', 'Family Details for Parental',   'pfam',                $row);
 ar_row('fa-square-plus', 'OT Filing System Maintenance',  'otfs',                $row);
 ar_row('fa-wand-magic-sparkles', 'Login Theme',           'logintheme',          $row);
 

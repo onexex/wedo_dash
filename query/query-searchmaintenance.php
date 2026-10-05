@@ -1235,6 +1235,16 @@ if (isset($_GET['familyparental'])){
                  {
               die("ERROR: Could not connect. " . $e->getMessage());
                  }
+    // gated by the `pfam` access right (==2), same as the page
+    $pfam = 0;
+    if (!empty($_SESSION['id']) && $_SESSION['id'] != "0") {
+      try {
+        $st = $pdo->prepare("SELECT pfam FROM accessrights WHERE EmpID = :id");
+        $st->execute([':id' => $_SESSION['id']]);
+        $pfam = (int) $st->fetchColumn();
+      } catch (PDOException $e) { $pfam = 0; }
+    }
+    if ($pfam !== 2) { http_response_code(403); exit; }
     $statement = $pdo->prepare("select * from parentalrel inner join employees on parentalrel.EmpID=employees.EmpID order by EmpLN");
     $statement->execute();
             while ($row = $statement->fetch()){

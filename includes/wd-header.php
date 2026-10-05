@@ -153,7 +153,7 @@ function wd_can($ar, $k) { return isset($ar[$k]) && $ar[$k] == 2; }
       ['dep',        'department',            'maintenance?department',            'network',         'Departments'],
       ['est',        'employeestatus',        'maintenance?employeestatus',        'user-cog',        'Employee Status'],
       ['eoval',      'eovalidation',          'maintenance?eovalidation',          'door-open',       'EO Validation'],
-      [true,         'parentalfamilydetails', 'maintenance?parentalfamilydetails', 'baby',            'Family Details for Parental'],
+      ['pfam',       'parentalfamilydetails', 'maintenance?parentalfamilydetails', 'baby',            'Family Details for Parental'],
       ['hmo',        'hmo',                   'maintenance?hmo',                   'heart-pulse',     'HMOs'],
       ['hldy',       'holiday',               'maintenance?holiday',               'calendar-heart',  'Holiday Logger'],
       ['jl',         'joblevel',              'maintenance?joblevel',              'layers',          'Job Levels'],
