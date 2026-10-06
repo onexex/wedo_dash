@@ -61,6 +61,8 @@ function mh_unread_rows(PDO $pdo, string $me): array
 function mh_preview(string $kind, string $text): string
 {
     if ($kind === 'gif') { return 'Sent a GIF'; }
+    if ($kind === 'image') { return 'Sent a photo'; }
+    if ($kind === 'file') { return 'Sent ' . msg_kind_label($kind, $text); }
     $t = trim(preg_replace('/\s+/u', ' ', $text));
     return mb_strlen($t) > 90 ? rtrim(mb_substr($t, 0, 89)) . '…' : $t;
 }

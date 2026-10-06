@@ -56,6 +56,7 @@ CREATE TABLE `accessrights` (
   `obval` int(11) NOT NULL DEFAULT 1,
   `eoval` int(11) NOT NULL DEFAULT 1,
   `pfam` int(11) NOT NULL DEFAULT 1,
+  `msgfile` int(11) NOT NULL DEFAULT 1,
   `fdetls` int(11) NOT NULL DEFAULT 1,
   `nwblogs` int(11) NOT NULL DEFAULT 1,
   `notif` int(11) NOT NULL DEFAULT 2,

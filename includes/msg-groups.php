@@ -177,7 +177,7 @@ function grp_threads(PDO $pdo, string $me): array
             'photo'      => null,
             'initials'   => mb_strtoupper(mb_substr($r['name'], 0, 2)),
             'members'    => (int) $r['members'],
-            'last'       => $r['last_kind'] === 'gif' ? 'GIF' : (string) $r['last_text'],
+            'last'       => msg_kind_label((string) $r['last_kind'], (string) $r['last_text']) ?? (string) $r['last_text'],
             'lastMine'   => $mine && $r['last_kind'] !== 'event',
             'lastSender' => ($r['last_kind'] === 'event' || $mine) ? '' : trim((string) $r['last_fn']),
             'at'         => (string) ($r['last_at'] ?: $r['created_at']),

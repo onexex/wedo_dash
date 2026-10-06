@@ -11,6 +11,9 @@ config.local.php
 # Login Theme banner uploads (Maintenance > Login Theme) — server data, not code
 assets/images/login-themes/
 
+# Pictures + documents sent in Messages (includes/msg-files.php) — server data, not code
+uploads/
+
 # Employee signatures for ID cards (Management > ID Card Generator) — server data, not code
 assets/images/id-signatures/
 

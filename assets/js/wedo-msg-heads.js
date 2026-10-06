@@ -622,6 +622,15 @@
     try { var g = JSON.parse(text); } catch (e) { return null; }
     return g && typeof g.f === 'string' && GIF_FILE.test(g.f) ? g : null;
   }
+  // pictures + documents (includes/msg-files.php): opened through query/msg-file.php
+  var FILE_KEY = /^\d{4}\/\d{2}\/[a-f0-9]{32}\.([a-z]{3,4})$/;
+  function fileData(text) {
+    try { var c = JSON.parse(text); } catch (e) { return null; }
+    var m = c && typeof c.k === 'string' ? FILE_KEY.exec(c.k) : null;
+    if (!m) { return null; }
+    c.ext = m[1];
+    return c;
+  }
   var URL_RE = /(https?:\/\/[^\s<>"']+|www\.[^\s<>"']+)/gi;
   function linkify(text) {
     var frag = document.createDocumentFragment(), last = 0, m;
@@ -685,6 +694,25 @@
       b.appendChild(img);
     } else if (m.kind === 'gif') {
       b.textContent = 'GIF';
+    } else if ((m.kind === 'image' || m.kind === 'file') && m.id && fileData(m.text)) {
+      var card = fileData(m.text), a = document.createElement('a');
+      a.target = '_blank'; a.rel = 'noopener';
+      if (m.kind === 'image') {
+        b.classList.add('is-gif');
+        a.href = 'query/msg-file.php?id=' + m.id;
+        var pic = document.createElement('img');
+        pic.src = a.href; pic.alt = card.n || 'Photo'; pic.loading = 'lazy';
+        if (card.w && card.h) { pic.width = card.w; pic.height = card.h; }
+        a.appendChild(pic);
+      } else {
+        b.classList.add('is-file');
+        a.href = 'query/msg-file.php?id=' + m.id + '&dl=1';
+        a.appendChild(h('i', 'fa-solid fa-paperclip'));
+        a.appendChild(document.createTextNode(' ' + (card.n || 'Document')));
+      }
+      b.appendChild(a);
+    } else if (m.kind === 'image' || m.kind === 'file') {
+      b.textContent = m.kind === 'image' ? 'Photo' : 'Document';
     } else {
       if (isEmojiOnly(m.text)) { b.classList.add('is-emoji'); }
       b.appendChild(linkify(m.text));

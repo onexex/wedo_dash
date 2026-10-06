@@ -13,6 +13,7 @@
    POST action=react&id=MSID&emoji=E          toggle my reaction (one per person; same emoji again removes it)
    POST action=send_gif&with=KEY&gif=FILE     send a GIF sticker from the library (assets/gifs)
    GET  action=gifs                           the GIF sticker library (title, search words, size)
+   POST action=send_file&with=KEY  + file     send a picture or document (multipart; needs the `msgfile` access right)
    POST action=typing&with=KEY|''             I'm typing there ('' = stopped)
    POST action=group_create&name=..&members[]=..      new group (me = admin)
    POST action=group_add&id=..&members[]=..           admins
@@ -50,6 +51,7 @@ require_once __DIR__ . '/../includes/msg-groups.php';
 require_once __DIR__ . '/../includes/msg-calls.php';
 require_once __DIR__ . '/../includes/msg-reactions.php';
 require_once __DIR__ . '/../includes/msg-gifs.php';
+require_once __DIR__ . '/../includes/msg-files.php';
 
 try {
     $pdo = new PDO("mysql:host=$servername;dbname=$db;charset=utf8mb4", $username, $password);
@@ -75,6 +77,10 @@ function msg_ids_param(): array
 
 /* ---------------------------------------------------------------- writes */
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
+    // over post_max_size PHP drops the whole body (token included): say so instead of "page expired"
+    if (!$_POST && !$_FILES && (int) ($_SERVER['CONTENT_LENGTH'] ?? 0) > 0) {
+        msg_out(413, ['status' => 'error', 'msg' => 'That file is too large (10 MB at most).']);
+    }
     if (!hash_equals(msg_csrf_token(), (string) ($_POST['token'] ?? ''))) {
         msg_out(419, ['status' => 'error', 'msg' => 'This page has expired — reload it and try again.']);
     }
@@ -112,6 +118,22 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 ? ($groupsOn ? grp_send($pdo, $gid, $me, $g['text'], 'gif') : ['ok' => false, 'error' => 'Group chats aren’t set up on this server yet.'])
                 : msg_send_dm($pdo, $me, $with, $g['text'], $userType, 'gif');
             if (!$res['ok']) { msg_out(422, ['status' => 'error', 'msg' => $res['error']]); }
+            msg_touch($pdo, $me, '');
+            msg_out(200, ['status' => 'ok', 'message' => $res['message'], 'today' => $today]);
+
+        case 'send_file':
+            if (!mf_can_send($pdo, $me)) {
+                msg_out(403, ['status' => 'error', 'msg' => 'You don’t have access to send pictures or documents.']);
+            }
+            // check the conversation BEFORE storing anything
+            $allowed = $gid ? ($groupsOn && grp_member($pdo, $gid, $me)) : msg_can_message($pdo, $me, $with, $userType);
+            if (!$allowed) { msg_out(422, ['status' => 'error', 'msg' => $gid ? 'You’re no longer in this group.' : 'You can’t message this person.']); }
+            $up = mf_store($_FILES['file'] ?? []);
+            if (!$up['ok']) { msg_out(422, ['status' => 'error', 'msg' => $up['error']]); }
+            $res = $gid
+                ? grp_send($pdo, $gid, $me, $up['text'], $up['kind'])
+                : msg_send_dm($pdo, $me, $with, $up['text'], $userType, $up['kind']);
+            if (!$res['ok']) { @unlink($up['path']); msg_out(422, ['status' => 'error', 'msg' => $res['error']]); }
             msg_touch($pdo, $me, '');
             msg_out(200, ['status' => 'ok', 'message' => $res['message'], 'today' => $today]);
 
@@ -172,6 +194,7 @@ switch ($action) {
             usort($threads, fn($a, $b) => strcmp($b['at'], $a['at']));
         }
         msg_out(200, ['status' => 'ok', 'threads' => $threads, 'groups' => $groupsOn, 'gifs' => gif_enabled($pdo),
+                      'files'  => mf_can_send($pdo, $me),
                       'online' => msg_online($pdo, $me, $userType),
                       'unread' => msg_unread_threads($pdo, $me), 'today' => $today]);
 
