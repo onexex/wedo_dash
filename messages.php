@@ -184,6 +184,23 @@
       .msg-gif__note{grid-column:1 / -1;padding:18px 6px;text-align:center;font-size:12.5px;color:var(--text-3)}
       .msg-bubble.is-gif{padding:0;background:none !important;border:0;box-shadow:none;line-height:0;max-width:min(260px,68%)}
       .msg-bubble.is-gif img{display:block;width:100%;height:auto;border-radius:14px;background:var(--surface-2)}
+      /* pictures + documents (msgfile access right) */
+      .msg-bubble.is-img{padding:0;background:none !important;border:0;box-shadow:none;line-height:0;max-width:min(300px,68%)}
+      .msg-img{display:block;border-radius:14px;overflow:hidden;background:var(--surface-2);cursor:zoom-in}
+      .msg-img img{display:block;width:100%;height:auto;max-height:360px;object-fit:cover}
+      .msg-bubble.is-file{padding:0;white-space:normal}
+      .msg-file{display:flex;align-items:center;gap:11px;padding:10px 12px;min-width:220px;max-width:320px;color:inherit !important;text-decoration:none !important}
+      .msg-file__ico{font-size:26px;flex:none;color:var(--brand)}
+      .msg-row--mine .msg-file__ico{color:#fff}
+      .msg-file__txt{display:flex;flex-direction:column;min-width:0;flex:1;line-height:1.3}
+      .msg-file__name{font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;word-break:normal}
+      .msg-file__size{font-size:11.5px;opacity:.75}
+      .msg-file__dl{flex:none;width:30px;height:30px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:13px;background:rgba(0,0,0,.06)}
+      .msg-row--mine .msg-file__dl{background:rgba(255,255,255,.2)}
+      .msg-row.is-pending .msg-file,.msg-row.is-pending .msg-img{pointer-events:none}
+      .msg-main.is-drop{position:relative}
+      .msg-main.is-drop::after{content:"Drop to send";position:absolute;inset:10px;z-index:8;display:flex;align-items:center;justify-content:center;
+        border:2px dashed var(--brand);border-radius:16px;background:rgba(255,255,255,.88);color:var(--brand-700);font-weight:700;font-size:15px;pointer-events:none}
       /* reactions */
       .msg-react-btn{display:none;flex:none;align-self:center;width:28px;height:28px;border:0;border-radius:50%;background:none;color:var(--text-3);font-size:15px;cursor:pointer;opacity:0;align-items:center;justify-content:center;transition:opacity .15s,background .15s,color .15s}
       .msg-rx-on .msg-react-btn{display:flex}
@@ -358,6 +375,9 @@
           <div class="msg-gif" id="msgGif" hidden role="dialog" aria-label="GIFs"></div>
           <div class="msg-compose__field">
             <textarea id="msgText" rows="1" placeholder="Write a message&hellip;" aria-label="Message"></textarea>
+            <button type="button" class="msg-ico" id="msgFileBtn" hidden aria-label="Send a picture or document" title="Picture or document"><i class="fa-solid fa-paperclip"></i></button>
+            <input type="file" id="msgFileInput" hidden multiple tabindex="-1" aria-hidden="true"
+                   accept="image/jpeg,image/png,image/gif,image/webp,.jpg,.jpeg,.png,.gif,.webp,.pdf,.doc,.docx,.xls,.xlsx,.ppt,.pptx,.txt,.csv">
             <button type="button" class="msg-ico msg-gifbtn" id="msgGifBtn" hidden aria-label="Send a GIF" title="GIF">GIF</button>
             <button type="button" class="msg-ico" id="msgEmojiBtn" aria-label="Insert emoji" title="Emoji"><i class="fa-regular fa-face-smile"></i></button>
           </div>

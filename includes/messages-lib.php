@@ -28,6 +28,18 @@ function msg_has_kind(PDO $pdo): bool
     return $has[$k];
 }
 
+/** Preview text for a non-text message ('gif' / 'image' / 'file'), or null for plain text. */
+function msg_kind_label(string $kind, string $text): ?string
+{
+    if ($kind === 'gif')   { return 'GIF'; }
+    if ($kind === 'image') { return '📷 Photo'; }
+    if ($kind === 'file') {
+        $c = json_decode($text, true);
+        return '📎 ' . (is_array($c) && isset($c['n']) && is_string($c['n']) ? $c['n'] : 'Document');
+    }
+    return null;
+}
+
 function msg_csrf_token(): string
 {
     if (empty($_SESSION['msg_csrf'])) { $_SESSION['msg_csrf'] = bin2hex(random_bytes(16)); }
@@ -125,7 +137,7 @@ function msg_threads(PDO $pdo, string $me): array
             'name'     => $name !== '' ? $name : $r['other'],
             'photo'    => msg_photo($r['EmpPPath']),
             'initials' => msg_initials($r['EmpFN'], $r['EmpLN']),
-            'last'     => $r['last_kind'] === 'gif' ? 'GIF' : (string) $r['last_text'],
+            'last'     => msg_kind_label((string) $r['last_kind'], (string) $r['last_text']) ?? (string) $r['last_text'],
             'lastMine' => $r['last_sender'] === $me && $r['last_kind'] !== 'event',
             'at'       => (string) $r['last_at'],
             'unread'   => (int) $r['unread'],

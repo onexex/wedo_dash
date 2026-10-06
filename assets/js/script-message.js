@@ -40,7 +40,7 @@
     callBar: $('msgCallBar'), callBarText: $('msgCallBarText'), callJoin: $('msgCallJoin'),
     scroll: $('msgScroll'), jump: $('msgJump'), form: $('msgCompose'), text: $('msgText'),
     send: $('msgSend'), count: $('msgCount'), emoji: $('msgEmoji'), emojiBtn: $('msgEmojiBtn'),
-    gif: $('msgGif'), gifBtn: $('msgGifBtn'),
+    gif: $('msgGif'), gifBtn: $('msgGifBtn'), fileBtn: $('msgFileBtn'), fileInput: $('msgFileInput'), main: $('msgMain'),
     error: $('msgError'), readonly: $('msgReadonly'), modal: $('msgModal'), modalCard: $('msgModalCard')
   };
 
@@ -55,6 +55,7 @@
     pending: [], typingEl: null, statusEl: null, newBelow: 0,
     polling: false, typingSentAt: 0, typingOn: false,
     gifsOn: false,                // the GIF sticker library (assets/gifs) is there
+    filesOn: false,               // I hold the `msgfile` right: may send pictures + documents
     rxOn: false, rxBusy: {},      // reactions set up on the server; message ids with a react request in flight
     mentionKey: '', mentionRe: null
   };
@@ -101,13 +102,15 @@
       opts.method = 'POST';
       opts.body = b;
     }
-    return fetch(url, opts).then(function (r) {
-      return r.json().catch(function () { return { status: 'error', msg: 'Unexpected server response (HTTP ' + r.status + ').' }; })
-        .then(function (j) {
-          if (r.status === 401) { window.location.href = 'login'; }
-          if (!r.ok || j.status !== 'ok') { var e = new Error(j.msg || 'Something went wrong.'); e.http = r.status; throw e; }
-          return j;
-        });
+    return fetch(url, opts).then(readJson);
+  }
+  function readJson(r) {
+    return r.json().catch(function () {
+      return { status: 'error', msg: r.status === 413 ? 'That file is too large (10 MB at most).' : 'Unexpected server response (HTTP ' + r.status + ').' };
+    }).then(function (j) {
+      if (r.status === 401) { window.location.href = 'login'; }
+      if (!r.ok || j.status !== 'ok') { var e = new Error(j.msg || 'Something went wrong.'); e.http = r.status; throw e; }
+      return j;
     });
   }
   function post(action, data) { return api({ action: action }, Object.assign({ action: action }, data || {})); }
@@ -373,6 +376,8 @@
       el.newGroup.hidden = !state.groupsOn;
       state.gifsOn = !!j.gifs;
       el.gifBtn.hidden = !state.gifsOn;
+      state.filesOn = !!j.files;
+      el.fileBtn.hidden = !state.filesOn;
       var key = JSON.stringify(j.threads);
       if (key !== state.threadsKey) {           // nothing changed = no re-render (no flicker, focus kept)
         state.threadsKey = key;
@@ -483,6 +488,59 @@
     img.src = 'assets/gifs/' + g.f; img.alt = g.t || 'GIF'; img.loading = 'lazy'; img.decoding = 'async';
     if (g.w && g.h) { img.width = g.w; img.height = g.h; }   // reserves the space: no jump when it loads
     return img;
+  }
+
+  // ------------------------------------------------------------------ pictures + documents (includes/msg-files.php)
+
+  var FILE_KEY = /^\d{4}\/\d{2}\/[a-f0-9]{32}\.([a-z]{3,4})$/;
+  var FILE_MAX = 10 * 1024 * 1024;
+  var FILE_EXT = ['jpg', 'jpeg', 'png', 'gif', 'webp', 'pdf', 'doc', 'docx', 'xls', 'xlsx', 'ppt', 'pptx', 'txt', 'csv'];
+  /** a picture/document message's card {k, n, s, w, h, ext}, or null */
+  function fileData(text) {
+    try { var c = JSON.parse(text); } catch (e) { return null; }
+    var m = c && typeof c.k === 'string' ? FILE_KEY.exec(c.k) : null;
+    if (!m) { return null; }
+    c.ext = m[1];
+    return c;
+  }
+  function fileUrl(id, download) { return 'query/msg-file.php?id=' + id + (download ? '&dl=1' : ''); }
+  function fileSize(b) {
+    return b >= 1048576 ? (b / 1048576).toFixed(1) + ' MB' : b >= 1024 ? Math.round(b / 1024) + ' KB' : (b || 0) + ' B';
+  }
+  function fileIcon(ext) {
+    return { pdf: 'fa-file-pdf', doc: 'fa-file-word', docx: 'fa-file-word', xls: 'fa-file-excel', xlsx: 'fa-file-excel',
+             csv: 'fa-file-csv', ppt: 'fa-file-powerpoint', pptx: 'fa-file-powerpoint' }[ext] || 'fa-file-lines';
+  }
+  /** the inside of a picture / document bubble; m.local = a blob URL while my own upload is on its way */
+  function fileBody(m, card) {
+    var a = h('a');
+    a.target = '_blank'; a.rel = 'noopener';
+    if (m.kind === 'image') {
+      a.className = 'msg-img';
+      a.dataset.mf = 'view';
+      a.setAttribute('aria-label', 'Open picture: ' + (card.n || 'photo'));
+      var img = document.createElement('img');
+      img.alt = card.n || 'Photo'; img.loading = 'lazy'; img.decoding = 'async';
+      img.src = m.local || fileUrl(m.id);
+      if (card.w && card.h) { img.width = card.w; img.height = card.h; }   // reserves the space: no jump when it loads
+      a.appendChild(img);
+    } else {
+      a.className = 'msg-file';
+      a.dataset.mf = 'dl';
+      a.title = 'Download ' + (card.n || 'file');
+      a.appendChild(h('i', 'fa-solid ' + fileIcon(card.ext) + ' msg-file__ico'));
+      var t = h('span', 'msg-file__txt');
+      t.appendChild(h('span', 'msg-file__name', card.n || 'Document'));
+      t.appendChild(h('span', 'msg-file__size', (card.ext || '').toUpperCase() + ' · ' + fileSize(card.s)));
+      a.appendChild(t);
+      a.appendChild(h('i', 'fa-solid fa-download msg-file__dl'));
+    }
+    if (m.id) { a.href = fileUrl(m.id, a.dataset.mf === 'dl'); }
+    return a;
+  }
+  /** once my upload has its message id, point the links at the server copy */
+  function linkFile(row, id) {
+    Array.prototype.forEach.call(row.querySelectorAll('[data-mf]'), function (a) { a.href = fileUrl(id, a.dataset.mf === 'dl'); });
   }
 
   // ------------------------------------------------------------------ mentions (groups)
@@ -686,9 +744,12 @@
     var row = h('div', 'msg-row' + (m.mine ? ' msg-row--mine' : '') + (joins ? '' : ' is-first') + ' is-last' + (opts.animate ? ' is-new' : ''));
     if (!m.mine) { row.appendChild(avatar(who, 'msg-av--sm')); }
     var gif = m.kind === 'gif' ? gifData(m.text) : null;
-    var bubble = h('div', 'msg-bubble' + (gif ? ' is-gif' : isEmojiOnly(m.text) ? ' is-emoji' : ''));
+    var card = m.kind === 'image' || m.kind === 'file' ? fileData(m.text) : null;
+    var bubble = h('div', 'msg-bubble' + (gif ? ' is-gif' : card ? (m.kind === 'image' ? ' is-img' : ' is-file') : isEmojiOnly(m.text) ? ' is-emoji' : ''));
     if (gif) { bubble.appendChild(gifImg(gif)); }
     else if (m.kind === 'gif') { bubble.appendChild(document.createTextNode('GIF')); }
+    else if (card) { bubble.appendChild(fileBody(m, card)); }
+    else if (m.kind === 'image' || m.kind === 'file') { bubble.appendChild(document.createTextNode(m.kind === 'image' ? 'Photo' : 'Document')); }
     else { bubble.appendChild(linkify(m.text)); markMentions(bubble); }
     bubble.title = fullTime(m.at);
     if (m.mentionsMe && !m.mine) { row.classList.add('is-mention'); }
@@ -714,11 +775,13 @@
       if (state.seen[m.id]) { return; }
       // a message of mine that is still "sending" here: adopt it instead of drawing it twice
       if (m.mine && m.kind !== 'event') {
-        var mkey = m.kind === 'gif' ? 'gif:' + ((gifData(m.text) || {}).f || '') : m.text;
+        var mkey = m.kind === 'gif' ? 'gif:' + ((gifData(m.text) || {}).f || '')
+                 : m.kind === 'image' || m.kind === 'file' ? 'file:' + ((fileData(m.text) || {}).s || '') : m.text;
         for (var i = 0; i < state.pending.length; i++) {
           if ((state.pending[i].key || state.pending[i].text) === mkey) {
             var pend = state.pending.splice(i, 1)[0];
             pend.row.dataset.id = m.id;
+            if (pend.file) { linkFile(pend.row, m.id); }
             pend.row.classList.remove('is-pending');
             state.seen[m.id] = true;
             if (m.id > state.lastId) { state.lastId = m.id; }
@@ -1156,7 +1219,8 @@
     if (meta) { meta.remove(); }
     row.remove();
     hideError();
-    if (failedGif) { sendGif(failedGif); }
+    if (row._file) { sendFile(row._file); }
+    else if (failedGif) { sendGif(failedGif); }
     else if (text) { sendText(text); }
   }
 
@@ -1198,6 +1262,90 @@
       updateStatus();
     });
   }
+
+  /** send a picture or document: shows at once (pictures from the local copy), confirmed by the server */
+  function sendFile(file) {
+    var to = state.active;
+    var ext = (/\.([^.]+)$/.exec(file.name || '') || [])[1];
+    ext = ext ? ext.toLowerCase() : '';
+    if (FILE_EXT.indexOf(ext) === -1) {
+      showError('“' + file.name + '” can’t be sent. Pictures (JPG, PNG, GIF, WebP) and documents (PDF, Word, Excel, PowerPoint, TXT, CSV) only.');
+      return;
+    }
+    if (file.size > FILE_MAX) { showError('“' + file.name + '” is too large (10 MB at most).'); return; }
+    if (!file.size) { showError('“' + file.name + '” is empty.'); return; }
+
+    var isImg = ['jpg', 'jpeg', 'png', 'gif', 'webp'].indexOf(ext) !== -1;
+    var local = isImg && window.URL && URL.createObjectURL ? URL.createObjectURL(file) : '';
+    var now = new Date();
+    var at = state.today + ' ' + (now.getHours() < 10 ? '0' : '') + now.getHours() + ':' + (now.getMinutes() < 10 ? '0' : '') + now.getMinutes() + ':00';
+    var hello = el.scroll.querySelector('.msg-empty');
+    if (hello) { hello.remove(); }
+    var text = JSON.stringify({ k: '0000/00/' + new Array(33).join('0') + '.' + ext, n: file.name, s: file.size });
+    var row = addBubble({ id: 0, mine: true, kind: isImg ? 'image' : 'file', text: text, at: at, local: local }, { animate: true });
+    row.classList.add('is-pending');
+    var entry = { key: 'file:' + file.size, text: text, row: row, file: true };
+    state.pending.push(entry);
+    updateStatus();
+    toBottom();
+
+    var fd = new FormData();
+    fd.append('action', 'send_file'); fd.append('with', to); fd.append('token', token); fd.append('file', file, file.name);
+    fetch(API + '?action=send_file', { method: 'POST', body: fd, credentials: 'same-origin', headers: { 'Accept': 'application/json' } })
+      .then(readJson).then(function (j) {
+        if (state.active !== to) { return; }
+        var i = state.pending.indexOf(entry);
+        if (i !== -1) {
+          state.pending.splice(i, 1);
+          row.dataset.id = j.message.id;
+          row.classList.remove('is-pending');
+          linkFile(row, j.message.id);
+          state.seen[j.message.id] = true;
+          if (j.message.id > state.lastId) { state.lastId = j.message.id; }
+        }
+        updateStatus();
+        loadThreads();
+      }).catch(function (err) {
+        if (state.active !== to) { return; }
+        var i = state.pending.indexOf(entry);
+        if (i !== -1) { state.pending.splice(i, 1); }
+        row.classList.remove('is-pending');
+        row.classList.add('is-failed');
+        row._file = file;
+        showError(err.message);
+        updateStatus();
+      });
+  }
+  function sendFiles(list) {
+    if (!state.filesOn || !state.active || !state.canSend) { return; }
+    hideError();
+    Array.prototype.slice.call(list || [], 0, 10).forEach(sendFile);   // at most 10 at a time
+  }
+
+  el.fileBtn.addEventListener('click', function () { closeEmoji(); el.fileInput.click(); });
+  el.fileInput.addEventListener('change', function () { sendFiles(el.fileInput.files); el.fileInput.value = ''; });
+  // paste a screenshot straight into the message box
+  el.text.addEventListener('paste', function (e) {
+    var files = e.clipboardData && e.clipboardData.files;
+    if (!state.filesOn || !files || !files.length) { return; }
+    e.preventDefault();
+    sendFiles(files);
+  });
+  // drop files onto the conversation
+  function dragHasFiles(e) {
+    return state.filesOn && state.active && state.canSend && e.dataTransfer &&
+      Array.prototype.indexOf.call(e.dataTransfer.types || [], 'Files') !== -1;
+  }
+  var dragDepth = 0;
+  el.main.addEventListener('dragenter', function (e) { if (dragHasFiles(e)) { dragDepth++; el.main.classList.add('is-drop'); } });
+  el.main.addEventListener('dragleave', function () { if (dragDepth && --dragDepth === 0) { el.main.classList.remove('is-drop'); } });
+  el.main.addEventListener('dragover', function (e) { if (dragHasFiles(e)) { e.preventDefault(); e.dataTransfer.dropEffect = 'copy'; } });
+  el.main.addEventListener('drop', function (e) {
+    dragDepth = 0; el.main.classList.remove('is-drop');
+    if (!dragHasFiles(e)) { return; }
+    e.preventDefault();
+    sendFiles(e.dataTransfer.files);
+  });
 
   el.form.addEventListener('submit', function (e) {
     e.preventDefault();

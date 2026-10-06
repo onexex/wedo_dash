@@ -123,3 +123,4 @@ ar_row('fa-chart-pie',    'Dashboard',         'dashboard', $row);
 ar_row('fa-user',         'Search Employee',   'srch',    $row);
 ar_row('fa-pen-to-square','Update 201 Files',  'updte',   $row);
 ar_row('fa-bullhorn',     "GM'S Corner",       'gcorner', $row);
+ar_row('fa-paperclip',    'Messages: Send Pictures & Documents', 'msgfile', $row);
