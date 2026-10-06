@@ -59,6 +59,18 @@ try {
     $wdUnseenAnn = (int) $wdua->fetchColumn();
 } catch (Exception $e) { $wdUnseenAnn = 0; }
 
+/* sidebar glow follows today's seasonal login theme (Maintenance > Login Theme);
+   colours come only from lt_presets(), never from user input */
+$wdSbGlow = '';
+include_once __DIR__ . '/login-theme.php';
+$wdLt = lt_for_login($wdpdo);
+if ($wdLt && !$wdLt['plain'] && !empty($wdLt['colors']['glow1'])) {
+    $wdSbGlow = ' style="--sb-glow1:' . $wdLt['colors']['glow1'] . ';--sb-glow2:' . $wdLt['colors']['glow2']
+              . ';--sb-tint:' . $wdLt['colors']['bg1'] . '"';
+}
+/* the theme's particle effect (snow, confetti, embers…) also drifts behind the logo */
+$wdSbFx = ($wdLt && !empty($wdLt['effect'])) ? $wdLt['effect'] : null;
+
 /* conversations with unread messages (topbar envelope) */
 $wdUnreadMsg = 0;
 try {
@@ -183,7 +195,11 @@ function wd_can($ar, $k) { return isset($ar[$k]) && $ar[$k] == 2; }
 ?>
 <div class="wd-app">
   <script>try{if(localStorage.getItem('wd-rail')==='1'){document.currentScript.parentNode.classList.add('is-rail');}}catch(e){}</script>
-  <aside class="wd-sidebar" id="wdSidebar">
+  <aside class="wd-sidebar" id="wdSidebar"<?php echo $wdSbGlow; ?>>
+<?php if ($wdSbFx): ?>
+    <div class="wd-sbfx" id="wdSbFx" data-fx="<?php echo htmlspecialchars(json_encode($wdSbFx), ENT_QUOTES, 'UTF-8'); ?>" data-fx-scale=".4" aria-hidden="true"></div>
+    <script src="assets/js/login-theme.js?v=<?php echo @filemtime(__DIR__ . '/../assets/js/login-theme.js'); ?>" defer></script>
+<?php endif; ?>
     <div class="wd-brand">
       <img class="wd-brand__img" src="assets/images/logos/wedo-logo.png" alt="WeDo BPO Inc." style="height:40px;width:auto">
       <span class="wd-brand__mark" aria-hidden="true"><?php echo htmlspecialchars(mb_strtoupper(mb_substr($_SESSION['CompanyName'] ?: 'W', 0, 1))); ?></span>

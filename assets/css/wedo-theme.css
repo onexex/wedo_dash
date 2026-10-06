@@ -61,8 +61,28 @@ a{color:var(--brand);text-decoration:none}
   stroke-linecap:round;stroke-linejoin:round}
 .wd-sidebar .is-hidden{display:none !important}
 
-/* brand row: logo + collapse button */
-.wd-brand{display:flex;align-items:center;gap:10px;padding:2px 0 2px 6px;min-height:44px}
+/* login-page glow behind the brand block; --sb-glow1/2 are overridden inline by
+   wd-header.php when a seasonal login theme is live */
+.wd-sidebar{position:relative;isolation:isolate}
+.wd-sidebar::before{content:"";position:absolute;left:0;right:0;top:0;height:300px;pointer-events:none;z-index:-1;
+  background:
+    radial-gradient(70% 55% at 30% 10%,var(--sb-glow1,rgba(249,54,39,.42)) 0,transparent 72%),
+    radial-gradient(70% 55% at 30% 10%,var(--sb-glow1,rgba(249,54,39,.42)) 0,transparent 55%),
+    radial-gradient(65% 50% at 95% 35%,var(--sb-glow2,rgba(255,215,106,.10)) 0,transparent 72%),
+    radial-gradient(65% 50% at 95% 35%,var(--sb-glow2,rgba(255,215,106,.10)) 0,transparent 55%),
+    linear-gradient(180deg,var(--sb-tint,transparent) 0,transparent 100%)}
+/* the seasonal theme's particles (login-theme.js), faded out before the nav starts */
+.wd-sbfx{position:absolute;left:0;right:0;top:0;height:190px;overflow:hidden;pointer-events:none;z-index:-1;
+  -webkit-mask-image:linear-gradient(#000 55%,transparent);mask-image:linear-gradient(#000 55%,transparent)}
+.wd-sbfx .p{position:absolute;top:-30px;will-change:transform;animation:wdSbFall linear infinite}
+.wd-sbfx .p.rise{top:auto;bottom:-20px;animation-name:wdSbRise}
+@keyframes wdSbFall{0%{transform:translate3d(0,-30px,0) rotate(0)}100%{transform:translate3d(calc(var(--sway) * .3),240px,0) rotate(var(--spin))}}
+@keyframes wdSbRise{0%{transform:translate3d(0,0,0) scale(.8);opacity:0}15%{opacity:.95}100%{transform:translate3d(calc(var(--sway) * .3),-220px,0) scale(1.1);opacity:0}}
+@media (prefers-reduced-motion:reduce){.wd-sbfx{display:none}}
+
+/* brand row: centered logo, collapse button pinned right */
+.wd-brand{display:flex;align-items:center;justify-content:center;gap:10px;padding:2px 0;min-height:44px;position:relative}
+.wd-brand .wd-railbtn{position:absolute;right:0;top:50%;transform:translateY(-50%)}
 .wd-brand img{display:block}
 .wd-brand__mark{display:none;width:36px;height:36px;border-radius:10px;background:var(--brand);color:#fff;
   align-items:center;justify-content:center;font-family:var(--font-head);font-weight:700;font-size:16px}
@@ -71,7 +91,7 @@ a{color:var(--brand);text-decoration:none}
 .wd-railbtn:hover,.wd-railbtn:focus-visible{background:rgba(255,255,255,.07);color:#fff;outline:none}
 .wd-sidebar .wd-railbtn .wd-i{width:18px;height:18px;flex-basis:18px}
 .wd-railbtn__open{display:none}
-.wd-brand__tag{font-size:11.5px;color:#7d879b;padding:0 8px 12px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.wd-brand__tag{font-size:11.5px;color:#7d879b;padding:0 8px 12px;text-align:center;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 
 /* page search (Ctrl+K) */
 .wd-navsearch{display:flex;align-items:center;gap:8px;height:36px;padding:0 10px;margin:0 0 8px;border-radius:10px;
@@ -154,7 +174,7 @@ a{color:var(--brand);text-decoration:none}
   .wd-app.is-rail .wd-navgroup__chev,.wd-app.is-rail .wd-navitems,.wd-app.is-rail .wd-account__who,
   .wd-app.is-rail .wd-account__btn,.wd-app.is-rail .wd-navempty{display:none}
   .wd-app.is-rail .wd-brand__mark{display:flex}
-  .wd-app.is-rail .wd-railbtn{margin:0 0 6px}
+  .wd-app.is-rail .wd-railbtn{margin:0 0 6px;position:static;transform:none}
   .wd-app.is-rail .wd-railbtn__close{display:none}
   .wd-app.is-rail .wd-railbtn__open{display:block}
   .wd-app.is-rail .wd-navsearch{justify-content:center;padding:0;cursor:pointer}
