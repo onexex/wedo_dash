@@ -694,6 +694,9 @@
       b.appendChild(img);
     } else if (m.kind === 'gif') {
       b.textContent = 'GIF';
+    } else if (m.kind === 'deleted') {
+      b.classList.add('is-deleted');
+      b.textContent = m.mine ? 'You deleted this message' : 'This message was deleted';
     } else if ((m.kind === 'image' || m.kind === 'file') && m.id && fileData(m.text)) {
       var card = fileData(m.text), a = document.createElement('a');
       a.target = '_blank'; a.rel = 'noopener';

@@ -28,9 +28,10 @@ function msg_has_kind(PDO $pdo): bool
     return $has[$k];
 }
 
-/** Preview text for a non-text message ('gif' / 'image' / 'file'), or null for plain text. */
+/** Preview text for a non-text message ('gif' / 'image' / 'file' / 'deleted'), or null for plain text. */
 function msg_kind_label(string $kind, string $text): ?string
 {
+    if ($kind === 'deleted') { return 'Message deleted'; }
     if ($kind === 'gif')   { return 'GIF'; }
     if ($kind === 'image') { return '📷 Photo'; }
     if ($kind === 'file') {

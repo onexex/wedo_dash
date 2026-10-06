@@ -60,6 +60,7 @@ function mh_unread_rows(PDO $pdo, string $me): array
 /** One line of preview text for a message. */
 function mh_preview(string $kind, string $text): string
 {
+    if ($kind === 'deleted') { return 'Deleted a message'; }
     if ($kind === 'gif') { return 'Sent a GIF'; }
     if ($kind === 'image') { return 'Sent a photo'; }
     if ($kind === 'file') { return 'Sent ' . msg_kind_label($kind, $text); }

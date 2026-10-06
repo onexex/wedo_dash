@@ -207,6 +207,14 @@
       .msg-row:hover .msg-react-btn,.msg-row:focus-within .msg-react-btn,.msg-row.rx-open .msg-react-btn,.msg-row.show-rx .msg-react-btn{opacity:1}
       .msg-react-btn:hover,.msg-row.rx-open .msg-react-btn{background:var(--surface-2);color:var(--text)}
       .msg-row:not([data-id]) .msg-react-btn,.msg-row.is-pending .msg-react-btn,.msg-row.is-failed .msg-react-btn{visibility:hidden}
+      /* delete my own message (msgdel access right) */
+      .msg-del-btn{display:none;flex:none;align-self:center;width:28px;height:28px;border:0;border-radius:50%;background:none;color:var(--text-3);font-size:14px;cursor:pointer;opacity:0;align-items:center;justify-content:center;transition:opacity .15s,background .15s,color .15s}
+      .msg-del-on .msg-del-btn{display:flex}
+      .msg-row:hover .msg-del-btn,.msg-row:focus-within .msg-del-btn,.msg-row.show-rx .msg-del-btn{opacity:1}
+      .msg-del-btn:hover{background:var(--danger-bg);color:var(--danger-text)}
+      .msg-row:not([data-id]) .msg-del-btn,.msg-row.is-pending .msg-del-btn,.msg-row.is-failed .msg-del-btn{visibility:hidden}
+      .msg-bubble.is-deleted{background:none !important;color:var(--text-3) !important;border:1px dashed var(--border-2) !important;box-shadow:none;font-style:italic;font-size:12.5px}
+      .msg-bubble.is-deleted i{margin-right:3px;font-size:11px}
       .msg-row.has-rx{margin-bottom:20px}
       .msg-rx{position:absolute;right:6px;bottom:-14px;display:flex;align-items:center;gap:1px;height:22px;padding:0 6px;border-radius:999px;background:var(--surface);border:1px solid var(--border);box-shadow:0 1px 3px rgba(16,24,40,.14);font-size:12.5px;line-height:1;color:var(--text-2);cursor:pointer;white-space:nowrap;animation:msgRxPop .25s ease-out}
       .msg-rx.is-mine{border-color:var(--brand);background:var(--brand-tint)}

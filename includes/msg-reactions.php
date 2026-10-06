@@ -30,7 +30,7 @@ function rx_message_thread(PDO $pdo, string $me, int $msid): ?string
     $st = $pdo->prepare("SELECT MHID, " . (msg_has_kind($pdo) ? "Kind" : "'text'") . " AS Kind FROM messages WHERE MSID = :id");
     $st->execute([':id' => $msid]);
     $m = $st->fetch(PDO::FETCH_ASSOC);
-    if (!$m || $m['Kind'] === 'event') { return null; }
+    if (!$m || $m['Kind'] === 'event' || $m['Kind'] === 'deleted') { return null; }
     $mhid = (string) $m['MHID'];
     $gid = grp_id_from_key($mhid);
     if ($gid) {
