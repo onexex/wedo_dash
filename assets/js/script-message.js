@@ -56,6 +56,7 @@
     polling: false, typingSentAt: 0, typingOn: false,
     gifsOn: false,                // the GIF sticker library (assets/gifs) is there
     filesOn: false,               // I hold the `msgfile` right: may send pictures + documents
+    delOn: false,                 // I hold the `msgdel` right: may delete my own messages
     rxOn: false, rxBusy: {},      // reactions set up on the server; message ids with a react request in flight
     mentionKey: '', mentionRe: null
   };
@@ -378,6 +379,8 @@
       el.gifBtn.hidden = !state.gifsOn;
       state.filesOn = !!j.files;
       el.fileBtn.hidden = !state.filesOn;
+      state.delOn = !!j.canDelete;
+      app.classList.toggle('msg-del-on', state.delOn);
       var key = JSON.stringify(j.threads);
       if (key !== state.threadsKey) {           // nothing changed = no re-render (no flicker, focus kept)
         state.threadsKey = key;
@@ -682,6 +685,8 @@
   }
 
   el.scroll.addEventListener('click', function (e) {
+    var del = e.target.closest('.msg-del-btn');
+    if (del) { e.stopPropagation(); closeRxBar(); deleteMessage(del.closest('.msg-row')); return; }
     var pick = e.target.closest('.msg-rxbar button');
     if (pick) { e.stopPropagation(); var r = rxRow; closeRxBar(); react(r, pick.dataset.emoji); return; }
     var opener = e.target.closest('.msg-react-btn, .msg-rx');
@@ -700,6 +705,43 @@
     }
   });
   document.addEventListener('click', function (e) { if (rxRow && !rxBar.contains(e.target)) { closeRxBar(); } });
+
+  // ------------------------------------------------------------------ delete my own message (msgdel access right)
+
+  /** turn a bubble into the "deleted" note (text, picture, file, reactions and buttons go) */
+  function fillDeleted(row, bubble) {
+    row.classList.add('is-deleted');
+    bubble.className = 'msg-bubble is-deleted';
+    bubble.textContent = '';
+    bubble.appendChild(h('i', 'fa-solid fa-ban'));
+    bubble.appendChild(document.createTextNode(row.classList.contains('msg-row--mine') ? ' You deleted this message' : ' This message was deleted'));
+    Array.prototype.forEach.call(row.querySelectorAll('.msg-react-btn, .msg-del-btn'), function (b) { b.remove(); });
+    row.dataset.rx = '';
+    row.classList.remove('has-rx', 'is-mention');
+  }
+  function markDeleted(row) {
+    if (!row || row.classList.contains('is-deleted')) { return; }
+    var bubble = row.querySelector('.msg-bubble');
+    if (bubble) { fillDeleted(row, bubble); }
+  }
+  /** ids deleted in this conversation (from each thread response): update bubbles already on screen */
+  function applyDeleted(ids) {
+    (ids || []).forEach(function (id) { markDeleted(el.scroll.querySelector('.msg-row[data-id="' + id + '"]')); });
+  }
+  function deleteMessage(row) {
+    var id = row && +row.dataset.id;
+    if (!id || !state.delOn || row.classList.contains('is-deleted')) { return; }
+    if (!confirm('Delete this message for everyone? This can’t be undone.')) { return; }
+    row.classList.add('is-pending');
+    post('delete', { id: id }).then(function () {
+      row.classList.remove('is-pending');
+      markDeleted(row);
+      loadThreads();
+    }).catch(function (e) {
+      row.classList.remove('is-pending');
+      showError(e.message);
+    });
+  }
 
   /** who sent a message, as a display card */
   function senderOf(m) {
@@ -743,6 +785,18 @@
 
     var row = h('div', 'msg-row' + (m.mine ? ' msg-row--mine' : '') + (joins ? '' : ' is-first') + ' is-last' + (opts.animate ? ' is-new' : ''));
     if (!m.mine) { row.appendChild(avatar(who, 'msg-av--sm')); }
+    if (m.kind === 'deleted') {
+      var gone = h('div', 'msg-bubble');
+      row.appendChild(gone);
+      fillDeleted(row, gone);
+      gone.title = fullTime(m.at);
+      if (m.id) { row.dataset.id = m.id; }
+      place(row);
+      var dmeta = h('div', 'msg-meta ' + (m.mine ? 'msg-meta--mine' : 'msg-meta--theirs'), clock(p));
+      place(dmeta);
+      state.group_ = { sender: sid, at: m.at, day: p.day, row: row, meta: dmeta };
+      return row;
+    }
     var gif = m.kind === 'gif' ? gifData(m.text) : null;
     var card = m.kind === 'image' || m.kind === 'file' ? fileData(m.text) : null;
     var bubble = h('div', 'msg-bubble' + (gif ? ' is-gif' : card ? (m.kind === 'image' ? ' is-img' : ' is-file') : isEmojiOnly(m.text) ? ' is-emoji' : ''));
@@ -756,7 +810,12 @@
     var rbtn = h('button', 'msg-react-btn');
     rbtn.type = 'button'; rbtn.title = 'React'; rbtn.setAttribute('aria-label', 'React to this message');
     rbtn.appendChild(h('i', 'fa-regular fa-face-smile'));
-    if (m.mine) { row.appendChild(rbtn); row.appendChild(bubble); }    // the button sits on the inner side
+    if (m.mine) {                                                      // the buttons sit on the inner side
+      var dbtn = h('button', 'msg-del-btn');
+      dbtn.type = 'button'; dbtn.title = 'Delete'; dbtn.setAttribute('aria-label', 'Delete this message');
+      dbtn.appendChild(h('i', 'fa-regular fa-trash-can'));
+      row.appendChild(dbtn); row.appendChild(rbtn); row.appendChild(bubble);
+    }
     else { row.appendChild(bubble); row.appendChild(rbtn); }
     if (m.id) { row.dataset.id = m.id; }
     place(row);
@@ -980,6 +1039,7 @@
         el.scroll.appendChild(hi);
       }
       appendMessages(j.messages, { firstUnread: j.firstUnread });
+      applyDeleted(j.deleted);
       applyReactions(j.reactions);
       setTyping(state.kind === 'group' ? state.typingNames : (state.typingNames.length ? ['x'] : []));
       var divider = el.scroll.querySelector('.msg-new');
@@ -1702,6 +1762,7 @@
           el.readonly.hidden = state.canSend;
         }
         var theirs = appendMessages(j.messages, { animate: true });
+        applyDeleted(j.deleted);
         applyReactions(j.reactions);
         setTyping(theirs ? [] : (state.kind === 'group' ? state.typingNames : (state.typingNames.length ? ['x'] : [])));
         renderHead();

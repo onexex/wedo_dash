@@ -14,6 +14,7 @@
    POST action=send_gif&with=KEY&gif=FILE     send a GIF sticker from the library (assets/gifs)
    GET  action=gifs                           the GIF sticker library (title, search words, size)
    POST action=send_file&with=KEY  + file     send a picture or document (multipart; needs the `msgfile` access right)
+   POST action=delete&id=MSID                 delete my own message for everyone (needs the `msgdel` access right)
    POST action=typing&with=KEY|''             I'm typing there ('' = stopped)
    POST action=group_create&name=..&members[]=..      new group (me = admin)
    POST action=group_add&id=..&members[]=..           admins
@@ -52,6 +53,7 @@ require_once __DIR__ . '/../includes/msg-calls.php';
 require_once __DIR__ . '/../includes/msg-reactions.php';
 require_once __DIR__ . '/../includes/msg-gifs.php';
 require_once __DIR__ . '/../includes/msg-files.php';
+require_once __DIR__ . '/../includes/msg-delete.php';
 
 try {
     $pdo = new PDO("mysql:host=$servername;dbname=$db;charset=utf8mb4", $username, $password);
@@ -137,6 +139,14 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             msg_touch($pdo, $me, '');
             msg_out(200, ['status' => 'ok', 'message' => $res['message'], 'today' => $today]);
 
+        case 'delete':
+            if (!md_can_delete($pdo, $me)) {
+                msg_out(403, ['status' => 'error', 'msg' => 'You don’t have access to delete messages.']);
+            }
+            $res = md_delete($pdo, $me, $id);
+            if (!$res['ok']) { msg_out(422, ['status' => 'error', 'msg' => $res['error']]); }
+            msg_out(200, ['status' => 'ok', 'id' => $id]);
+
         case 'react':
             if (!rx_ready($pdo)) {
                 msg_out(409, ['status' => 'error', 'code' => 'disabled', 'msg' => 'Reactions aren’t set up on this server yet.']);
@@ -195,6 +205,7 @@ switch ($action) {
         }
         msg_out(200, ['status' => 'ok', 'threads' => $threads, 'groups' => $groupsOn, 'gifs' => gif_enabled($pdo),
                       'files'  => mf_can_send($pdo, $me),
+                      'canDelete' => md_can_delete($pdo, $me),
                       'online' => msg_online($pdo, $me, $userType),
                       'unread' => msg_unread_threads($pdo, $me), 'today' => $today]);
 
@@ -224,6 +235,7 @@ switch ($action) {
                 'typing'      => grp_typing($pdo, $gid, $me),
                 'activeCall'  => $activeCall,
                 'reactions'   => rx_ready($pdo) ? (object) rx_for_thread($pdo, $me, grp_key($gid)) : null,
+                'deleted'     => md_deleted_ids($pdo, grp_key($gid)),
                 'canSend'     => true, 'today' => $today]);
         }
         $person = msg_person($pdo, $with);
@@ -237,6 +249,7 @@ switch ($action) {
                       'seenUpTo'    => msg_seen_up_to($pdo, $me, $with),
                       'presence'    => msg_presence($pdo, $me, [$with])[$with],
                       'reactions'   => rx_ready($pdo) ? (object) ($mhid ? rx_for_thread($pdo, $me, $mhid) : []) : null,
+                      'deleted'     => md_deleted_ids($pdo, $mhid),
                       'canSend'     => msg_can_message($pdo, $me, $with, $userType), 'today' => $today]);
 
     case 'search':
