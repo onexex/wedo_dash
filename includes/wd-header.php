@@ -36,7 +36,7 @@ try {
     $wdsn->execute([':id' => $_SESSION['id']]);
     $wdSeen = $wdsn->fetchColumn();
     if ($wdSeen && $wdSeen > $wdSince) { $wdSince = $wdSeen; }
-} catch (Exception $e) { }
+} catch (Exception $wdErr) { }
 if ($_SESSION['UserType'] == 2) {
     $wdnsql = "SELECT
         (SELECT COUNT(*) FROM obs WHERE EmpSID=:id1 AND OBStatus<>1 AND OBStatus<>3 AND OBUpdated > :s1) +
@@ -55,7 +55,7 @@ try {
     $wdnst->execute([':id1'=>$_SESSION['id'], ':id2'=>$_SESSION['id'], ':id3'=>$_SESSION['id'], ':id4'=>$_SESSION['id'],
                      ':s1'=>$wdSince, ':s2'=>$wdSince, ':s3'=>$wdSince, ':s4'=>$wdSince]);
     $nrow = (int) $wdnst->fetchColumn();
-} catch (Exception $e) { $nrow = 0; }
+} catch (Exception $wdErr) { $nrow = 0; }
 
 /* unseen company announcements (Corner badge): recent announcements with no
    annseen row for me, excluding my own posts. The 30-day window keeps the badge
@@ -70,7 +70,7 @@ try {
           AND a.ADate >= (NOW() - INTERVAL 30 DAY)");
     $wdua->execute([':id' => $_SESSION['id'], ':id2' => $_SESSION['id']]);
     $wdUnseenAnn = (int) $wdua->fetchColumn();
-} catch (Exception $e) { $wdUnseenAnn = 0; }
+} catch (Exception $wdErr) { $wdUnseenAnn = 0; }
 
 /* sidebar glow follows today's seasonal login theme (Maintenance > Login Theme);
    colours come only from lt_presets(), never from user input */
@@ -89,7 +89,7 @@ $wdUnreadMsg = 0;
 try {
     require_once __DIR__ . '/messages-lib.php';
     $wdUnreadMsg = msg_unread_threads($wdpdo, (string) $_SESSION['id']);
-} catch (Exception $e) { $wdUnreadMsg = 0; }
+} catch (Exception $wdErr) { $wdUnreadMsg = 0; }
 
 /* access rights */
 $wdar = $wdpdo->prepare("SELECT * FROM accessrights WHERE EmpID = :id");
