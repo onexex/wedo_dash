@@ -16,13 +16,22 @@ try {
 }
 
 /* user + position */
-$wdu = $wdpdo->prepare("SELECT e.EmpLN, e.EmpFN, p.PositionDesc
+$wdu = $wdpdo->prepare("SELECT e.EmpLN, e.EmpFN, p.PositionDesc,
+      (SELECT ep.EmpPPath FROM empprofiles ep WHERE ep.EmpID = e.EmpID LIMIT 1) AS EmpPPath
     FROM employees e LEFT JOIN positions p ON e.posid = p.psid WHERE e.EmpID = :id");
 $wdu->execute([':id' => $_SESSION['id']]);
 $wdrow      = $wdu->fetch();
 $wdName     = trim(($wdrow['EmpLN'] ?? '') . ', ' . ($wdrow['EmpFN'] ?? ''));
 $wdPosition = ($_SESSION['UserType'] == 1) ? 'Super User' : ($wdrow['PositionDesc'] ?? '');
 $wdInitials = strtoupper(substr($wdrow['EmpFN'] ?? '', 0, 1) . substr($wdrow['EmpLN'] ?? '', 0, 1));
+
+/* avatar: the profile photo (set by HR in 201 files) when the file is there, else the initials.
+   ?v= the file time, so a replaced photo shows right away (the file name never changes). */
+$wdPhoto = trim((string)($wdrow['EmpPPath'] ?? ''));
+$wdPhotoFile = __DIR__ . '/../' . $wdPhoto;
+$wdAvatar = ($wdPhoto !== '' && strpos($wdPhoto, '..') === false && is_file($wdPhotoFile))
+    ? '<img src="' . htmlspecialchars($wdPhoto . '?v=' . filemtime($wdPhotoFile)) . '" alt="">'
+    : htmlspecialchars($wdInitials);
 
 /* notification count (same filings as includes/header.php bell), UNSEEN only:
    updates after I last opened notifications.php (notif_seen.seen_at), never
@@ -264,7 +273,7 @@ function wd_can($ar, $k) { return isset($ar[$k]) && $ar[$k] == 2; }
     </nav>
 
     <div class="wd-account">
-      <div class="wd-avatar wd-account__av" title="<?php echo htmlspecialchars($wdName); ?>"><?php echo htmlspecialchars($wdInitials); ?></div>
+      <div class="wd-avatar wd-account__av" title="<?php echo htmlspecialchars($wdName); ?>"><?php echo $wdAvatar; ?></div>
       <div class="wd-account__who">
         <div class="wd-account__name"><?php echo htmlspecialchars($wdName); ?></div>
         <div class="wd-account__role"><?php echo htmlspecialchars($wdPosition); ?></div>
@@ -282,7 +291,7 @@ function wd_can($ar, $k) { return isset($ar[$k]) && $ar[$k] == 2; }
       <a href="messages" class="wd-iconbtn wd-inbox<?php echo $wdUnreadMsg > 0 ? ' has-unread' : ''; ?>" id="wdMsgBtn" data-unread="<?php echo (int)$wdUnreadMsg; ?>" title="<?php echo $wdMsgLabel; ?>" aria-label="<?php echo $wdMsgLabel; ?>"><i class="fa-regular fa-envelope"></i><span class="wd-inbox__badge"<?php echo $wdUnreadMsg > 0 ? '' : ' hidden'; ?>><?php echo $wdUnreadMsg > 99 ? '99+' : (int)$wdUnreadMsg; ?></span></a>
       <a href="notifications.php" class="wd-iconbtn" title="<?php echo (int)$nrow; ?> notification(s)" aria-label="Notifications"><i class="fa-solid fa-bell"></i><?php if($nrow>0): ?><span class="wd-iconbtn__dot"></span><?php endif; ?></a>
       <div class="wd-user" onclick="this.classList.toggle('is-open');event.stopPropagation();">
-        <div class="wd-avatar"><?php echo htmlspecialchars($wdInitials); ?></div>
+        <div class="wd-avatar"><?php echo $wdAvatar; ?></div>
         <i class="fa-solid fa-chevron-down wd-user__caret"></i>
         <div class="wd-usermenu" onclick="event.stopPropagation();">
           <div class="wd-usermenu__head"><div class="n"><?php echo htmlspecialchars($wdName); ?></div><div class="r"><?php echo htmlspecialchars($wdPosition); ?></div></div>
