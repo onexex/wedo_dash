@@ -1,0 +1,16 @@
+# WeDo Android app downloads (see app/index.php)
+
+# phones only offer to install a download served with this type
+AddType application/vnd.android.package-archive .apk
+
+<IfModule mod_headers.c>
+    # the app asks for version.json once a day: always answer with the current one
+    <Files "version.json">
+        Header set Cache-Control "no-store, max-age=0"
+    </Files>
+    # save the APK under a clear name
+    <Files "WeDo.apk">
+        Header set Content-Disposition "attachment; filename=\"WeDo.apk\""
+        Header set Cache-Control "no-cache"
+    </Files>
+</IfModule>
