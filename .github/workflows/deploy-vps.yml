@@ -1,0 +1,221 @@
+name: Deploy VPS Testing
+
+# Test server on our own VPS (CloudPanel), https://wedo.kmds.systems, separate from staging (.xyz) and production (.ph):
+# its own branch, its own server, its own database (a copy of devdashboard). Nothing here
+# touches the cPanel hosting or the live database.
+#
+#   push to `vps`  ->  lint + tests  ->  deploy to the VPS site folder
+#
+# One-time server setup (site, PHP version, nginx rules, config.local.php, SSL): deploy/vps/README.md
+on:
+  push:
+    branches: [vps]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  # ---------------------------------------------------------------------------
+  # CI — syntax-lint every PHP file and make sure no credential file slipped in.
+  # ---------------------------------------------------------------------------
+  lint:
+    name: PHP lint
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Set up PHP 8.2
+        uses: shivammathur/setup-php@v2
+        with:
+          php-version: '8.2'
+          coverage: none
+      - name: Lint all PHP files (php -l)
+        run: |
+          status=0; count=0
+          while IFS= read -r f; do
+            count=$((count+1))
+            if ! php -l "$f" > /dev/null 2>&1; then
+              echo "::error file=$f::PHP syntax error"; php -l "$f" || true; status=1
+            fi
+          done < <(git ls-files '*.php')
+          echo "Linted $count PHP files."
+          exit $status
+      - name: Guard against committed credentials
+        run: |
+          if git ls-files | grep -E '(^|/)config\.local\.php$' ; then
+            echo "::error::config.local.php must never be committed."; exit 1
+          fi
+          echo "OK — no credential file tracked."
+
+  # ---------------------------------------------------------------------------
+  # Regression tests (PHPUnit) against a throwaway MariaDB that mirrors local
+  # XAMPP (10.4, non-strict sql_mode). See tests/bootstrap.php.
+  # ---------------------------------------------------------------------------
+  test:
+    name: Regression tests
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Start MariaDB 10.4 (configured like local XAMPP)
+        run: |
+          docker run -d --name wedo-db -p 3306:3306 -e MARIADB_ROOT_PASSWORD=root mariadb:10.4 \
+            --character-set-server=utf8mb4 --collation-server=utf8mb4_general_ci \
+            --sql-mode=NO_ZERO_IN_DATE,NO_ZERO_DATE,NO_ENGINE_SUBSTITUTION
+          for i in $(seq 1 60); do
+            if docker exec wedo-db mysqladmin ping -uroot -proot --silent 2>/dev/null; then echo "MariaDB is up"; exit 0; fi
+            sleep 2
+          done
+          echo "::error::MariaDB did not start"; docker logs wedo-db; exit 1
+      - name: Set up PHP 8.2
+        uses: shivammathur/setup-php@v2
+        with:
+          php-version: '8.2'
+          extensions: pdo_mysql, mysqli, dom, mbstring
+          coverage: none
+      - name: Install dev dependencies
+        run: composer install --no-interaction --no-progress
+      - name: Run regression tests
+        env:
+          TEST_DB_HOST: 127.0.0.1
+          TEST_DB_USER: root
+          TEST_DB_PASS: root
+          TEST_DB_NAME: wedo_test
+        run: vendor/bin/phpunit
+
+  # ---------------------------------------------------------------------------
+  # CD — package into one zip, SFTP it to the VPS, unzip + fix permissions over SSH.
+  # Secrets (repo → Settings → Secrets and variables → Actions):
+  #   VPS_HOST, VPS_USERNAME, VPS_PASSWORD   the CloudPanel site user's SSH/SFTP login
+  #   VPS_PORT                               SSH port (22 if left empty)
+  #   VPS_PATH                               site root, e.g. /home/<site-user>/htdocs/<domain>
+  #   VPS_URL                                https://<domain> (for the check at the end)
+  # Missing secrets = the deploy is skipped with a warning (lint/tests still run).
+  # unzip -o overwrites app files but keeps config.local.php and uploaded files.
+  # ---------------------------------------------------------------------------
+  deploy:
+    name: Package & deploy to VPS (testing)
+    needs: [lint, test]
+    if: github.event_name == 'workflow_dispatch' || (github.event_name == 'push' && github.ref == 'refs/heads/vps')
+    runs-on: ubuntu-latest
+    concurrency:
+      group: deploy-vps
+      cancel-in-progress: true
+    env:
+      VPS_PORT: ${{ secrets.VPS_PORT || '22' }}
+    steps:
+      - name: Check secrets are configured
+        id: check
+        env:
+          VPS_HOST: ${{ secrets.VPS_HOST }}
+          VPS_USERNAME: ${{ secrets.VPS_USERNAME }}
+          VPS_PASSWORD: ${{ secrets.VPS_PASSWORD }}
+          VPS_PATH: ${{ secrets.VPS_PATH }}
+        run: |
+          missing=""
+          [ -z "$VPS_HOST" ]     && missing="$missing VPS_HOST"
+          [ -z "$VPS_USERNAME" ] && missing="$missing VPS_USERNAME"
+          [ -z "$VPS_PASSWORD" ] && missing="$missing VPS_PASSWORD"
+          [ -z "$VPS_PATH" ]     && missing="$missing VPS_PATH"
+          if [ -n "$missing" ]; then
+            echo "::warning::VPS deploy skipped — missing secret(s):$missing"
+            echo "configured=false" >> "$GITHUB_OUTPUT"
+          else
+            echo "All secrets present."
+            echo "configured=true" >> "$GITHUB_OUTPUT"
+          fi
+
+      - uses: actions/checkout@v4
+        if: steps.check.outputs.configured == 'true'
+        with:
+          persist-credentials: false
+
+      # Unlike the cPanel deploys, w_conn.php IS shipped: the VPS is a fresh server with no copy of
+      # its own. It holds no secrets (it reads the DB login from config.local.php on the server).
+      - name: Package app into one zip
+        if: steps.check.outputs.configured == 'true'
+        run: |
+          zip -r -q deploy.zip . \
+            -x '.git/*' '.github/*' 'deploy/*' 'config.local.php' '*.bak' '*.log' 'error_log' 'deploy.zip' \
+               'tests/*' 'vendor/*' 'composer.json' 'composer.lock' 'phpunit.xml.dist' '.phpunit.cache/*'
+          ls -lh deploy.zip | awk '{print "zip size: " $5}'
+
+      # Before uploading: the site folder exists, a half-finished earlier run left no zip behind,
+      # and the server has its config.local.php (DB login) — no point shipping to a server that
+      # can't connect to its database.
+      - name: Pre-flight checks on the VPS
+        if: steps.check.outputs.configured == 'true'
+        uses: appleboy/ssh-action@v1.2.0
+        with:
+          host: ${{ secrets.VPS_HOST }}
+          username: ${{ secrets.VPS_USERNAME }}
+          password: ${{ secrets.VPS_PASSWORD }}
+          port: ${{ env.VPS_PORT }}
+          script: |
+            mkdir -p "${{ secrets.VPS_PATH }}"
+            cd "${{ secrets.VPS_PATH }}" || exit 1
+            rm -f deploy.zip
+            if [ ! -f config.local.php ]; then
+              echo "No config.local.php in $(pwd)! Create it first (DB login for the VPS database) — see deploy/vps/README.md."
+              exit 1
+            fi
+            echo "Pre-flight OK in $(pwd)"
+
+      - name: Upload deploy.zip via SFTP
+        if: steps.check.outputs.configured == 'true'
+        uses: wlixcc/SFTP-Deploy-Action@v1.2.4
+        with:
+          server: ${{ secrets.VPS_HOST }}
+          username: ${{ secrets.VPS_USERNAME }}
+          password: ${{ secrets.VPS_PASSWORD }}
+          port: ${{ env.VPS_PORT }}
+          local_path: './deploy.zip'
+          remote_path: '${{ secrets.VPS_PATH }}/'
+
+      - name: Unzip + fix permissions on the VPS
+        if: steps.check.outputs.configured == 'true'
+        uses: appleboy/ssh-action@v1.2.0
+        with:
+          host: ${{ secrets.VPS_HOST }}
+          username: ${{ secrets.VPS_USERNAME }}
+          password: ${{ secrets.VPS_PASSWORD }}
+          port: ${{ env.VPS_PORT }}
+          command_timeout: 15m
+          script: |
+            cd "${{ secrets.VPS_PATH }}" || { echo "VPS_PATH not found"; exit 1; }
+            if [ -f deploy.zip ]; then
+              unzip -o -q deploy.zip && rm -f deploy.zip
+            else
+              echo "deploy.zip not found on the VPS!"; exit 1
+            fi
+            # CloudPanel runs PHP as the site user, so owner-writable is enough for uploads
+            find . -type d -exec chmod 755 {} \;
+            find . -type f -exec chmod 644 {} \;
+            chmod 600 config.local.php
+            echo "Unzipped + permissions set in $(pwd)"
+            # Fresh code even with opcache on. Needs a sudoers line for the site user:
+            #   <site-user> ALL=(ALL) NOPASSWD: /usr/bin/systemctl reload php8.2-fpm
+            # Without it this is skipped (opcache.validate_timestamps=On picks changes up anyway).
+            FPM_SVC="php$(php -r 'echo PHP_MAJOR_VERSION.".".PHP_MINOR_VERSION;')-fpm"
+            if sudo -n systemctl reload "$FPM_SVC" 2>/dev/null; then
+              echo "$FPM_SVC reloaded (opcache cleared)."
+            else
+              echo "Skipped $FPM_SVC reload (no passwordless sudo) — relying on opcache.validate_timestamps."
+            fi
+
+      # The test app (WeDo Test) only opens a site with a valid certificate, so this checks
+      # HTTPS for real (no -k): a certificate problem shows up here, not on the phone.
+      - name: Verify the site responds over HTTPS
+        if: steps.check.outputs.configured == 'true'
+        env:
+          VPS_URL: ${{ secrets.VPS_URL }}
+        run: |
+          if [ -z "$VPS_URL" ]; then echo "::warning::VPS_URL not set — skipped the check."; exit 0; fi
+          url="${VPS_URL%/}/login.php"
+          code=$(curl -s -o /tmp/body -w '%{http_code}' "$url") || code="000"
+          echo "GET $url -> HTTP $code"
+          echo "----- first 300 bytes -----"; head -c 300 /tmp/body 2>/dev/null || true; echo
+          if [ "$code" = "000" ]; then
+            echo "::warning::No HTTPS answer — check the domain's DNS and its SSL certificate (CloudPanel → site → SSL/TLS)."
+          elif [ "$code" != "200" ]; then
+            echo "::warning::Non-200 — check VPS_PATH vs the site root, and the nginx rules in deploy/vps/README.md."
+          fi
