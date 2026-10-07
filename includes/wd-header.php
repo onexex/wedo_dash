@@ -245,6 +245,8 @@ function wd_can($ar, $k) { return isset($ar[$k]) && $ar[$k] == 2; }
         echo $wdTop('corner', 'corner', 'megaphone', htmlspecialchars($wdCornerName), 'cor', $wdBadge($wdUnseenAnn), ' title="' . htmlspecialchars($wdCornerTip) . '"');
       endif; ?>
       <?php if($_SESSION['UserType']==5) { echo $wdTop('reset', 'Reset', 'triangle-alert', 'Reset Data', 'cor'); } ?>
+      <?php // download page for the Android app (everyone); not shown inside the app itself
+        if (strpos($_SERVER['HTTP_USER_AGENT'] ?? '', 'WeDoApp/') === false) { echo $wdTop('app', 'app/', 'smartphone', 'Get the Android app'); } ?>
       <p class="wd-navempty" id="wdNavEmpty" hidden>No pages match.</p>
     </nav>
 
@@ -272,6 +274,9 @@ function wd_can($ar, $k) { return isset($ar[$k]) && $ar[$k] == 2; }
         <div class="wd-usermenu" onclick="event.stopPropagation();">
           <div class="wd-usermenu__head"><div class="n"><?php echo htmlspecialchars($wdName); ?></div><div class="r"><?php echo htmlspecialchars($wdPosition); ?></div></div>
           <a class="wd-usermenu__item" data-toggle="modal" data-target="#changepass" href="#"><i class="fa-solid fa-gear"></i> Change password</a>
+          <?php if (strpos($_SERVER['HTTP_USER_AGENT'] ?? '', 'WeDoApp/') === false) { ?>
+          <a class="wd-usermenu__item" href="app/"><i class="fa-solid fa-mobile-screen-button"></i> Get the Android app</a>
+          <?php } ?>
           <a class="wd-usermenu__item wd-usermenu__item--danger" href="login.php?logout"><i class="fa-solid fa-right-from-bracket"></i> Sign out</a>
         </div>
       </div>
