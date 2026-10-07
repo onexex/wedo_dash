@@ -28,8 +28,11 @@ function mh_unread_rows(PDO $pdo, string $me): array
         FROM messages m
         JOIN messageheader h ON h.MHID = m.MHID
         WHERE (h.SenderID = :me2 OR h.RecieverID = :me3) AND m.SenderID <> :me4 AND m.Status = 1
+          AND " . mc_after_sql($pdo, 'm.MSID', 'm.MHID', ':meC') . "
         GROUP BY m.MHID");
-    $st->execute([':me1' => $me, ':me2' => $me, ':me3' => $me, ':me4' => $me]);
+    $params = [':me1' => $me, ':me2' => $me, ':me3' => $me, ':me4' => $me];
+    if (mc_ready($pdo)) { $params[':meC'] = $me; }
+    $st->execute($params);
     foreach ($st->fetchAll(PDO::FETCH_ASSOC) as $r) {
         $k = (string) $r['other'];
         if (isset($rows[$k])) {          // two headers for the same pair: one conversation

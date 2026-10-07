@@ -164,8 +164,11 @@ function grp_threads(PDO $pdo, string $me): array
         JOIN msg_groups g ON g.id = gm.group_id
         LEFT JOIN messages lm ON lm.MSID = (SELECT MAX(m.MSID) FROM messages m WHERE m.MHID = CONCAT('grp:', g.id))
         LEFT JOIN employees le ON le.EmpID = lm.SenderID
-        WHERE gm.EmpID = :me2");
-    $st->execute([':me1' => $me, ':me2' => $me]);
+        WHERE gm.EmpID = :me2
+          AND (lm.MSID IS NULL OR " . mc_after_sql($pdo, 'lm.MSID', "CONCAT('grp:', g.id)", ':meC') . ")");   // deleted by me, nothing new since
+    $params = [':me1' => $me, ':me2' => $me];
+    if (mc_ready($pdo)) { $params[':meC'] = $me; }
+    $st->execute($params);
     $out = [];
     foreach ($st->fetchAll(PDO::FETCH_ASSOC) as $r) {
         $mine = $r['last_sender'] === $me;
@@ -192,7 +195,7 @@ function grp_threads(PDO $pdo, string $me): array
 function grp_messages(PDO $pdo, int $gid, string $me, int $after = 0): array
 {
     $st = $pdo->prepare("SELECT MSID, SenderID, Message, Kind, DateSent FROM messages WHERE MHID = :h AND MSID > :a ORDER BY MSID");
-    $st->execute([':h' => grp_key($gid), ':a' => $after]);
+    $st->execute([':h' => grp_key($gid), ':a' => max($after, mc_cleared($pdo, $me, grp_key($gid)))]);
     $rows = $st->fetchAll(PDO::FETCH_ASSOC);
     $mentionsMe = array_flip(mn_mentioning($pdo, $me, array_column($rows, 'MSID')));
     $people = [];

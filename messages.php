@@ -369,6 +369,7 @@
           <div class="msg-main__who"><div class="n" id="msgHeadName"></div><div class="r" id="msgHeadRole"></div></div>
           <button type="button" class="msg-call" id="msgCallBtn" hidden title="Video call" aria-label="Start a video call"><i class="fa-solid fa-video"></i></button>
           <button type="button" class="msg-call msg-call--info" id="msgInfoBtn" hidden title="Group info" aria-label="Group info and members"><i class="fa-solid fa-circle-info"></i></button>
+          <button type="button" class="msg-call msg-call--info" id="msgClearBtn" hidden title="Delete conversation" aria-label="Delete this conversation for me"><i class="fa-regular fa-trash-can"></i></button>
         </div>
         <div class="msg-callbar" id="msgCallBar" hidden>
           <span class="msg-callbar__dot"></span><i class="fa-solid fa-video"></i>

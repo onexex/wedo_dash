@@ -15,6 +15,7 @@
    GET  action=gifs                           the GIF sticker library (title, search words, size)
    POST action=send_file&with=KEY  + file     send a picture or document (multipart; needs the `msgfile` access right)
    POST action=delete&id=MSID                 delete my own message for everyone (needs the `msgdel` access right)
+   POST action=clear&with=KEY                 delete the whole conversation for me only (anyone; includes/msg-clear.php)
    POST action=typing&with=KEY|''             I'm typing there ('' = stopped)
    POST action=group_create&name=..&members[]=..      new group (me = admin)
    POST action=group_add&id=..&members[]=..           admins
@@ -150,6 +151,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             $res = md_delete($pdo, $me, $id);
             if (!$res['ok']) { msg_out(422, ['status' => 'error', 'msg' => $res['error']]); }
             msg_out(200, ['status' => 'ok', 'id' => $id]);
+
+        case 'clear':   // "Delete conversation": for me only, anyone may (includes/msg-clear.php)
+            $res = mc_clear($pdo, $me, $with);
+            if (!$res['ok']) { msg_out(422, ['status' => 'error', 'msg' => $res['error']]); }
+            msg_out(200, ['status' => 'ok']);
 
         case 'react':
             if (!rx_ready($pdo)) {

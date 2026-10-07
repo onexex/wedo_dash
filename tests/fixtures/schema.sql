@@ -1409,3 +1409,12 @@ CREATE TABLE IF NOT EXISTS `app_remember` (
   UNIQUE KEY `uq_app_remember_token` (`token_hash`),
   KEY `ix_app_remember_emp` (`EmpID`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+-- messages: delete conversation for me (sql/2026-10-07-add-message-clear.sql)
+CREATE TABLE IF NOT EXISTS `msg_cleared` (
+  `EmpID`        VARCHAR(50)  NOT NULL,
+  `MHID`         VARCHAR(100) NOT NULL,
+  `cleared_msid` INT(11)      NOT NULL,
+  `cleared_at`   DATETIME     NOT NULL,
+  PRIMARY KEY (`EmpID`, `MHID`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
