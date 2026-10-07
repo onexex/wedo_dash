@@ -1,17 +1,21 @@
 <?php
     if (session_status() === PHP_SESSION_NONE) { session_start(); }
     include 'w_conn.php';
+    require_once __DIR__ . '/includes/app-remember.php';
 
     // 1. Handle Logout immediately
     if (isset($_GET['logout'])) {
-    // invalidate the server-side remember-me token for this user, too
-    if (!empty($_SESSION['id'])) {
-        try {
-            $pdoLogout = new PDO("mysql:host=$servername;dbname=$db", $username, $password);
+    // invalidate the server-side remember-me tokens (website's and, in the app, this phone's)
+    $pdoLogout = null;
+    try {
+        $pdoLogout = new PDO("mysql:host=$servername;dbname=$db", $username, $password);
+        $pdoLogout->setAttribute(PDO::ATTR_ERRMODE, PDO::ERRMODE_EXCEPTION);
+        if (!empty($_SESSION['id'])) {
             $pdoLogout->prepare("UPDATE empdetails SET remember_hash=NULL, remember_expiry=NULL WHERE EmpID=:id")
                       ->execute([':id' => $_SESSION['id']]);
-        } catch (Exception $e) { /* non-fatal */ }
-    }
+        }
+    } catch (Exception $e) { /* non-fatal */ }
+    app_remember_revoke($pdoLogout);
     $_SESSION = [];
     session_destroy();
     setcookie('WeDoID', '', ['expires'=>time()-3600,'path'=>'/','httponly'=>true,'samesite'=>'Lax','secure'=>(!empty($_SERVER['HTTPS']) && strtolower($_SERVER['HTTPS'])!=='off')]);
@@ -46,6 +50,50 @@
     exit();
     }
 
+    // Sign the employee of one empdetails row (+ company columns) in and go home.
+    // Used by both "remember" cookies below.
+    $wdStartSession = function (array $row) {
+        // Set all session variables at once
+        $_SESSION['id']       = $row['EmpID'];
+        $_SESSION['UserType'] = $row['EmpRoleID'];
+        $_SESSION['CompID']   = $row['EmpCompID'];
+        $_SESSION['EmpISID']  = $row['EmpISID'];
+        $_SESSION['PassHash'] = $row['EmpPW'];
+
+        // Handle Company details or Admin defaults
+        if (! empty($row['EmpCompID'])) {
+            $_SESSION['CompanyName']  = $row['CompanyDesc'];
+            $_SESSION['CompanyLogo']  = $row['logopath'];
+            $_SESSION['CompanyColor'] = $row['comcolor'];
+        } else {
+            $_SESSION['CompanyName']  = "ADMIN";
+            $_SESSION['CompanyLogo']  = "";
+            $_SESSION['CompanyColor'] = "red";
+        }
+
+        header('location: index.php');
+        exit();
+    };
+
+    // 3. The mobile app's own 30-day, per-phone token (includes/app-remember.php)
+    if (isset($_COOKIE[APP_REMEMBER_COOKIE]) && $ltPreviewName === null) {
+    try {
+        $pdo = new PDO("mysql:host=$servername;dbname=$db", $username, $password);
+        $pdo->setAttribute(PDO::ATTR_ERRMODE, PDO::ERRMODE_EXCEPTION);
+        $appEmp = app_remember_restore($pdo);
+        if ($appEmp !== null) {
+            $stmt = $pdo->prepare("SELECT e.*, c.CompanyDesc, c.logopath, c.comcolor
+                                     FROM empdetails e
+                                     LEFT JOIN companies c ON e.EmpCompID = c.CompanyID
+                                    WHERE e.EmpID = :id");
+            $stmt->execute([':id' => $appEmp]);
+            if ($row = $stmt->fetch(PDO::FETCH_ASSOC)) { $wdStartSession($row); }
+        }
+    } catch (PDOException $e) {
+        error_log("Connection Error: " . $e->getMessage());
+    }
+    }
+
     if (isset($_COOKIE["WeDoID"]) && $ltPreviewName === null) {
     try {
         $pdo = new PDO("mysql:host=$servername;dbname=$db", $username, $password);
@@ -61,27 +109,7 @@
         while ($row = $stmt->fetch(PDO::FETCH_ASSOC)) {
             // Check if this row's EmpID matches the hashed cookie
             if ((!empty($row['remember_hash']) && password_verify($_COOKIE["WeDoID"], $row['remember_hash']) && (empty($row['remember_expiry']) || strtotime($row['remember_expiry']) > time()))) {
-
-                // Set all session variables at once
-                $_SESSION['id']       = $row['EmpID'];
-                $_SESSION['UserType'] = $row['EmpRoleID'];
-                $_SESSION['CompID']   = $row['EmpCompID'];
-                $_SESSION['EmpISID']  = $row['EmpISID'];
-                $_SESSION['PassHash'] = $row['EmpPW'];
-
-                // Handle Company details or Admin defaults
-                if (! empty($row['EmpCompID'])) {
-                    $_SESSION['CompanyName']  = $row['CompanyDesc'];
-                    $_SESSION['CompanyLogo']  = $row['logopath'];
-                    $_SESSION['CompanyColor'] = $row['comcolor'];
-                } else {
-                    $_SESSION['CompanyName']  = "ADMIN";
-                    $_SESSION['CompanyLogo']  = "";
-                    $_SESSION['CompanyColor'] = "red";
-                }
-
-                header('location: index.php');
-                exit();
+                $wdStartSession($row);
             }
         }
     } catch (PDOException $e) {

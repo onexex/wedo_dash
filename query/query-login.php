@@ -213,6 +213,9 @@ die("ERROR: Could not connect. " . $e->getMessage());
                             $stmtRemember = $pdo->prepare("UPDATE empdetails SET remember_hash=:h, remember_expiry=:e WHERE EmpID=:id");
                             $stmtRemember->execute([':h'=>password_hash($rtoken, PASSWORD_DEFAULT), ':e'=>date('Y-m-d H:i:s', time()+28800), ':id'=>$row['EmpID']]);
                             setcookie("WeDoID", $rtoken, ['expires'=>time()+28800,'path'=>'/','httponly'=>true,'samesite'=>'Lax','secure'=>(!empty($_SERVER['HTTPS']) && strtolower($_SERVER['HTTPS'])!=='off')]);
+                            // the mobile app stays signed in for 30 days with its own per-phone token
+                            require_once __DIR__ . '/../includes/app-remember.php';
+                            if (app_is_app()) { app_remember_issue($pdo, $row['EmpID']); }
                             
                             
                              ###### get the status of user 
