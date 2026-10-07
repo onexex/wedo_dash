@@ -24,23 +24,36 @@ $wdName     = trim(($wdrow['EmpLN'] ?? '') . ', ' . ($wdrow['EmpFN'] ?? ''));
 $wdPosition = ($_SESSION['UserType'] == 1) ? 'Super User' : ($wdrow['PositionDesc'] ?? '');
 $wdInitials = strtoupper(substr($wdrow['EmpFN'] ?? '', 0, 1) . substr($wdrow['EmpLN'] ?? '', 0, 1));
 
-/* notification count (mirrors includes/header.php bell) */
+/* notification count (same filings as includes/header.php bell), UNSEEN only:
+   updates after I last opened notifications.php (notif_seen.seen_at), never
+   before 2026 — otherwise every status change since 2022 counted (99+).
+   notifications.php marks them seen. Without the notif_seen table (SQL not run
+   yet) it falls back to the 2026 floor alone. */
+$wdNotifFloor = '2026-01-01 00:00:00';
+$wdSince = $wdNotifFloor;
+try {
+    $wdsn = $wdpdo->prepare("SELECT seen_at FROM notif_seen WHERE EmpID = :id");
+    $wdsn->execute([':id' => $_SESSION['id']]);
+    $wdSeen = $wdsn->fetchColumn();
+    if ($wdSeen && $wdSeen > $wdSince) { $wdSince = $wdSeen; }
+} catch (Exception $e) { }
 if ($_SESSION['UserType'] == 2) {
     $wdnsql = "SELECT
-        (SELECT COUNT(*) FROM obs WHERE EmpSID=:id1 AND OBStatus<>1 AND OBStatus<>3) +
-        (SELECT COUNT(*) FROM earlyout WHERE EmpISID=:id2 AND Status<>1 AND Status<>3) +
-        (SELECT COUNT(*) FROM hleaves WHERE EmpSID=:id3 AND LStatus<>1 AND LStatus<>3) +
-        (SELECT COUNT(*) FROM otattendancelog WHERE EmpISID=:id4 AND Status<>1 AND Status<>3) AS n";
+        (SELECT COUNT(*) FROM obs WHERE EmpSID=:id1 AND OBStatus<>1 AND OBStatus<>3 AND OBUpdated > :s1) +
+        (SELECT COUNT(*) FROM earlyout WHERE EmpISID=:id2 AND Status<>1 AND Status<>3 AND DateTimeUpdated > :s2) +
+        (SELECT COUNT(*) FROM hleaves WHERE EmpSID=:id3 AND LStatus<>1 AND LStatus<>3 AND LDateTimeUpdated > :s3) +
+        (SELECT COUNT(*) FROM otattendancelog WHERE EmpISID=:id4 AND Status<>1 AND Status<>3 AND DateTimeUpdate > :s4) AS n";
 } else {
     $wdnsql = "SELECT
-        (SELECT COUNT(*) FROM obs WHERE EmpID=:id1 AND OBStatus<>1) +
-        (SELECT COUNT(*) FROM earlyout WHERE EmpID=:id2 AND Status<>1) +
-        (SELECT COUNT(*) FROM hleaves WHERE EmpID=:id3 AND LStatus<>1) +
-        (SELECT COUNT(*) FROM otattendancelog WHERE EmpID=:id4 AND Status<>1) AS n";
+        (SELECT COUNT(*) FROM obs WHERE EmpID=:id1 AND OBStatus<>1 AND OBUpdated > :s1) +
+        (SELECT COUNT(*) FROM earlyout WHERE EmpID=:id2 AND Status<>1 AND DateTimeUpdated > :s2) +
+        (SELECT COUNT(*) FROM hleaves WHERE EmpID=:id3 AND LStatus<>1 AND LDateTimeUpdated > :s3) +
+        (SELECT COUNT(*) FROM otattendancelog WHERE EmpID=:id4 AND Status<>1 AND DateTimeUpdate > :s4) AS n";
 }
 try {
     $wdnst = $wdpdo->prepare($wdnsql);
-    $wdnst->execute([':id1'=>$_SESSION['id'], ':id2'=>$_SESSION['id'], ':id3'=>$_SESSION['id'], ':id4'=>$_SESSION['id']]);
+    $wdnst->execute([':id1'=>$_SESSION['id'], ':id2'=>$_SESSION['id'], ':id3'=>$_SESSION['id'], ':id4'=>$_SESSION['id'],
+                     ':s1'=>$wdSince, ':s2'=>$wdSince, ':s3'=>$wdSince, ':s4'=>$wdSince]);
     $nrow = (int) $wdnst->fetchColumn();
 } catch (Exception $e) { $nrow = 0; }
 

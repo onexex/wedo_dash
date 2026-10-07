@@ -75,11 +75,20 @@ die("ERROR: Could not connect. " . $e->getMessage());
   $r = $statement->fetch();
  if ($r['notif']==1)
   	{
-    header('location: 404?');	    
+    header('location: 404?');
   	}
   else{
   }
- 
+
+  /* opening this page = notifications seen: the bell / app Alerts badge in
+     includes/wd-header.php only counts updates after this moment (Manila time,
+     like the OBUpdated/LDateTimeUpdated stamps). No-op until notif_seen exists. */
+  try {
+    $ns = $pdo->prepare("INSERT INTO notif_seen (EmpID, seen_at) VALUES (:id, :t)
+        ON DUPLICATE KEY UPDATE seen_at = VALUES(seen_at)");
+    $ns->execute([':id' => $id, ':t' => date('Y-m-d H:i:s')]);
+  } catch (Exception $e) { }
+
   
 ?>
 <!DOCTYPE html>
