@@ -19,6 +19,10 @@
         die("ERROR: Could not connect. " . $e->getMessage());
       }
     }
+
+    // mobile push: notify whoever must act on the leave filed below (see includes/push-lib.php)
+    require_once __DIR__ . '/../includes/push-lib.php';
+    if (isset($pdo)) { push_watch_new_requests($pdo, 'HL', (string) ($_SESSION['id'] ?? '')); }
     
     // Determine the subject employee. By default the filer files for themselves;
     // an immediate superior may file on behalf of a direct report.

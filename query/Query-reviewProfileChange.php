@@ -49,4 +49,8 @@ try {
     pcr_json(500, ['ok' => false, 'message' => 'Could not save the review. Please try again.']);
 }
 
+// mobile push: tell the employee the outcome
+require_once __DIR__ . '/../includes/push-lib.php';
+push_profile_change_decided($pdo, (string) $req['EmpID'], $action === 'approve' ? 'approved' : 'rejected', $me, $remarks);
+
 pcr_json(200, ['ok' => true, 'status' => $action === 'approve' ? 'approved' : 'rejected']);

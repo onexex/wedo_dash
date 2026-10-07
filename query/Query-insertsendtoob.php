@@ -10,7 +10,11 @@
     }catch(PDOException $e){
         die("ERROR: Could not connect. " . $e->getMessage());
     }
-  
+
+    // mobile push: notify the employee / approver of the OB filed below (see includes/push-lib.php)
+    require_once __DIR__ . '/../includes/push-lib.php';
+    push_watch_new_requests($pdo, 'OB', (string) ($_SESSION['id'] ?? ''));
+
    //admin time validation
     ################################################
   $datenow = date("Y-m-d");

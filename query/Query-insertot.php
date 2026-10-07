@@ -16,6 +16,10 @@
     }
 }
 
+// mobile push: notify whoever must act on the overtime filed below (see includes/push-lib.php)
+require_once __DIR__ . '/../includes/push-lib.php';
+if (isset($pdo)) { push_watch_new_requests($pdo, 'OT', (string) ($_SESSION['id'] ?? '')); }
+
 try{
   // initialization
   

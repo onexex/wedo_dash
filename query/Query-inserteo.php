@@ -12,7 +12,11 @@ catch(PDOException $e)
    {
 die("ERROR: Could not connect. " . $e->getMessage());
    }
- //set default time  
+
+// mobile push: notify whoever must act on the early out filed below (see includes/push-lib.php)
+require_once __DIR__ . '/../includes/push-lib.php';
+push_watch_new_requests($pdo, 'EO', (string) ($_SESSION['id'] ?? ''));
+ //set default time
   date_default_timezone_set("Asia/Manila"); 
  //value pre initialized  
   $id=$_SESSION['id'];

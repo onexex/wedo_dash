@@ -1383,3 +1383,16 @@ CREATE TABLE `workschedule` (
 /*!40014 SET UNIQUE_CHECKS=@OLD_UNIQUE_CHECKS */;
 /*!40111 SET SQL_NOTES=@OLD_SQL_NOTES */;
 
+
+-- push notifications (sql/2026-10-07-add-push-devices.sql)
+CREATE TABLE IF NOT EXISTS `push_devices` (
+  `id`         INT(11)      NOT NULL AUTO_INCREMENT,
+  `EmpID`      VARCHAR(50)  NOT NULL,
+  `token`      VARCHAR(255) CHARACTER SET ascii COLLATE ascii_bin NOT NULL,
+  `platform`   VARCHAR(10)  NOT NULL DEFAULT 'android',   -- android | ios
+  `created_at` DATETIME     NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  `last_seen`  DATETIME     NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  PRIMARY KEY (`id`),
+  UNIQUE KEY `uq_push_devices_token` (`token`),
+  KEY `ix_push_devices_emp` (`EmpID`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
