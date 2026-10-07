@@ -34,6 +34,7 @@ $css  = '../assets/css/wedo-theme.css?v=' . @filemtime(__DIR__ . '/../assets/css
                  background: var(--brand, #f93627); color: #fff !important; font-weight: 700; font-size: 17px; text-decoration: none; box-shadow: 0 6px 18px rgba(249,54,39,.28); }
         .ap-dl:hover { filter: brightness(.95); }
         .ap-meta { margin: 12px 0 0; text-align: center; color: var(--text-3, #98a2b3); font-size: 12.5px; }
+        .ap-only { margin: 6px 0 0; text-align: center; color: var(--text-2, #6b7480); font-size: 13px; font-weight: 600; }
         .ap-card h2 { font-family: var(--font-head, inherit); font-size: 16px; margin: 0 0 12px; }
         .ap-steps { margin: 0; padding: 0; list-style: none; counter-reset: s; }
         .ap-steps li { counter-increment: s; position: relative; padding: 0 0 14px 40px; font-size: 14.5px; line-height: 1.5; color: var(--text-2, #475467); }
@@ -54,8 +55,8 @@ $css  = '../assets/css/wedo-theme.css?v=' . @filemtime(__DIR__ . '/../assets/css
         <div class="ap-alert">You're already using the WeDo app. It tells you when a new version is ready
             (or open <b>Menu</b> and tap <b>Check for updates</b> at the bottom).</div>
     <?php } elseif ($iPhone) { ?>
-        <div class="ap-alert">The WeDo app is for Android phones only for now. On an iPhone, keep using
-            <b>dashboard.wedoinc.ph</b> in Safari. Tip: tap Share, then <b>Add to Home Screen</b>.</div>
+        <div class="ap-alert">The WeDo app is for <b>Android phones only</b>. There is no iPhone (iOS) version.
+            On an iPhone, keep using <b>dashboard.wedoinc.ph</b> in Safari. Tip: tap Share, then <b>Add to Home Screen</b>.</div>
     <?php } ?>
 
     <section class="ap-card">
@@ -72,6 +73,7 @@ $css  = '../assets/css/wedo-theme.css?v=' . @filemtime(__DIR__ . '/../assets/css
         </a>
         <p class="ap-meta"><?php echo $h(implode(' · ', array_filter([
             $ver !== '' ? 'Version ' . $ver : '', $size, $date ? 'Updated ' . $date : '', 'Android ' . ($info['minAndroid'] ?? '6.0') . ' or newer']))); ?></p>
+        <p class="ap-only">Android only. Not available for iPhone or iPad (iOS).</p>
     </section>
 
     <section class="ap-card">
