@@ -139,7 +139,7 @@ function wd_can($ar, $k) { return isset($ar[$k]) && $ar[$k] == 2; }
       ['lilov',                 'liloviewer',     'liloviewer',     'clock',           'Attendance Viewer'],
       ['darv',                  'dar',            'dar',            'activity',        'Daily Activity Viewer'],
       ['eov',                   'earlyoutviewer', 'earlyoutviewer', 'log-out',         'Early Out Viewer'],
-      ['fdetls',                'FamilyDetails',  'FamilyDetails',  'users',           'Family Details'],
+      ['fdetls',                'Familydetails',  'Familydetails',  'users',           'Family Details'],
       [['lcreaditview', 'lcreditedit'], 'leavecredit', 'leavecredit', 'wallet',      'Leave Credit Viewer'],
       ['coe',                   'coe',            'coe',            'file-badge',      'My Documents (COE)'],
       ['payslipt',              'payslip',        'payslip',        'receipt',         'My Documents (Payslip)'],
