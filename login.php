@@ -258,6 +258,12 @@
 
                 <button type="button" class="wd-btn wd-btn--primary btnsubmit" style="width:100%;justify-content:center">Sign in</button>
             </form>
+<?php if (strpos($_SERVER['HTTP_USER_AGENT'] ?? '', 'WeDoApp/') === false) { /* not shown inside the app itself */ ?>
+            <a href="app/" class="wd-login__app" style="display:inline-flex;align-items:center;gap:7px;margin-top:16px;font-size:13px;font-weight:600;color:var(--brand);text-decoration:none">
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="6" y="2" width="12" height="20" rx="2.5"/><path d="M11 18h2"/></svg>
+                Get the WeDo app for Android
+            </a>
+<?php } ?>
         </div>
 <?php if ($lt): ?>
       </div><!-- /.lt-stack -->
