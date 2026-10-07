@@ -8,6 +8,18 @@ $ver  = $info['version'] ?? '';
 $size = $info['size'] ?? '';
 $date = !empty($info['released']) ? date('F j, Y', strtotime($info['released'])) : '';
 $apk  = 'WeDo.apk' . ($ver !== '' ? '?v=' . rawurlencode($ver) : '');
+// VPS test server (vps branch only): when the WeDo Test build sits next to this page, offer it instead
+// of the real app. It opens this test site and installs next to the real WeDo app.
+$test = is_file(__DIR__ . '/WeDo-Test.apk');
+$name = $test ? 'WeDo Test' : 'WeDo';
+$file = $test ? 'WeDo-Test.apk' : 'WeDo.apk';
+if ($test) {
+    $tm   = filemtime(__DIR__ . '/WeDo-Test.apk');
+    $apk  = $file . '?v=' . $tm;
+    $ver  = '';
+    $size = number_format(filesize(__DIR__ . '/WeDo-Test.apk') / 1000000, 1) . ' MB';
+    $date = date('F j, Y', $tm);
+}
 $ua   = $_SERVER['HTTP_USER_AGENT'] ?? '';
 $inApp  = strpos($ua, 'WeDoApp/') !== false;
 $iPhone = (bool) preg_match('/iPhone|iPad|iPod/i', $ua);
@@ -63,16 +75,16 @@ $css  = '../assets/css/wedo-theme.css?v=' . @filemtime(__DIR__ . '/../assets/css
         <div class="ap-hero">
             <img src="icon.png" alt="">
             <div>
-                <h1>WeDo for Android</h1>
+                <h1><?php echo $h($name); ?> for Android</h1>
                 <p>Time in and out, file leave, overtime and OB trips, payslips, messages and alerts, in one app.</p>
             </div>
         </div>
-        <a class="ap-dl" href="<?php echo $h($apk); ?>" download="WeDo.apk">
+        <a class="ap-dl" href="<?php echo $h($apk); ?>" download="<?php echo $h($file); ?>">
             <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 3v12"/><path d="m7 10 5 5 5-5"/><path d="M5 21h14"/></svg>
             Download the app
         </a>
         <p class="ap-meta"><?php echo $h(implode(' · ', array_filter([
-            $ver !== '' ? 'Version ' . $ver : '', $size, $date ? 'Updated ' . $date : '', 'Android ' . ($info['minAndroid'] ?? '6.0') . ' or newer']))); ?></p>
+            $test ? 'Test build: opens ' . ($_SERVER['HTTP_HOST'] ?? 'this test site') : '', $ver !== '' ? 'Version ' . $ver : '', $size, $date ? 'Updated ' . $date : '', 'Android ' . ($info['minAndroid'] ?? '6.0') . ' or newer']))); ?></p>
         <p class="ap-only">Android only. Not available for iPhone or iPad (iOS).</p>
     </section>
 
@@ -80,10 +92,10 @@ $css  = '../assets/css/wedo-theme.css?v=' . @filemtime(__DIR__ . '/../assets/css
         <h2>How to install</h2>
         <ol class="ap-steps">
             <li>Tap <b>Download the app</b>. If Chrome warns that the file might be harmful, tap <b>Download anyway</b>.</li>
-            <li>When it finishes, tap <b>Open</b> (or open <b>WeDo.apk</b> from your Downloads).</li>
+            <li>When it finishes, tap <b>Open</b> (or open <b><?php echo $h($file); ?></b> from your Downloads).</li>
             <li>If your phone asks, allow your browser to install apps: tap <b>Settings</b>, turn on <b>Allow from this source</b>, then go back.</li>
             <li>Tap <b>Install</b>. If Google Play Protect says it doesn't recognise the app, tap <b>More details</b>, then <b>Install anyway</b>. The app isn't on the Play Store, so this is expected.</li>
-            <li>Open <b>WeDo</b> and sign in with your dashboard username and password. You stay signed in for 30 days.</li>
+            <li>Open <b><?php echo $h($name); ?></b> and sign in with your dashboard username and password. You stay signed in for 30 days.</li>
         </ol>
     </section>
 
