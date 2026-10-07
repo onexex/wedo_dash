@@ -36,7 +36,7 @@
     tabs: Array.prototype.slice.call(app.querySelectorAll('.msg-tab')),
     placeholder: $('msgPlaceholder'), head: $('msgHead'), headAv: $('msgHeadAv'),
     headName: $('msgHeadName'), headRole: $('msgHeadRole'), back: $('msgBack'),
-    call: $('msgCallBtn'), info: $('msgInfoBtn'),
+    call: $('msgCallBtn'), info: $('msgInfoBtn'), clear: $('msgClearBtn'),
     callBar: $('msgCallBar'), callBarText: $('msgCallBarText'), callJoin: $('msgCallJoin'),
     scroll: $('msgScroll'), jump: $('msgJump'), form: $('msgCompose'), text: $('msgText'),
     send: $('msgSend'), count: $('msgCount'), emoji: $('msgEmoji'), emojiBtn: $('msgEmojiBtn'),
@@ -1014,7 +1014,7 @@
     // instant header from the list while the conversation loads
     var known = threadByKey(key);
     state.kind = known ? known.type : (String(key).indexOf('grp:') === 0 ? 'group' : 'dm');
-    el.call.hidden = true; el.info.hidden = true;
+    el.call.hidden = true; el.info.hidden = true; el.clear.hidden = true;
     if (known) {
       fillAvatar(el.headAv, known);
       el.headName.textContent = known.name;
@@ -1038,6 +1038,7 @@
         hi.querySelector('i').className = 'msg-hello'; hi.querySelector('i').textContent = '👋';
         el.scroll.appendChild(hi);
       }
+      el.clear.hidden = !j.messages.length;   // nothing to delete in a brand-new conversation
       appendMessages(j.messages, { firstUnread: j.firstUnread });
       applyDeleted(j.deleted);
       applyReactions(j.reactions);
@@ -1067,6 +1068,7 @@
   function closeThread() {
     stopTyping();
     state.active = null; state.person = null; state.group = null; state.kind = null;
+    el.clear.hidden = true;
     resetThread();
     showThreadUI(false);
     el.form.hidden = true;
@@ -1076,6 +1078,26 @@
     try { history.replaceState(null, '', 'messages'); } catch (e) { /* ignore */ }
   }
   el.back.addEventListener('click', closeThread);
+
+  // Delete conversation — for me only (includes/msg-clear.php): it leaves my list, the others keep their copy,
+  // and a new message brings it back with just what came after.
+  el.clear.addEventListener('click', function () {
+    var key = state.active;
+    if (!key) { return; }
+    var isGroup = state.kind === 'group' && state.group;
+    var who = isGroup ? state.group.name : (state.person ? state.person.name : 'The other person');
+    if (!confirm('Delete this conversation? It will be removed from your Messages.\n\n' +
+                 (isGroup ? 'Everyone else in ' + who + ' keeps their copy.' : who + ' keeps their copy.'))) { return; }
+    el.clear.disabled = true;
+    post('clear', { with: key }).then(function () {
+      el.clear.disabled = false;
+      closeThread();
+      loadThreads();
+    }).catch(function (e) {
+      el.clear.disabled = false;
+      showError(e.message);
+    });
+  });
 
   // ------------------------------------------------------------------ calls (assets/js/wedo-call.js, on every page)
 

@@ -12,6 +12,8 @@
 
 const MSG_MAX_LEN = 500;   // messages.Message is varchar(500)
 
+require_once __DIR__ . '/msg-clear.php';   // "Delete conversation" for me only: every read below skips what I cleared
+
 /**
  * Whether messages.Kind exists ('text' = normal message, 'event' = a small centred
  * line such as "Ramon added Carlo" or a call note). Added by the groups migration;
@@ -120,15 +122,19 @@ function msg_threads(PDO $pdo, string $me): array
             IF(h.SenderID = :me1, h.RecieverID, h.SenderID) AS other,
             lm.Message AS last_text, lm.SenderID AS last_sender, " . (msg_has_kind($pdo) ? "lm.Kind" : "'text'") . " AS last_kind,
             COALESCE(lm.DateSent, h.dateMessage) AS last_at,
-            (SELECT COUNT(*) FROM messages u WHERE u.MHID = h.MHID AND u.SenderID <> :me2 AND u.Status = 1) AS unread,
+            (SELECT COUNT(*) FROM messages u WHERE u.MHID = h.MHID AND u.SenderID <> :me2 AND u.Status = 1
+                AND " . mc_after_sql($pdo, 'u.MSID', 'u.MHID', ':meC1') . ") AS unread,
             e.EmpFN, e.EmpLN, pr.EmpPPath
         FROM messageheader h
         LEFT JOIN messages lm ON lm.MSID = (SELECT MAX(m.MSID) FROM messages m WHERE m.MHID = h.MHID)
         LEFT JOIN employees e ON e.EmpID = IF(h.SenderID = :me3, h.RecieverID, h.SenderID)
         LEFT JOIN empprofiles pr ON pr.EmpID = e.EmpID
-        WHERE h.SenderID = :me4 OR h.RecieverID = :me5
+        WHERE (h.SenderID = :me4 OR h.RecieverID = :me5)
+          AND (lm.MSID IS NULL OR " . mc_after_sql($pdo, 'lm.MSID', 'h.MHID', ':meC2') . ")   -- deleted by me, nothing new since
         ORDER BY last_at DESC, h.ID DESC");
-    $st->execute([':me1' => $me, ':me2' => $me, ':me3' => $me, ':me4' => $me, ':me5' => $me]);
+    $params = [':me1' => $me, ':me2' => $me, ':me3' => $me, ':me4' => $me, ':me5' => $me];
+    if (mc_ready($pdo)) { $params += [':meC1' => $me, ':meC2' => $me]; }
+    $st->execute($params);
 
     $out = [];
     foreach ($st->fetchAll(PDO::FETCH_ASSOC) as $r) {
@@ -154,7 +160,7 @@ function msg_messages(PDO $pdo, string $me, string $other, int $afterId = 0): ar
     if ($mhid === null) { return []; }
     $st = $pdo->prepare("SELECT MSID, SenderID, Message, DateSent, Status, " . (msg_has_kind($pdo) ? "Kind" : "'text'") . " AS Kind FROM messages
         WHERE MHID = :h AND MSID > :after ORDER BY MSID");
-    $st->execute([':h' => $mhid, ':after' => $afterId]);
+    $st->execute([':h' => $mhid, ':after' => max($afterId, mc_cleared($pdo, $me, $mhid))]);
     return array_map(fn($r) => [
         'id'   => (int) $r['MSID'],
         'mine' => $r['SenderID'] === $me,
@@ -226,8 +232,8 @@ function msg_first_unread(PDO $pdo, string $me, string $other): int
 {
     $mhid = msg_thread_id($pdo, $me, $other);
     if ($mhid === null) { return 0; }
-    $st = $pdo->prepare("SELECT COALESCE(MIN(MSID), 0) FROM messages WHERE MHID = :h AND SenderID <> :me AND Status = 1");
-    $st->execute([':h' => $mhid, ':me' => $me]);
+    $st = $pdo->prepare("SELECT COALESCE(MIN(MSID), 0) FROM messages WHERE MHID = :h AND SenderID <> :me AND Status = 1 AND MSID > :c");
+    $st->execute([':h' => $mhid, ':me' => $me, ':c' => mc_cleared($pdo, $me, $mhid)]);
     return (int) $st->fetchColumn();
 }
 
@@ -347,8 +353,11 @@ function msg_unread_threads(PDO $pdo, string $me): int
 {
     $st = $pdo->prepare("SELECT COUNT(DISTINCT m.MHID) FROM messages m
         JOIN messageheader h ON h.MHID = m.MHID
-        WHERE (h.SenderID = :me1 OR h.RecieverID = :me2) AND m.SenderID <> :me3 AND m.Status = 1");
-    $st->execute([':me1' => $me, ':me2' => $me, ':me3' => $me]);
+        WHERE (h.SenderID = :me1 OR h.RecieverID = :me2) AND m.SenderID <> :me3 AND m.Status = 1
+          AND " . mc_after_sql($pdo, 'm.MSID', 'm.MHID', ':meC'));
+    $params = [':me1' => $me, ':me2' => $me, ':me3' => $me];
+    if (mc_ready($pdo)) { $params[':meC'] = $me; }
+    $st->execute($params);
     $n = (int) $st->fetchColumn();
     try {   // + groups with something new for me (groups migration may not be applied yet)
         $g = $pdo->prepare("SELECT COUNT(*) FROM msg_group_members gm
