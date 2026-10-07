@@ -1,8 +1,8 @@
 {
-  "version": "1.0.0",
-  "versionCode": 23,
+  "version": "1.0.1",
+  "versionCode": 24,
   "size": "6.1 MB",
   "released": "2026-10-07",
   "minAndroid": "6.0",
-  "notes": "First release of the WeDo app."
+  "notes": "New Home screen: year summary with drill-down, date range filter, Update DAR button."
 }
