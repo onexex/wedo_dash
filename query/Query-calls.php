@@ -42,6 +42,7 @@ if (!isset($_SESSION['id']) || $_SESSION['id'] == "0") {
 include 'w_conn.php';
 require_once __DIR__ . '/../includes/msg-calls.php';
 require_once __DIR__ . '/../includes/msg-heads-lib.php';
+require_once __DIR__ . '/../includes/push-lib.php';
 
 $me       = (string) $_SESSION['id'];
 $userType = $_SESSION['UserType'] ?? '';
@@ -105,6 +106,7 @@ if ($action === 'start') {
     $gid  = grp_id_from_key($with);
     $res  = call_start($pdo, $me, $gid ? ['group' => $gid] : ['emp' => $with], $userType);
     if (!$res['ok']) { call_out(409, ['status' => 'error', 'code' => $res['code'], 'msg' => $res['error']]); }
+    push_incoming_call($pdo, $me, $gid ? array_column(grp_members($pdo, $gid), 'id') : [$with], $gid ?: null);
     call_out(200, ['status' => 'ok', 'call' => call_public($pdo, $res['call'], $me), 'iceServers' => call_ice_servers()]);
 }
 

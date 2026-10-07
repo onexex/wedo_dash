@@ -32,6 +32,10 @@ die("ERROR: Could not connect. " . $e->getMessage());
    }
    $leaveId = (int)$rawId;
 
+   // mobile push: tells the applicant once the status has changed (with the reason given)
+   require_once __DIR__ . '/../includes/push-lib.php';
+   push_watch_decision($pdo, (string) ($_GET['ntype'] ?? ''), $leaveId, (string) ($_SESSION['id'] ?? ''), (string) $rss);
+
    if (isset($_GET['ntype'])){
    	if ($_GET['ntype']=="EO"){
 

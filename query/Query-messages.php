@@ -54,6 +54,7 @@ require_once __DIR__ . '/../includes/msg-reactions.php';
 require_once __DIR__ . '/../includes/msg-gifs.php';
 require_once __DIR__ . '/../includes/msg-files.php';
 require_once __DIR__ . '/../includes/msg-delete.php';
+require_once __DIR__ . '/../includes/push-lib.php';
 
 try {
     $pdo = new PDO("mysql:host=$servername;dbname=$db;charset=utf8mb4", $username, $password);
@@ -108,6 +109,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 : msg_send_dm($pdo, $me, $with, (string) ($_POST['text'] ?? ''), $userType);
             if (!$res['ok']) { msg_out(422, ['status' => 'error', 'msg' => $res['error']]); }
             msg_touch($pdo, $me, '');   // sent = no longer typing
+            push_chat_message($pdo, $me, $with, (string) ($_POST['text'] ?? ''));
             msg_out(200, ['status' => 'ok', 'message' => $res['message'], 'today' => $today]);
 
         case 'send_gif':
@@ -121,6 +123,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 : msg_send_dm($pdo, $me, $with, $g['text'], $userType, 'gif');
             if (!$res['ok']) { msg_out(422, ['status' => 'error', 'msg' => $res['error']]); }
             msg_touch($pdo, $me, '');
+            push_chat_message($pdo, $me, $with, '', 'gif');
             msg_out(200, ['status' => 'ok', 'message' => $res['message'], 'today' => $today]);
 
         case 'send_file':
@@ -137,6 +140,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 : msg_send_dm($pdo, $me, $with, $up['text'], $userType, $up['kind']);
             if (!$res['ok']) { @unlink($up['path']); msg_out(422, ['status' => 'error', 'msg' => $res['error']]); }
             msg_touch($pdo, $me, '');
+            push_chat_message($pdo, $me, $with, '', (string) $up['kind']);
             msg_out(200, ['status' => 'ok', 'message' => $res['message'], 'today' => $today]);
 
         case 'delete':

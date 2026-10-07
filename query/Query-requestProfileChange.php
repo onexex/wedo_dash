@@ -53,4 +53,11 @@ try {
         : 'Could not submit your request. Please try again.']);
 }
 
+// mobile push: everyone who can review profile changes (same rule as pcr_can_update)
+require_once __DIR__ . '/../includes/push-lib.php';
+if (push_enabled()) {
+    $rv = $pdo->query("SELECT EmpID FROM accessrights WHERE updte = '2'")->fetchAll(PDO::FETCH_COLUMN);
+    push_profile_change_filed($pdo, $me, $rv);
+}
+
 pcr_json(200, ['ok' => true, 'changes' => count($fields) + ($family ? 1 : 0)]);

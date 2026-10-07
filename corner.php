@@ -87,6 +87,10 @@
            $stmt->bindParam(':announ' ,$_POST['announ']);
              $stmt->bindParam(':dtte' ,$today);
            $stmt->execute();
+
+           // mobile push: the author's company, on the app
+           require_once __DIR__ . '/includes/push-lib.php';
+           push_announcement($pdo, (string) $_SESSION['id'], (string) $_POST['announ']);
        return;
 }
 

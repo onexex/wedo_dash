@@ -33,6 +33,10 @@
     }
     $leaveId = (int)$rawId;
 
+    // mobile push: tells the applicant (and HR after a superior's approval) once the status has changed
+    require_once __DIR__ . '/../includes/push-lib.php';
+    push_watch_decision($pdo, (string) ($_GET['ntype'] ?? ''), $leaveId, (string) ($_SESSION['id'] ?? ''));
+
    if (isset($_GET['ntype'])){
       if ($_GET['ntype']=="EO"){
           $sql = "UPDATE earlyout SET Status=:st,DateTimeUpdated=:dtu where SID=:id";
