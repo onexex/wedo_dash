@@ -1396,3 +1396,16 @@ CREATE TABLE IF NOT EXISTS `push_devices` (
   UNIQUE KEY `uq_push_devices_token` (`token`),
   KEY `ix_push_devices_emp` (`EmpID`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+-- app sign-in tokens (sql/2026-10-07-add-app-remember.sql)
+CREATE TABLE IF NOT EXISTS `app_remember` (
+  `id`         INT(11)     NOT NULL AUTO_INCREMENT,
+  `EmpID`      VARCHAR(50) NOT NULL,
+  `token_hash` CHAR(64)    CHARACTER SET ascii COLLATE ascii_bin NOT NULL,
+  `expires_at` DATETIME    NOT NULL,
+  `created_at` DATETIME    NOT NULL,
+  `last_used`  DATETIME    NOT NULL,
+  PRIMARY KEY (`id`),
+  UNIQUE KEY `uq_app_remember_token` (`token_hash`),
+  KEY `ix_app_remember_emp` (`EmpID`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
