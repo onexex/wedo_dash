@@ -22,9 +22,16 @@ The workflow only copies the code. The steps below are done once, by hand.
 - Then run the SQL files in `sql/` that the dump doesn't include yet (push_devices, app_remember,
   msg_cleared, notif_seen...), the same ones run by hand on production.
 
-## 3. `config.local.php` in the site root
+## 3. The database login (`w_conn.php` on the server)
 
-The deploy refuses to run until this file exists. It is never in git and the deploy never overwrites it:
+Deploys **never** ship `w_conn.php` (nor `includes/w_conn.php` and `query/w_conn.php`), the same as
+the cPanel deploys. The server's own copies hold this server's database login and survive every
+deploy. The deploy stops if they're missing, so copy all three from the repo once.
+
+Put the login in either of these (both stay untouched by deploys):
+
+- in `w_conn.php` itself (its fallback `$__cfg` values), or
+- in `config.local.php` next to it, which `w_conn.php` reads when present:
 
 ```php
 <?php
@@ -33,9 +40,11 @@ return [
     'user' => 'devdashboard_user',
     'pass' => '...',
     'name' => 'devdashboard',
-    // 'fcm_key' => '/home/<site-user>/wedo-secrets/firebase-key.json',   // only if push is tested here
 ];
 ```
+
+Keep the `return [ ... ];` form and these exact keys, or the file is ignored. The deploy sets both
+files to `600` (readable only by the site user, which PHP runs as).
 
 ## 4. nginx rules (Site → Vhost)
 

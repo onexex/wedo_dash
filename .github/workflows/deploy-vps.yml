@@ -6,7 +6,7 @@ name: Deploy VPS Testing
 #
 #   push to `vps`  ->  lint + tests  ->  deploy to the VPS site folder
 #
-# One-time server setup (site, PHP version, nginx rules, config.local.php, SSL): deploy/vps/README.md
+# One-time server setup (site, PHP version, nginx rules, w_conn.php DB login, SSL): deploy/vps/README.md
 on:
   push:
     branches: [vps]
@@ -90,7 +90,7 @@ jobs:
   #   VPS_PATH                               site root, e.g. /home/<site-user>/htdocs/<domain>
   #   VPS_URL                                https://<domain> (for the check at the end)
   # Missing secrets = the deploy is skipped with a warning (lint/tests still run).
-  # unzip -o overwrites app files but keeps config.local.php and uploaded files.
+  # unzip -o overwrites app files but keeps w_conn.php, config.local.php and uploaded files.
   # ---------------------------------------------------------------------------
   deploy:
     name: Package & deploy to VPS (testing)
@@ -129,18 +129,20 @@ jobs:
         with:
           persist-credentials: false
 
-      # Unlike the cPanel deploys, w_conn.php IS shipped: the VPS is a fresh server with no copy of
-      # its own. It holds no secrets (it reads the DB login from config.local.php on the server).
+      # w_conn.php (and its forwarders) are NOT shipped, like the cPanel deploys: the server's own copy
+      # holds this server's DB login and must survive every deploy.
       - name: Package app into one zip
         if: steps.check.outputs.configured == 'true'
         run: |
           zip -r -q deploy.zip . \
             -x '.git/*' '.github/*' 'deploy/*' 'config.local.php' '*.bak' '*.log' 'error_log' 'deploy.zip' \
-               'tests/*' 'vendor/*' 'composer.json' 'composer.lock' 'phpunit.xml.dist' '.phpunit.cache/*'
+               'tests/*' 'vendor/*' 'composer.json' 'composer.lock' 'phpunit.xml.dist' '.phpunit.cache/*' \
+               'w_conn.php' '*/w_conn.php'
+          if unzip -l deploy.zip | grep -q 'w_conn\.php'; then echo "::error::w_conn.php ended up in the zip"; exit 1; fi
           ls -lh deploy.zip | awk '{print "zip size: " $5}'
 
       # Before uploading: the site folder exists, a half-finished earlier run left no zip behind,
-      # and the server has its config.local.php (DB login) — no point shipping to a server that
+      # and the server has its own w_conn.php (DB connection) — no point shipping to a server that
       # can't connect to its database.
       - name: Pre-flight checks on the VPS
         if: steps.check.outputs.configured == 'true'
@@ -154,10 +156,12 @@ jobs:
             mkdir -p "${{ secrets.VPS_PATH }}"
             cd "${{ secrets.VPS_PATH }}" || exit 1
             rm -f deploy.zip
-            if [ ! -f config.local.php ]; then
-              echo "No config.local.php in $(pwd)! Create it first (DB login for the VPS database) — see deploy/vps/README.md."
-              exit 1
-            fi
+            for f in w_conn.php includes/w_conn.php query/w_conn.php; do
+              if [ ! -f "$f" ]; then
+                echo "No $f in $(pwd)! Deploys never ship it — copy it there once, with this server's DB login (see deploy/vps/README.md)."
+                exit 1
+              fi
+            done
             echo "Pre-flight OK in $(pwd)"
 
       - name: Upload deploy.zip via SFTP
@@ -190,7 +194,8 @@ jobs:
             # CloudPanel runs PHP as the site user, so owner-writable is enough for uploads
             find . -type d -exec chmod 755 {} \;
             find . -type f -exec chmod 644 {} \;
-            chmod 600 config.local.php
+            chmod 600 w_conn.php                                   # holds the DB login
+            [ -f config.local.php ] && chmod 600 config.local.php
             echo "Unzipped + permissions set in $(pwd)"
             # Fresh code even with opcache on. Needs a sudoers line for the site user:
             #   <site-user> ALL=(ALL) NOPASSWD: /usr/bin/systemctl reload php8.2-fpm
