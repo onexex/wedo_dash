@@ -59,10 +59,10 @@ server {
   location ~* (^|/)(config\.local\.php|\.user\.ini|\.git|tests/|vendor/) { deny all; }
   location ~* \.(bak|secbak|orig|save|swp|swo|sql|log)$ { deny all; }
 
-  # --- Android app download page ---
-  location = /app/WeDo.apk {
+  # --- Android app download page (WeDo.apk, and WeDo-Test.apk on this server) ---
+  location ~* ^/app/[^/]+\.apk$ {
     types { application/vnd.android.package-archive apk; }
-    add_header Content-Disposition 'attachment; filename="WeDo.apk"';
+    add_header Content-Disposition 'attachment';
     add_header Cache-Control "no-cache";
   }
   location = /app/version.json { add_header Cache-Control "no-store, max-age=0"; }
@@ -133,4 +133,6 @@ Without it the deploy skips the reload and PHP picks up changed files on its own
 
 - Test a change: merge it into `vps` (`git checkout vps && git merge staging && git push`).
 - The **WeDo Test** app (`gradlew assembleVps` in wedo-app) opens this site, on the VPS database.
+  Download it on a phone from https://wedo.kmds.systems/app/WeDo-Test.apk (`app/WeDo-Test.apk`, on
+  this branch only). The site's own download page (`/app/`) offers the REAL app, `WeDo.apk`, which opens production.
 - Happy with it: staging → production as usual. `vps` never deploys anywhere else.
