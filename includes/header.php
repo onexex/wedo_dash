@@ -344,7 +344,7 @@
                 <?php if($row['piv']==2) { ?><li class="li-child"><a href="PersonalInfo"><i style="outline: none;" class="fa fa-bar-chart" ></i>Personal Information</a></li><?php  } ?>
                 -->
                 
-                <?php if($row['fdetls']==2) { ?><li class="li-child"><a href="FamilyDetails"><i style="outline: none;" class="fa fa-bar-chart" ></i>Family Details</a></li><?php  } ?>
+                <?php if($row['fdetls']==2) { ?><li class="li-child"><a href="Familydetails"><i style="outline: none;" class="fa fa-bar-chart" ></i>Family Details</a></li><?php  } ?>
                 <?php if($row['lcreaditview']==2) { ?><li class="li-child"><a href="leavecredit"><i style="outline: none;" class="fa fa-bar-chart" ></i>Leave Credit Viewer</a></li><?php  } ?>
                     
                   <!--   <li class="li-child"><i style="outline: none;" class="fa fa-bar-chart" href="#" title="Details" role="button" data-trigger="focus" tabindex="0"  data-toggle="popover"  data-html="true"  data-content="*View User Profile<br/>*View Employment Status, Details, History<br/>*Change your Dashboard Password<br/>*Request for Certificate of Employment"></i><a href="#">Payroll Management System</a></li> -->
