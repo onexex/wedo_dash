@@ -29,7 +29,7 @@ if (isset($_SESSION['id']) && $_SESSION['id']!="0"){}
     <script>
         /* IC voucher print: clone #toprint1 into .printme, apply the print-only
            column widths/floats, then write it to a fresh window. The .css() hooks
-           below (.inforight/.infoleft/.journal*/.border*) must stay on the voucher. */
+           below (.inforight, .infoleft, .journal..., .border...) must stay on the voucher. */
         $(function () {
             var myStyle = '<link rel="stylesheet" href="https://maxcdn.bootstrapcdn.com/bootstrap/3.3.7/css/bootstrap.min.css" />';
 

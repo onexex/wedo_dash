@@ -8,18 +8,18 @@ function startTime() {
   h = h ? h : 12;
   m = checkTime(m);
   s = checkTime(s);
-  document.getElementById('sec').innerHTML =
-  ":" + s + " " + am_pm;
-   document.getElementById('sec2').innerHTML =
-  ":" + s + " " + am_pm;
-  document.getElementById('hr-mn').innerHTML =
-  h + ":" + m;
-  document.getElementById('hr-mn2').innerHTML =
-  h + ":" + m;
-  var t = setTimeout(startTime, 500);
-  var d = new Date();
+  // The clock lives in the old header only (includes/header.php); pages on the new
+  // header don't have these elements, so update whichever exist and stop if none do.
+  var set = function (id, text) { var el = document.getElementById(id); if (el) { el.innerHTML = text; } return !!el; };
+  var shown = [
+    set('sec', ":" + s + " " + am_pm),
+    set('sec2', ":" + s + " " + am_pm),
+    set('hr-mn', h + ":" + m),
+    set('hr-mn2', h + ":" + m)
+  ];
   var months = ["January","February","March","April","May","June","July","August","September","October","November","December"];
-  document.getElementById("dtnow").innerHTML = months[d.getMonth()] + " " + d.getDate() + ", " + d.getFullYear();
+  shown.push(set("dtnow", months[today.getMonth()] + " " + today.getDate() + ", " + today.getFullYear()));
+  if (shown.indexOf(true) !== -1) { setTimeout(startTime, 500); }
 }
 function checkTime(i) {
   if (i < 10) {i = "0" + i};  // add zero in front of numbers < 10
