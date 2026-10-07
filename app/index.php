@@ -19,7 +19,7 @@ $css  = '../assets/css/wedo-theme.css?v=' . @filemtime(__DIR__ . '/../assets/css
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <title>WeDo app for Android</title>
-    <link rel="icon" type="image/png" href="../assets/images/logos/wedo-favicon.png">
+    <link rel="icon" type="image/png" href="icon.png">
     <link rel="stylesheet" href="<?php echo $h($css); ?>">
     <style>
         body { margin: 0; background: var(--surface-2, #f5f6f8); font-family: var(--font-body, system-ui, sans-serif); color: var(--text, #16202e); }
