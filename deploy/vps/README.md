@@ -39,18 +39,27 @@ return [
 
 ## 4. nginx rules (Site → Vhost)
 
-nginx ignores `.htaccess`, so the rules the site relies on go in the vhost. Inside the `server { ... }`
-block that serves HTTPS, **replace** CloudPanel's default `location / { ... }` with:
+nginx ignores `.htaccess`, so the rules the site relies on go in the vhost. CloudPanel's PHP vhost has
+two `server` blocks: the first (ports 80/443) only forwards requests; the second (`listen 8080`)
+serves the files and runs PHP. Leave the first block as it is and **replace the whole 8080 block** with:
 
 ```nginx
-  # --- WeDo dashboard (what .htaccess does on cPanel) ---
+server {
+  listen 8080;
+  listen [::]:8080;
+  server_name wedo.kmds.systems;
+  {{root}}
+
+  include /etc/nginx/global_settings;
+
+  index index.php index.html;
   error_page 404 /404.php;
 
-  # never served: config, backups, dumps, logs, git, tests, .user.ini
-  location ~* (^|/)(config\.local\.php|\.user\.ini|\.git|tests/) { deny all; return 404; }
-  location ~* \.(bak|secbak|orig|save|swp|swo|sql|log)$ { deny all; return 404; }
+  # --- WeDo: never served (these must stay ABOVE the \.php$ block) ---
+  location ~* (^|/)(config\.local\.php|\.user\.ini|\.git|tests/|vendor/) { deny all; }
+  location ~* \.(bak|secbak|orig|save|swp|swo|sql|log)$ { deny all; }
 
-  # Android app download page
+  # --- Android app download page ---
   location = /app/WeDo.apk {
     types { application/vnd.android.package-archive apk; }
     add_header Content-Disposition 'attachment; filename="WeDo.apk"';
@@ -58,14 +67,42 @@ block that serves HTTPS, **replace** CloudPanel's default `location / { ... }` w
   }
   location = /app/version.json { add_header Cache-Control "no-store, max-age=0"; }
 
-  # links without .php (alas, payslip, Familydetails...) -> alas.php
+  # --- links without .php (alas, payslip...) run alas.php through PHP ---
   location / {
-    try_files $uri $uri/ $uri.php$is_args$args $uri.html =404;
+    try_files $uri $uri/ @extensionless;
   }
+  location @extensionless {
+    if (-f $request_filename.php)  { rewrite ^(.*)$ $1.php last; }
+    if (-f $request_filename.html) { rewrite ^(.*)$ $1.html last; }
+    return 404;
+  }
+
+  location ~ \.php$ {
+    include fastcgi_params;
+    fastcgi_intercept_errors on;
+    fastcgi_index index.php;
+    fastcgi_param SCRIPT_FILENAME $document_root$fastcgi_script_name;
+    try_files $uri =404;
+    fastcgi_read_timeout 3600;
+    fastcgi_send_timeout 3600;
+    fastcgi_param HTTPS "on";
+    fastcgi_param SERVER_PORT 443;
+    fastcgi_pass 127.0.0.1:{{php_fpm_port}};
+    fastcgi_param PHP_VALUE "{{php_settings}}";
+  }
+
+  if (-f $request_filename) {
+    break;
+  }
+}
 ```
 
-CloudPanel's own `location ~ \.php$ { ... }` block (fastcgi to PHP-FPM) stays as it is. With
-`$uri.php` in `try_files`, nginx hands the file to that block.
+**Never** put `$uri.php` in a `try_files` list before its last entry: nginx sends the earlier entries
+as plain files, so `alas` would download the PHP source of `alas.php`. The `@extensionless` block
+rewrites to `alas.php` instead, which then runs through the `\.php$` block.
+
+**Turn Varnish Cache off** for this site (site → Varnish Cache). It's a page cache, and on a signed-in
+dashboard it risks showing one employee's page to another.
 
 **Difference from cPanel:** Linux paths are case-sensitive and nginx has no `mod_speling`. A link
 whose case doesn't match the file (e.g. `familydetails` for `Familydetails.php`) gives a 404 here,
