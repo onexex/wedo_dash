@@ -44,7 +44,7 @@ final class LoggedOutRedirectTest extends AppTestCase
     public function testLoggedOutGetsOnlyTheRedirect(string $script): void
     {
         $res = $this->request($script);
-        $this->assertSame(302, $res['status'], $script);
+        $this->assertSame(302, $res['status'], "$script did not redirect; it sent:\n" . substr($res['body'], 0, 1500));
         $this->assertSame('', trim($res['body']), "$script sent a body to a logged-out caller");
     }
 
