@@ -27,8 +27,9 @@ $_SERVER['HTTP_HOST']      = 'localhost';
 // Session: the parent wrote sess_<id> into session_dir. Point the session
 // module at it, but do NOT start it — scripts that forget session_start()
 // must behave exactly as they would on the server ($_SESSION undefined).
+// session.use_cookies stays on, as on the server: w_conn.php calls
+// session_set_cookie_params(), which warns (output -> no redirect) without it.
 ini_set('session.save_path', $spec['session_dir']);
-ini_set('session.use_cookies', '0');
 ini_set('session.use_only_cookies', '0');
 ini_set('session.use_strict_mode', '0');
 ini_set('session.cache_limiter', '');
