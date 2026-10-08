@@ -19,7 +19,7 @@ if (!is_array($spec)) { fwrite(STDERR, "run-script: bad spec\n"); exit(2); }
 $_GET     = $spec['get'];
 $_POST    = $spec['post'];
 $_REQUEST = array_merge($_GET, $_POST);
-$_COOKIE  = [];
+$_COOKIE  = $spec['cookies'] ?? [];
 $_FILES   = [];
 $_SERVER['REQUEST_METHOD'] = $spec['post'] ? 'POST' : 'GET';
 $_SERVER['HTTP_HOST']      = 'localhost';

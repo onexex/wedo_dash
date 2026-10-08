@@ -2,11 +2,11 @@
    if (isset($_SESSION['id']) && $_SESSION['id']!="0"){}
    else{
     if(!isset($_COOKIE["WeDoID"])){
-        header ('location: login'); 
+        header ('location: login'); exit; 
     }else{
         if(!isset($_COOKIE["WeDoID"])) {
           session_destroy();
-          header ('location: login'); 
+          header ('location: login'); exit; 
         }
         else{
           try{
@@ -56,6 +56,7 @@
     }
 
   }
+  if (!isset($_SESSION['id']) || $_SESSION['id']=="0") { header ('location: login'); exit; }   // the WeDoID cookie did not sign anyone in
   
   include 'w_conn.php';
 try{
@@ -75,7 +76,7 @@ die("ERROR: Could not connect. " . $e->getMessage());
   $r = $statement->fetch();
  if ($r['notif']==1)
   	{
-    header('location: 404?');
+    header('location: 404?'); exit;
   	}
   else{
   }

@@ -1,11 +1,11 @@
 <?php 
 if (session_status() === PHP_SESSION_NONE) { session_start(); }
 if((isset($_SESSION['id']) && $_SESSION['id']!="0")){
-     header ('location: index.php');
+     header ('location: index.php'); exit;
  }else if ((isset($_SESSION['quesID']) && $_SESSION['quesID']!="0")){
      
  } 
- else{ header ('location: login.php'); }
+ else{ header ('location: login.php'); exit; }
 ?>
 <?php
    include 'w_conn.php';

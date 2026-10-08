@@ -1,7 +1,7 @@
 <?php
     if (session_status() === PHP_SESSION_NONE) { session_start(); }
     if (isset($_SESSION['id']) && $_SESSION['id']!="0"){}
-    else{ header ('location: login'); }
+    else{ header ('location: login'); exit; }
 
     /* status text -> themed pill (must match notifications.php; page-scoped CSS
        for .wd-pill/.notif-* persists in <head>, only #addob innerHTML is swapped) */
