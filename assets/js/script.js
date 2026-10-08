@@ -300,27 +300,42 @@ var id =$("#rnum").val();
         }else{
             var iceyn = "No";
         }
-        var name = $("#famname").val();
-        var add = $("#famadd").val();
-        var cn = $("#famnumber").val();
+        var name = $.trim($("#famname").val());
+        var add = $.trim($("#famadd").val());
+        var cn = $.trim($("#famnumber").val());
+        rel = $.trim(rel);
+        var notify = function(title, text, icon){
+          if (typeof swal === 'function') { swal(title, text, icon); return; }
+          $('#modalWarning').modal('toggle');
+          $('#modalWarning .alert').text(text);
+        };
+        var key = function(s){ return $.trim(s).replace(/\s+/g, ' ').toLowerCase(); };
+        var dup = $('.tbl-relationship tbody tr').filter(function(){
+          return key($(this).children('td').eq(0).text()) === key(name);
+        }).length > 0;
         if (rel == "" || name =="" || add=="" || cn==""){
-             $('#modalWarning').modal('toggle');
-            $('#modalWarning .alert').html("Please Fill up Empty Fields!"); 
+          notify("Incomplete", "Please fill up the empty fields.", "warning");
+        }else if (dup){
+          notify("Already in the list", name + " is already in the family list.", "warning");
         }else{
-          
+
             var newid = id++;
           $("#rnum").val(newid);
-          $('.tbl-relationship tbody').append('<tr id="'+newid+'"> \n\
-            <td class="name'+newid+'" >' + name +'</td> \n\
-            <td class="add'+newid+'"  >' + add +'</td>\n\
-            <td class="rel'+newid+'"  >' + rel +'</td>\n\
-            <td class="con'+newid+'"  >' + cn +'</td>\n\
-            <td class="ice'+newid+'"  >'+ iceyn +'</td>\n\
-            <td><button class="btn btn-link" onclick="myremovetr(this)">Remove</button></td></tr>');
+          var tr = $('<tr>').attr('id', newid);
+          $.each([['name', name], ['add', add], ['rel', rel], ['con', cn], ['ice', iceyn]], function(i, c){
+            tr.append($('<td>').addClass(c[0] + newid).text(c[1]));
+          });
+          tr.append('<td><button type="button" class="btn btn-link" onclick="myremovetr(this)">Remove</button></td>');
+          $('.tbl-relationship tbody').append(tr);
 
-          // $("#famname").val("");;
-          // $("#famadd").val("");
-          // $("#famnumber").val("");
+          // ready for the next person (the address stays: family members often share it)
+          $("#famname, #famnumber, #relinput").val("");
+          $("#rel").prop('selectedIndex', 0);
+          $('.relice').prop('checked', false);
+          $(this).closest('.modal').modal('hide');
+          if (typeof swal === 'function') {
+            swal({ title: "Added to the list", text: name + " was added. Save your changes to keep it.", icon: "success", buttons: false, timer: 2000 });
+          }
         }
 
     });
