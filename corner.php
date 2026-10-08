@@ -7,11 +7,11 @@
   else{
     if(!isset($_COOKIE["WeDoID"])) {
 
-        header ('location: login');
+        header ('location: login'); exit;
     }else{
         if(!isset($_COOKIE["WeDoID"])) {
           session_destroy();
-          header ('location: login');
+          header ('location: login'); exit;
         }else{
               try{
               include 'w_conn.php';
@@ -64,10 +64,11 @@
     }
 
   }
+  if (!isset($_SESSION['id']) || $_SESSION['id']=="0") { header ('location: login'); exit; }   // the WeDoID cookie did not sign anyone in
   if (isset($_GET['addannoun'])){
       include 'w_conn.php';
       if (isset($_SESSION['id']) && $_SESSION['id']!="0"){}
-      else{ header ('location: login.php'); }
+      else{ header ('location: login.php'); exit; }
   try{
     $pdo = new PDO("mysql:host=$servername;dbname=$db", $username,$password);
     $pdo->setAttribute(PDO::ATTR_ERRMODE, PDO::ERRMODE_EXCEPTION);

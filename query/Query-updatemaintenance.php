@@ -1,4 +1,7 @@
 <?php
+	// Included by maintenance.php after its sign-in check; a direct request must be signed in too.
+	if (session_status() === PHP_SESSION_NONE) { session_start(); }
+	if (!isset($_SESSION['id']) || $_SESSION['id'] == "0") { http_response_code(401); echo "Not logged in"; exit; }
 	if (isset($_GET['updateeoval'])){
 				include 'w_conn.php';
 

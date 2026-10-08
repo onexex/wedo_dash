@@ -3,11 +3,11 @@
   else{
     if(!isset($_COOKIE["WeDoID"])) {
 
-        header ('location: login');
+        header ('location: login'); exit;
     }else{
         if(!isset($_COOKIE["WeDoID"])) {
           session_destroy();
-          header ('location: login');
+          header ('location: login'); exit;
         }else{
               try{
               include 'w_conn.php';

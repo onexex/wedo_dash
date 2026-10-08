@@ -1,4 +1,7 @@
-   <?php 
+<?php
+// Blog editor (newblog.php) AJAX endpoint: signed-in users only, like the page itself.
+if (session_status() === PHP_SESSION_NONE) { session_start(); }
+if (!isset($_SESSION['id']) || $_SESSION['id'] == "0") { http_response_code(401); echo "Not logged in"; exit; }
 include 'w_conn.php';
 try{
 $pdo = new PDO("mysql:host=$servername;dbname=$db", $username,$password);
