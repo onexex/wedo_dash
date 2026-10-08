@@ -587,10 +587,10 @@ CREATE TABLE `estatus` (
 CREATE TABLE `fdetails` (
   `FSID` int(10) NOT NULL AUTO_INCREMENT,
   `FDetID` varchar(50) NOT NULL,
-  `FName` varchar(50) NOT NULL,
-  `FAdd` varchar(50) NOT NULL,
-  `FRel` varchar(20) NOT NULL,
-  `FContact` varchar(12) NOT NULL,
+  `FName` varchar(150) NOT NULL,
+  `FAdd` varchar(255) NOT NULL,
+  `FRel` varchar(50) NOT NULL,
+  `FContact` varchar(50) NOT NULL,
   `FICE` varchar(10) NOT NULL,
   PRIMARY KEY (`FSID`)
 ) ENGINE=InnoDB DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci;

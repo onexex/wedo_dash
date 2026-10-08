@@ -35,6 +35,10 @@ if (array_key_exists('family', $_POST)) {
 if (!$fields && $family === null) {
     pcr_json(422, ['ok' => false, 'message' => 'There are no changes to submit.']);
 }
+$tooLong = pcr_too_long($pdo, $fields, $family['new'] ?? null);
+if ($tooLong) {
+    pcr_json(422, ['ok' => false, 'message' => 'Please shorten: ' . implode('; ', $tooLong) . '.']);
+}
 
 try {
     $pdo->beginTransaction();
