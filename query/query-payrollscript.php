@@ -1,4 +1,7 @@
-<?php 
+<?php
+// Payroll Management System AJAX endpoint: signed-in users with the Payroll access right only.
+if (session_status() === PHP_SESSION_NONE) { session_start(); }
+if (!isset($_SESSION['id']) || $_SESSION['id'] == "0") { http_response_code(401); echo "Not logged in"; exit; }
 include 'w_conn.php';
 
 date_default_timezone_set("Asia/Manila");
@@ -13,6 +16,9 @@ try{
 catch(PDOException $e){
 	die("ERROR: Could not connect. " . $e->getMessage());
    }
+$payAccess = $pdo->prepare("SELECT payroll FROM accessrights WHERE EmpID=:id");
+$payAccess->execute([':id' => $_SESSION['id']]);
+if ((int)$payAccess->fetchColumn() !== 2) { http_response_code(403); echo "Not allowed"; exit; }
 if (isset($_GET['approvedPayroll'])){
     $pydte=$_POST['pdate'];
 

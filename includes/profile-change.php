@@ -146,6 +146,43 @@ function pcr_diff(array $current, array $posted): array
     return $changes;
 }
 
+/**
+ * Values in a request that do not fit their database column, as readable labels
+ * ("Mobile number (max 200 characters)"). Limits are read from the live schema,
+ * so this matches the server whether or not a column was widened. Empty = fits.
+ */
+function pcr_too_long(PDO $pdo, array $fields, ?array $family): array
+{
+    $lim = [];
+    $st = $pdo->query("SELECT TABLE_NAME, COLUMN_NAME, CHARACTER_MAXIMUM_LENGTH FROM INFORMATION_SCHEMA.COLUMNS
+                        WHERE TABLE_SCHEMA = DATABASE() AND CHARACTER_MAXIMUM_LENGTH IS NOT NULL
+                          AND TABLE_NAME IN ('employees', 'empprofiles', 'empeducationalbackground', 'fdetails')");
+    foreach ($st->fetchAll(PDO::FETCH_NUM) as [$t, $c, $n]) { $lim[strtolower($t)][strtolower($c)] = (int)$n; }
+    $over = function (string $table, string $col, string $v) use ($lim): int {
+        $max = $lim[$table][strtolower($col)] ?? 0;
+        return ($max > 0 && mb_strlen($v) > $max) ? $max : 0;
+    };
+
+    $out = [];
+    $defs = pcr_fields();
+    foreach ($fields as $c) {
+        if (!isset($defs[$c['field']])) { continue; }
+        [, $table, $col, $label] = $defs[$c['field']];
+        $table = strpos($table, 'edu:') === 0 ? 'empeducationalbackground' : $table;
+        if ($max = $over($table, $col, (string)$c['new'])) { $out[] = "$label (max $max characters)"; }
+    }
+    $famCols = ['name' => ['FName', 'name'], 'address' => ['FAdd', 'address'],
+                'relationship' => ['FRel', 'relationship'], 'contact' => ['FContact', 'contact number']];
+    foreach ($family ?? [] as $r) {
+        foreach ($famCols as $key => [$col, $label]) {
+            if ($max = $over('fdetails', $col, (string)($r[$key] ?? ''))) {
+                $out[] = 'Family: ' . ($key === 'name' ? 'a name' : "$label of " . $r['name']) . " (max $max characters)";
+            }
+        }
+    }
+    return $out;
+}
+
 /** Most recent request of an employee (any status), with Changes decoded; null if none / table missing. */
 function pcr_latest(PDO $pdo, string $empId): ?array
 {

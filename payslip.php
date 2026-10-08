@@ -1,10 +1,12 @@
 <?php if (session_status() === PHP_SESSION_NONE) { session_start(); }
 if (isset($_SESSION['id']) && $_SESSION['id']!="0"){}
-  else{ header ('location: login.php'); }
+  else{ header ('location: login.php'); exit; }
 ?>
 <?php
     include 'w_conn.php';
+    require_once __DIR__ . '/includes/idcard-lib.php';
       date_default_timezone_set("Asia/Manila");
+    $psAddress = idc_company_info()['address'];   // Card back settings (ID Card Generator)
 ?>
 
 <!DOCTYPE html>
@@ -148,9 +150,9 @@ if (isset($_SESSION['id']) && $_SESSION['id']!="0"){}
                 <div id="toprint1">
                     <div class="col">
                         <p style="font-size: 10pt; line-height: 10pt;">WeDo BPO Inc.</p>
-                        <p style="font-size: 10pt; line-height: 10pt;">Unit 1901 Antel Global Corporate Center</p>
-                        <p style="font-size: 10pt; line-height: 10pt;"># 3 Julia Vargas Ave, Ortigas Business District</p>
-                        <p style="font-size: 10pt; line-height: 10pt;">Pasig City 1605</p>
+                        <?php foreach ($psAddress as $line): ?>
+                        <p style="font-size: 10pt; line-height: 10pt;"><?php echo htmlspecialchars($line); ?></p>
+                        <?php endforeach; ?>
                     </div>
 
                     <div class="row" style="margin-top:30px; padding-right:15px; padding-left:15px">
@@ -423,7 +425,7 @@ if (isset($_SESSION['id']) && $_SESSION['id']!="0"){}
                     </div>
                     <div class="col">
                         <p style="font-size: 10pt; line-height: 10pt;">WeDo BPO Inc.</p>
-                        <p style="font-size: 10pt; line-height: 10pt;">Unit 1901 Antel Global Corporate Center ,# 3 Julia Vargas Ave, Ortigas Business District Pasig City 1605</p>
+                        <p style="font-size: 10pt; line-height: 10pt;"><?php echo htmlspecialchars(implode(', ', $psAddress)); ?></p>
                     </div>
                     <br>
                     <br>

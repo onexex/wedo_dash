@@ -1,10 +1,12 @@
 <?php if (session_status() === PHP_SESSION_NONE) { session_start(); }
 if (isset($_SESSION['id']) && $_SESSION['id']!="0"){}
-  else{ header ('location: login.php'); }
+  else{ header ('location: login.php'); exit; }
 ?>
 <?php
     include 'w_conn.php';
+    require_once __DIR__ . '/includes/idcard-lib.php';
       date_default_timezone_set("Asia/Manila");
+    $coeInfo = idc_company_info();   // address + phone from Card back settings (ID Card Generator)
 ?>
 
 <!DOCTYPE html>
@@ -126,7 +128,7 @@ if (isset($_SESSION['id']) && $_SESSION['id']!="0"){}
                     <span class="coe-val heshe"></span> entitled to receive.
                 </p>
 
-                <p>Should you have clarifications, please call 02.84704131 or 63.917.7240123 anytime during office hours.</p>
+                <p>Should you have clarifications, please call <?php echo htmlspecialchars($coeInfo['phone']); ?> anytime during office hours.</p>
 
                 <p>This certification is issued at the request of <span class="coe-val fullname"></span> for whatever legal purpose it may serve.</p>
 
@@ -142,7 +144,7 @@ if (isset($_SESSION['id']) && $_SESSION['id']!="0"){}
 
                 <div class="coe-letterhead">
                     <img src="assets/images/logos/WeDo.png" alt="WeDo BPO Inc.">
-                    <p class="coe-address">1901 Antel Global Corporate Center #3 J. Vargas Ave. Ortigas Business District, Pasig City 1605</p>
+                    <p class="coe-address"><?php echo htmlspecialchars(implode(', ', $coeInfo['address'])); ?></p>
                 </div>
             </div>
         </div>

@@ -135,10 +135,11 @@ abstract class AppTestCase extends TestCase
     /**
      * Run an app script (path relative to the repo root) in a child PHP process.
      * $session = null means "not logged in" (no session cookie).
+     * $cookies are the request's cookies (e.g. a WeDoID "remember me" token); none by default.
      *
      * @return array{status:int, body:string}
      */
-    protected function request(string $script, array $get = [], array $post = [], ?array $session = null): array
+    protected function request(string $script, array $get = [], array $post = [], ?array $session = null, array $cookies = []): array
     {
         $root = dirname(__DIR__, 2);
         $tmp  = sys_get_temp_dir() . DIRECTORY_SEPARATOR . 'wedo-tests';
@@ -155,7 +156,7 @@ abstract class AppTestCase extends TestCase
         $spec = $tmp . DIRECTORY_SEPARATOR . 'spec-' . bin2hex(random_bytes(6)) . '.json';
         file_put_contents($spec, json_encode([
             'script' => $root . DIRECTORY_SEPARATOR . str_replace('/', DIRECTORY_SEPARATOR, $script),
-            'get' => $get, 'post' => $post, 'session_dir' => $tmp, 'session_id' => $sid,
+            'get' => $get, 'post' => $post, 'cookies' => $cookies, 'session_dir' => $tmp, 'session_id' => $sid,
         ]));
 
         $c   = $GLOBALS['WEDO_TEST_DB'];

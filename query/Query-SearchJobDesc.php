@@ -1,7 +1,7 @@
-    <?php
+<?php
      include 'w_conn.php';if (session_status() === PHP_SESSION_NONE) { session_start(); }
   if (isset($_SESSION['id']) && $_SESSION['id']!="0"){}
-  else{ header ('location: login.php'); }
+  else{ header ('location: login.php'); exit; }
 if (isset($_GET['delete'])){
 	       $res12=mysqli_query($con,"select * from jobdescription inner join empjobdesc on jobdescription.JD_ID=empjobdesc.JID where empjobdesc.EmpID='" . $_GET['delete'] . "'");
                                             while ($row3=mysqli_fetch_array($res12)) {

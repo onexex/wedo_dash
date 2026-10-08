@@ -2,7 +2,7 @@
   if (isset($_SESSION['id']) && $_SESSION['id']!="0"){
 
   }
-  else{ header ('location: login.php'); }
+  else{ header ('location: login.php'); exit; }
 
 
 		include 'w_conn.php';

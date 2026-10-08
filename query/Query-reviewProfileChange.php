@@ -37,7 +37,15 @@ try {
     }
 
     if ($action === 'approve') {
-        pcr_apply($pdo, $req['EmpID'], json_decode($req['Changes'], true) ?: []);
+        $changes = json_decode($req['Changes'], true) ?: [];
+        // a value that does not fit its column would fail (strict MySQL) or be cut off
+        $tooLong = pcr_too_long($pdo, $changes['fields'] ?? [], $changes['family']['new'] ?? null);
+        if ($tooLong) {
+            $pdo->rollBack();
+            pcr_json(422, ['ok' => false, 'message' => 'Some values are too long for the 201 record: ' . implode('; ', $tooLong)
+                . '. Reject the request with a remark so the employee can shorten them.']);
+        }
+        pcr_apply($pdo, $req['EmpID'], $changes);
     }
     $pdo->prepare('UPDATE profile_change_requests SET Status = ?, ReviewedBy = ?, ReviewedAt = NOW(), Remarks = ? WHERE id = ?')
         ->execute([$action === 'approve' ? 'approved' : 'rejected', $me, $remarks !== '' ? $remarks : null, $id]);

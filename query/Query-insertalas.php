@@ -6,7 +6,7 @@
       date_default_timezone_set("Asia/Manila"); 
 
       if (isset($_SESSION['id']) && $_SESSION['id']!="0"){}
-      else{ header ('location: login.php'); }
+      else{ header ('location: login.php'); exit; }
 
       try{
         $customTime = (new DateTime('now', new DateTimeZone('Asia/Manila')))->format('P');

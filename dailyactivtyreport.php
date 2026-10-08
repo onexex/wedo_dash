@@ -1,7 +1,7 @@
 <?php
   if (session_status() === PHP_SESSION_NONE) { session_start(); }
   if (isset($_SESSION['id']) && $_SESSION['id']!="0"){}
-  else{ header ('location: login'); }
+  else{ header ('location: login'); exit; }
 ?>
 <!DOCTYPE html>
 <html>
