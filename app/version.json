@@ -1,8 +1,8 @@
 {
-  "version": "1.0.1",
-  "versionCode": 24,
+  "version": "1.0.2",
+  "versionCode": 25,
   "size": "6.1 MB",
-  "released": "2026-10-07",
+  "released": "2026-10-08",
   "minAndroid": "6.0",
-  "notes": "New Home screen: year summary with drill-down, date range filter, Update DAR button."
+  "notes": "Update my information: education fits the screen, all step tabs visible, family list like Enroll Employee."
 }
