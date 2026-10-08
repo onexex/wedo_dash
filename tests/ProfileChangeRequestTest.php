@@ -226,6 +226,46 @@ final class ProfileChangeRequestTest extends AppTestCase
         $this->assertStringContainsString('Your last request was approved', $this->myEditPage());
     }
 
+    /** Regression: general info + a family row longer than the old fdetails columns (contact was varchar(12)). */
+    public function testApprovingGeneralAndFamilyWithLongValues(): void
+    {
+        $this->submitRequest(
+            ['pempn0' => '09995554444', 'pempcity' => 'Cebu City'],
+            $this->seededFamily([['name' => 'Jose Protacio Rizal Mercado y Alonso Realonda Jr.', 'relationship' => 'Grandfather-in-law',
+                                  'address' => 'Blk 12 Lot 5, Phase 3, Villa Grande Homes, Brgy. San Isidro, Talisay City, Cebu',
+                                  'contact' => '+63 917 123 4567 / 032 888 1234', 'ice' => 'No']])
+        );
+        $res = $this->review($this->pendingId(), 'approve');
+        $this->assertSame(200, $res['status'], $res['body']);
+        $fam = $this->rows('SELECT * FROM fdetails WHERE FDetID=? ORDER BY FSID', [self::EMP]);
+        $this->assertCount(2, $fam);
+        $this->assertSame('+63 917 123 4567 / 032 888 1234', $fam[1]['FContact']);
+        $this->assertSame('Cebu City', $this->row('SELECT EmpAddCity FROM empprofiles WHERE EmpID=?', [self::EMP])['EmpAddCity']);
+    }
+
+    /** Until the fdetails columns are widened, a value that does not fit is refused with a clear message (never cut off). */
+    public function testValuesTooLongForTheRecordAreRefusedClearly(): void
+    {
+        $long = [['name' => 'Ana Cruz', 'address' => 'Makati', 'relationship' => 'Spouse', 'contact' => '+63 917 123 4567', 'ice' => 'No']];
+        $this->submitRequest(['pempcity' => 'Cebu City'], $long);       // fits today's columns
+        $id = $this->pendingId();
+        self::db()->exec('ALTER TABLE fdetails MODIFY FContact VARCHAR(12) NOT NULL');
+        try {
+            $res = $this->review($id, 'approve');
+            $this->assertSame(422, $res['status'], $res['body']);
+            $this->assertStringContainsString('contact number of Ana Cruz (max 12 characters)', $res['body']);
+            $this->assertSame('pending', $this->requests()[0]['Status']);
+            $this->assertSame([], $this->rows("SELECT * FROM fdetails WHERE FDetID=? AND FName='Ana Cruz'", [self::EMP]));
+            $this->assertNotSame('Cebu City', $this->row('SELECT EmpAddCity FROM empprofiles WHERE EmpID=?', [self::EMP])['EmpAddCity']);
+
+            $res = $this->submitRequest([], $long);
+            $this->assertSame(422, $res['status'], $res['body']);
+            $this->assertStringContainsString('Please shorten', $res['body']);
+        } finally {
+            self::db()->exec('ALTER TABLE fdetails MODIFY FContact VARCHAR(50) NOT NULL');
+        }
+    }
+
     public function testApprovalCreatesAMissingEducationRow(): void
     {
         self::db()->prepare("DELETE FROM empeducationalbackground WHERE EmpID=? AND Program='Primary'")->execute([self::EMP]);
