@@ -61,6 +61,26 @@ function idc_back_values(?PDO $pdo = null) {
 }
 
 /**
+ * The company contact details as saved in Card back settings — also printed on the
+ * COE and payslips, so HR updates the office address/phone in one place. Opens its
+ * own connection from w_conn.php's credentials; any DB problem falls back to the defaults.
+ * Returns ['address' => [line, ...], 'phone' => string].
+ */
+function idc_company_info() {
+    global $servername, $db, $username, $password;
+    $pdo = null;
+    try {
+        $pdo = new PDO("mysql:host=$servername;dbname=$db;charset=utf8mb4", $username, $password);
+        $pdo->setAttribute(PDO::ATTR_ERRMODE, PDO::ERRMODE_EXCEPTION);
+    } catch (Throwable $e) { /* defaults */ }
+    $v = idc_back_values($pdo);
+    return [
+        'address' => array_values(array_filter([$v['address1'], $v['address2']], 'strlen')),
+        'phone'   => $v['phone'],
+    ];
+}
+
+/**
  * Has HR confirmed the back details (saved them at least once)? Until then the
  * defaults are only a starting point and no card may be issued with them.
  */
