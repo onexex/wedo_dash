@@ -1,8 +1,8 @@
 {
-  "version": "1.0.2",
-  "versionCode": 25,
+  "version": "1.0.3",
+  "versionCode": 26,
   "size": "6.1 MB",
-  "released": "2026-10-08",
+  "released": "2026-10-14",
   "minAndroid": "6.0",
-  "notes": "Update my information: education fits the screen, all step tabs visible, family list like Enroll Employee."
+  "notes": "Chat: the keyboard no longer covers the conversation and message box on newer Android phones."
 }
