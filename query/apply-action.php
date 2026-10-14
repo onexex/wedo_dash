@@ -43,4 +43,7 @@ if ($r['id'] > 0) {
         if (push_enabled()) { push_applicant_filed($pdo, apl_get($pdo, $r['id']), apl_reviewers($pdo)); }
     } catch (Throwable $e) { /* a notification never blocks the application */ }
 }
-apa_out(200, ['status' => 'ok', 'msg' => 'Thank you! Your application was received. We will contact you by email or phone.']);
+// a reference to quote when calling HR; the honeypot gets a plausible fake so a bot can't tell
+$ref = 'APL-' . sprintf('%06d', $r['id'] > 0 ? $r['id'] : random_int(1000, 999999));
+apa_out(200, ['status' => 'ok', 'ref' => $ref,
+              'msg' => 'Thank you! Your application was received. We will contact you by email or phone.']);
