@@ -2,6 +2,9 @@
 	if (session_status() === PHP_SESSION_NONE) { session_start(); }
 	// AJAX-only write endpoint: every action requires a logged-in session.
 	if (!isset($_SESSION['id']) || $_SESSION['id'] == "0") { http_response_code(401); echo "Not logged in"; exit; }
+	// SSS / Pag-IBIG / PhilHealth / SIL Loan writes need `SPPContrib` (==2), same as the pages
+	require_once __DIR__ . '/../includes/sppcontrib-gate.php';
+	if (spp_contrib_requested() && !spp_contrib_allowed()) { http_response_code(403); echo "Forbidden"; exit; }
 	if (isset($_GET['empidchanged'])){
 				include 'w_conn.php';
 		  		$sql=mysqli_query($con, "select * from empdetails where EmpCompID='".  $_POST['compid'] ."'");

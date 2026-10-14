@@ -30,6 +30,10 @@ if (session_status() === PHP_SESSION_NONE) { session_start(); }
 		if (!$pfamOk) { header('location: 404?'); exit; }
 	}
 
+	// SSS / Pag-IBIG / PhilHealth / SIL Loan: gated by `SPPContrib` (==2).
+	require_once 'includes/sppcontrib-gate.php';
+	if (spp_contrib_requested() && !spp_contrib_allowed()) { header('location: 404?'); exit; }
+
 	//this include is the SQL of UPDATE (runs the per-row edit form POSTs, which
 	//redirect via header() — must stay before any output below).
 	include 'query/Query-updatemaintenance.php';

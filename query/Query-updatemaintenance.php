@@ -2,6 +2,9 @@
 	// Included by maintenance.php after its sign-in check; a direct request must be signed in too.
 	if (session_status() === PHP_SESSION_NONE) { session_start(); }
 	if (!isset($_SESSION['id']) || $_SESSION['id'] == "0") { http_response_code(401); echo "Not logged in"; exit; }
+	// SSS / Pag-IBIG / PhilHealth / SIL Loan edits need `SPPContrib` (==2), same as the pages
+	require_once __DIR__ . '/../includes/sppcontrib-gate.php';
+	if (spp_contrib_requested() && !spp_contrib_allowed()) { http_response_code(403); echo "Forbidden"; exit; }
 	if (isset($_GET['updateeoval'])){
 				include 'w_conn.php';
 
