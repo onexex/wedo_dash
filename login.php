@@ -2,6 +2,7 @@
     if (session_status() === PHP_SESSION_NONE) { session_start(); }
     include 'w_conn.php';
     require_once __DIR__ . '/includes/app-remember.php';
+    require_once __DIR__ . '/includes/account-gate.php';
 
     // 1. Handle Logout immediately
     if (isset($_GET['logout'])) {
@@ -109,6 +110,7 @@
         while ($row = $stmt->fetch(PDO::FETCH_ASSOC)) {
             // Check if this row's EmpID matches the hashed cookie
             if ((!empty($row['remember_hash']) && password_verify($_COOKIE["WeDoID"], $row['remember_hash']) && (empty($row['remember_expiry']) || strtotime($row['remember_expiry']) > time()))) {
+                if (wd_account_blocked($pdo, $row['EmpID'])) { wd_account_revoke($pdo, $row['EmpID']); break; }   // resigned / terminated
                 $wdStartSession($row);
             }
         }
@@ -241,7 +243,7 @@
             <h2>Sign in</h2>
             <p class="wd-login__sub">Secure access for WeDo BPO personnel</p>
 
-            <h6 class="lg-warning" id="error-msg" style="display:none;background:#dc3545;color:#fff;padding:11px;border-radius:12px;font-size:13px;margin:0 0 16px">Incorrect credentials</h6>
+            <h6 class="lg-warning" id="error-msg" style="<?php echo isset($_GET['inactive']) ? '' : 'display:none;'; ?>background:#dc3545;color:#fff;padding:11px;border-radius:12px;font-size:13px;margin:0 0 16px"><?php echo isset($_GET['inactive']) ? 'This account is no longer active. Please contact HR.' : 'Incorrect credentials'; ?></h6>
 
             <form class="loginform">
                 <div class="wd-field" style="text-align:left">

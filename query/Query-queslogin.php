@@ -17,7 +17,9 @@ date_default_timezone_set("Asia/Manila");
             
             $count=$statement->rowCount();
             $row=$statement->fetch();
-            
+            require_once __DIR__ . '/../includes/account-gate.php';
+            if (!$row || wd_account_blocked($pdo, $row['EmpID'])) { echo '0101'; exit; }
+
             	$_SESSION['id']=$row['EmpID'];
             	    // secure remember-me: random 256-bit token; only its hash is stored server-side
                     	    $rtoken = bin2hex(random_bytes(32));

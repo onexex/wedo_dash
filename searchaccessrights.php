@@ -127,3 +127,7 @@ ar_row('fa-bullhorn',     "GM'S Corner",       'gcorner', $row);
 ar_row('fa-paperclip',    'Messages: Send Pictures & Documents', 'msgfile', $row);
 ar_row('fa-trash-can',    'Messages: Delete Own Messages',       'msgdel',  $row);
 ar_row('fa-user-shield',  'Messages: Review All Conversations (HR investigations)', 'msgaudit', $row);
+// only once sql/2026-10-14-add-after-separation-access-right.sql has run (a missing column would read as ON)
+if (array_key_exists('aftersep', $row)) {
+    ar_row('fa-user-clock', 'Sign in after resignation / termination (e.g. still prepares payroll)', 'aftersep', $row);
+}

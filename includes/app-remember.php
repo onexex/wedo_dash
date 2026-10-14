@@ -55,7 +55,8 @@ function app_remember_issue(PDO $pdo, string $empId): void
 
 /**
  * EmpID of the phone's valid token (and pushes its expiry 30 days out), or null.
- * Resigned employees (EmpStatusID 2, also refused by query-login.php) are not restored.
+ * Employees who may no longer sign in (resigned / terminated — includes/account-gate.php) are not
+ * restored; their token is dropped.
  */
 function app_remember_restore(PDO $pdo): ?string
 {
@@ -63,10 +64,15 @@ function app_remember_restore(PDO $pdo): ?string
     if ($token === '' || !ctype_xdigit($token)) { return null; }
     try {
         $st = $pdo->prepare("SELECT ar.id, ar.EmpID FROM app_remember ar
-                             JOIN employees e ON e.EmpID = ar.EmpID AND e.EmpStatusID <> 2
+                             JOIN employees e ON e.EmpID = ar.EmpID
                              WHERE ar.token_hash = :h AND ar.expires_at > :n");
         $st->execute([':h' => hash('sha256', $token), ':n' => date('Y-m-d H:i:s')]);
         $r = $st->fetch(PDO::FETCH_ASSOC);
+        require_once __DIR__ . '/account-gate.php';
+        if ($r && wd_account_blocked($pdo, $r['EmpID'])) {
+            $pdo->prepare("DELETE FROM app_remember WHERE id = :id")->execute([':id' => $r['id']]);
+            $r = false;
+        }
         if (!$r) { app_remember_cookie('', time() - 3600); return null; }
 
         $exp = time() + APP_REMEMBER_DAYS * 86400;

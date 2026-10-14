@@ -59,6 +59,7 @@ CREATE TABLE `accessrights` (
   `msgfile` int(11) NOT NULL DEFAULT 1,
   `msgdel` int(11) NOT NULL DEFAULT 1,
   `msgaudit` int(11) NOT NULL DEFAULT 1,
+  `aftersep` int(11) NOT NULL DEFAULT 1,
   `fdetls` int(11) NOT NULL DEFAULT 1,
   `nwblogs` int(11) NOT NULL DEFAULT 1,
   `notif` int(11) NOT NULL DEFAULT 2,
