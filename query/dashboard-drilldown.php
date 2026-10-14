@@ -404,13 +404,16 @@ $absTotal  = array_sum(array_map('count', $abs));
   <div class="dd-sec__h"><i class="fa-solid fa-clock"></i> Late time-ins <span class="dd-count"><?php echo (int)$tardTotal; ?></span></div>
   <?php if ($tard): ?>
     <table class="dd-tbl">
+      <?php /* Avg late column hidden (not surfaced):
       <thead><tr><th>Employee</th><th class="num">Late</th><th class="num">Avg</th><th>Dates &middot; minutes late</th></tr></thead>
+      */ ?>
+      <thead><tr><th>Employee</th><th class="num">Late</th><th>Dates &middot; minutes late</th></tr></thead>
       <tbody>
-        <?php foreach ($tard as $nm => $rows): $cnt = count($rows); $avg = $cnt ? round(array_sum(array_column($rows, 'm')) / $cnt) : 0; ?>
+        <?php foreach ($tard as $nm => $rows): $cnt = count($rows); /* $avg = $cnt ? round(array_sum(array_column($rows, 'm')) / $cnt) : 0; */ ?>
           <tr>
             <td class="dd-emp"><?php echo $hh($nm); ?></td>
             <td class="num"><?php echo (int)$cnt; ?></td>
-            <td class="num"><?php echo (int)$avg; ?>m</td>
+            <?php /* <td class="num"><?php echo (int)$avg; ?>m</td> */ ?>
             <td><div class="dd-chips"><?php foreach ($rows as $x): ?><span class="dd-chip"><?php echo $fmt($x['d']); ?> <b><?php echo (int)$x['m']; ?>m</b></span><?php endforeach; ?></div></td>
           </tr>
         <?php endforeach; ?>

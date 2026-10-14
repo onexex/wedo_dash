@@ -627,7 +627,7 @@ try {
                     <th>Department</th>
                     <th class="num">Late time-ins</th>
                     <th class="num">Tardiness rate</th>
-                    <th class="num">Avg&nbsp;late</th>
+                    <?php /* Avg late column hidden (not surfaced): <th class="num">Avg&nbsp;late</th> */ ?>
                     <th class="num">Absences</th>
                     <th class="num">Absence rate</th>
                   </tr>
@@ -640,7 +640,7 @@ try {
                       <td class="num">
                         <span class="dpat-metric"><span class="track"><span class="fill late" style="width:<?php echo min(100,(int)$dv['latePct']); ?>%"></span></span><span class="pct"><?php echo (int)$dv['latePct']; ?>%</span></span>
                       </td>
-                      <td class="num"><?php echo $dv['late']>0 ? ((int)$dv['avg'].' min') : '<span class="dpat-sub">&mdash;</span>'; ?></td>
+                      <?php /* <td class="num"><?php echo $dv['late']>0 ? ((int)$dv['avg'].' min') : '<span class="dpat-sub">&mdash;</span>'; ?></td> */ ?>
                       <td class="num"><?php echo (int)$dv['absences']; ?> <span class="dpat-sub">/ <?php echo (int)$dv['expected']; ?></span></td>
                       <td class="num">
                         <span class="dpat-metric"><span class="track"><span class="fill abs" style="width:<?php echo min(100,(int)$dv['absPct']); ?>%"></span></span><span class="pct"><?php echo (int)$dv['absPct']; ?>%</span></span>
