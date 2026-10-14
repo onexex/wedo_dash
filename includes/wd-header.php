@@ -299,7 +299,8 @@ function wd_can($ar, $k) { return isset($ar[$k]) && $ar[$k] == 2; }
         <i class="fa-solid fa-chevron-down wd-user__caret"></i>
         <div class="wd-usermenu" onclick="event.stopPropagation();">
           <div class="wd-usermenu__head"><div class="n"><?php echo htmlspecialchars($wdName); ?></div><div class="r"><?php echo htmlspecialchars($wdPosition); ?></div></div>
-          <a class="wd-usermenu__item" data-toggle="modal" data-target="#changepass" href="#"><i class="fa-solid fa-gear"></i> Change password</a>
+          <?php /* opened here, not with data-toggle: the menu stops click bubbling, so Bootstrap's document-level listener never sees it */ ?>
+          <a class="wd-usermenu__item" href="#" onclick="event.preventDefault();this.closest('.wd-user').classList.remove('is-open');if(window.jQuery&&jQuery.fn.modal){jQuery('#changepass').modal('show');}"><i class="fa-solid fa-gear"></i> Change password</a>
           <?php if (strpos($_SERVER['HTTP_USER_AGENT'] ?? '', 'WeDoApp/') === false) { ?>
           <a class="wd-usermenu__item" href="app/"><i class="fa-solid fa-mobile-screen-button"></i> Get the Android app</a>
           <?php } ?>
