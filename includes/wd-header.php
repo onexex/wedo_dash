@@ -177,6 +177,7 @@ function wd_can($ar, $k) { return isset($ar[$k]) && $ar[$k] == 2; }
       ['EF',         'scheduler',       'scheduler',        'calendar-days',  'Employee Scheduler'],
       ['eemployee',  'newemployee',     'newemployee',      'user-plus',      'Enroll Employee'],
       ['idcard',     'idcard',          'idcard',           'id-card',        'ID Card Generator'],
+      ['msgaudit',   'msgreview',       'msgreview',        'message-square-warning', 'Message Review'],
       ['payeereg',   'payeereg',        'payeereg',         'book-user',      'Payee Management System'],
       ['schedv',     'schedviewer',     'schedviewer',      'calendar-clock', 'Schedule Viewer'],
     ]],

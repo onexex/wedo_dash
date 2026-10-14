@@ -126,3 +126,4 @@ ar_row('fa-pen-to-square','Update 201 Files',  'updte',   $row);
 ar_row('fa-bullhorn',     "GM'S Corner",       'gcorner', $row);
 ar_row('fa-paperclip',    'Messages: Send Pictures & Documents', 'msgfile', $row);
 ar_row('fa-trash-can',    'Messages: Delete Own Messages',       'msgdel',  $row);
+ar_row('fa-user-shield',  'Messages: Review All Conversations (HR investigations)', 'msgaudit', $row);
