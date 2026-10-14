@@ -1,8 +1,8 @@
 {
-  "version": "1.0.6",
-  "versionCode": 29,
+  "version": "1.0.7",
+  "versionCode": 30,
   "size": "6.2 MB",
   "released": "2026-10-14",
   "minAndroid": "6.0",
-  "notes": "Fingerprint unlock now asks every time you open WeDo, and no longer closes the app. Turn it on at the bottom of the Menu."
+  "notes": "A new look for the fingerprint lock screen. The app now tells you right away when a new version is available."
 }
