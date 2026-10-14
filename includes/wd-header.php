@@ -122,6 +122,20 @@ if (isset($ar['updte']) && $ar['updte'] == 2) {
     $wdPcrCount = pcr_pending_count($wdpdo);
 }
 
+/* COE requests waiting for approval (COE approvers only) */
+$wdCoeCount = 0;
+if (isset($ar['coefunction']) && $ar['coefunction'] == 2) {
+    require_once __DIR__ . '/lifecycle-lib.php';
+    $wdCoeCount = lcy_coe_pending_count($wdpdo);
+}
+
+/* new job applications not yet looked at (Applicants reviewers only) */
+$wdAplCount = 0;
+if (isset($ar['applicants']) && $ar['applicants'] == 2) {
+    try { $wdAplCount = (int) $wdpdo->query("SELECT COUNT(*) FROM applicants WHERE Stage = 'new'")->fetchColumn(); }
+    catch (Exception $wdErr) { $wdAplCount = 0; }
+}
+
 $wd_active = $wd_active ?? '';
 function wd_on($k, $a) { return $k === $a ? ' is-active' : ''; }
 function wd_can($ar, $k) { return isset($ar[$k]) && $ar[$k] == 2; }
@@ -164,7 +178,8 @@ function wd_can($ar, $k) { return isset($ar[$k]) && $ar[$k] == 2; }
       ['debitadvisesettings', 'debitsetting',    'maintenance?debitsetting', 'file-cog',       'PMS-Debit Advise (Settings)'],
       ['sob',                 'SendToOB',        'SendToOB',                 'send',           'Send to OBT Filing'],
     ]],
-    ['key' => 'reports', 'label' => 'Reports', 'icon' => 'chart-column', 'tone' => 'rep', 'items' => [
+    ['key' => 'reports', 'label' => 'Reports', 'icon' => 'chart-column', 'tone' => 'rep',
+     'badge' => $wdCoeCount, 'badgeTitle' => 'COE requests awaiting approval', 'items' => [
       ['access_13_attachement', 'attachement_13', 'attachement_13', 'paperclip',       '13<sup>th</sup> Month Attachment'],
       ['alasv',                 'alasviewer',     'alasviewer',     'calendar-search', 'ALAS Viewer'],
       ['lilov',                 'liloviewer',     'liloviewer',     'clock',           'Attendance Viewer'],
@@ -172,23 +187,28 @@ function wd_can($ar, $k) { return isset($ar[$k]) && $ar[$k] == 2; }
       ['eov',                   'earlyoutviewer', 'earlyoutviewer', 'log-out',         'Early Out Viewer'],
       ['fdetls',                'Familydetails',  'Familydetails',  'users',           'Family Details'],
       [['lcreaditview', 'lcreditedit'], 'leavecredit', 'leavecredit', 'wallet',      'Leave Credit Viewer'],
-      ['coe',                   'coe',            'coe',            'file-badge',      'My Documents (COE)'],
+      // everyone may request their own COE; `coefunction` approves and issues
+      [true,                    'coe',            'coe',            'file-badge',      'My Documents (COE)', $wdCoeCount],
       ['payslipt',              'payslip',        'payslip',        'receipt',         'My Documents (Payslip)'],
       ['obv',                   'obviewer',       'obviewer',       'map',             'Official Business Viewer'],
       ['atv',                   'overtimeviewer', 'overtimeviewer', 'timer',           'Overtime Viewer'],
       ['access_13',             'generalreport',  'generalreport',  'calendar-range',  'YTD 13<sup>th</sup> Month'],
     ]],
-    ['key' => 'management', 'label' => 'Management', 'icon' => 'briefcase-business', 'tone' => 'mgt', 'items' => [
+    ['key' => 'management', 'label' => 'Management', 'icon' => 'briefcase-business', 'tone' => 'mgt',
+     'badge' => $wdAplCount, 'badgeTitle' => 'New job applications', 'items' => [
       ['arights',    'accessrights',    'accessrights.php', 'shield-check',   'Access Rights'],
+      ['applicants', 'applicants',      'applicants',       'clipboard-list', 'Applicant Pool', $wdAplCount],
       ['ams',        'ams',             'ams',              'archive',        'Archived Management System'],
       ['bookletreg', 'bookletregistry', 'bookletregistry',  'book-open',      'Booklet Management System'],
       ['e201d',      'e201files',       'e201files',        'file-stack',     'Electronic 201 Document'],
       ['EF',         'scheduler',       'scheduler',        'calendar-days',  'Employee Scheduler'],
+      ['empverify',  'verify',          'verify',           'user-search',    'Employment Verification (CI)'],
       ['eemployee',  'newemployee',     'newemployee',      'user-plus',      'Enroll Employee'],
       ['idcard',     'idcard',          'idcard',           'id-card',        'ID Card Generator'],
       ['msgaudit',   'msgreview',       'msgreview',        'message-square-warning', 'Message Review'],
       ['payeereg',   'payeereg',        'payeereg',         'book-user',      'Payee Management System'],
       ['schedv',     'schedviewer',     'schedviewer',      'calendar-clock', 'Schedule Viewer'],
+      ['separation', 'separation',      'separation',       'user-minus',     'Separation & Lifecycle'],
     ]],
     ['key' => 'maintenance', 'label' => 'Maintenance', 'icon' => 'wrench', 'tone' => 'mnt', 'items' => [
       ['agncy',      'agency',                'maintenance?agency',                'building-2',      'Agencies'],

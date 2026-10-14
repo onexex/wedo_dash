@@ -108,7 +108,7 @@ function idc_back_config(?PDO $pdo = null) {
         'sign_title'=> $v['sign_title'],
         // PLACEHOLDER: low-res (236x107) with a white background; replace with a
         // transparent PNG at least 600px wide. The card blends it so white drops out.
-        'signature' => 'assets/images/sign/ogm.png',
+        'signature' => 'query/signature.php?s=ogm',   // no direct access to assets/images/sign/
         'logo'      => 'assets/images/logos/WeDo.png',
     ];
 }

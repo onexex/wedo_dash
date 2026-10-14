@@ -1,22 +1,40 @@
-<?php if (session_status() === PHP_SESSION_NONE) { session_start(); }
-if (isset($_SESSION['id']) && $_SESSION['id']!="0"){}
-  else{ header ('location: login.php'); exit; }
-?>
 <?php
-    include 'w_conn.php';
-    require_once __DIR__ . '/includes/idcard-lib.php';
-      date_default_timezone_set("Asia/Manila");
-    $coeInfo = idc_company_info();   // address + phone from Card back settings (ID Card Generator)
-?>
+/* ==========================================================================
+   coe.php  —  Reports > My Documents (COE): Certificate of Employment.
+   Everyone: request a COE (purpose, with or without salary), follow the
+   request, print it once approved. COE approvers (`coefunction`): approve or
+   reject requests and issue a COE for anyone — including people who have
+   left and can no longer sign in. Separated people get the past-tense
+   certificate ("was connected ... from ... to ..."). Each approval gets a
+   control number (COE-2026-0001) printed on the certificate.
+   Rules: includes/lifecycle-lib.php. Reads/writes: query/lifecycle-action.php.
+   ========================================================================== */
+if (session_status() === PHP_SESSION_NONE) { session_start(); }
+date_default_timezone_set("Asia/Manila");
+if (!isset($_SESSION['id']) || $_SESSION['id'] == "0") { header('location: login.php'); exit(); }
 
+include 'w_conn.php';
+require_once __DIR__ . '/includes/idcard-lib.php';
+require_once __DIR__ . '/includes/lifecycle-lib.php';
+
+try {
+    $lcypdo = new PDO("mysql:host=$servername;dbname=$db;charset=utf8mb4", $username, $password);
+    $lcypdo->setAttribute(PDO::ATTR_ERRMODE, PDO::ERRMODE_EXCEPTION);
+} catch (PDOException $e) { die("ERROR: Could not connect."); }
+
+$coeInfo  = idc_company_info();   // address + phone from Card back settings (ID Card Generator)
+$isIssuer = lcy_can_issue_coe($lcypdo);
+$boot = ['token' => lcy_csrf_token(), 'issuer' => $isIssuer, 'me' => (string) $_SESSION['id']];
+$e = function ($s) { return htmlspecialchars((string) $s, ENT_QUOTES, 'UTF-8'); };
+$v = function ($f) { return @filemtime(__DIR__ . '/' . $f) ?: 0; };
+?>
 <!DOCTYPE html>
 <html lang="en">
 <head>
-    <title><?php if ($_SESSION['CompanyName']==""){ echo "Dashboard"; } else{ echo "Certificate of Employment"; } ?></title>
+    <title><?php echo ($_SESSION['CompanyName'] ?? '') == "" ? "Dashboard" : "Certificate of Employment"; ?></title>
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
 
-    <!-- Functional libs (Bootstrap modals + existing module JS) -->
     <script src="https://ajax.googleapis.com/ajax/libs/jquery/3.4.0/jquery.min.js"></script>
     <link rel="stylesheet" href="https://maxcdn.bootstrapcdn.com/bootstrap/3.3.7/css/bootstrap.min.css">
     <script src="https://maxcdn.bootstrapcdn.com/bootstrap/3.3.7/js/bootstrap.min.js"></script>
@@ -24,54 +42,8 @@ if (isset($_SESSION['id']) && $_SESSION['id']!="0"){}
 
     <!-- WeDo design system (loaded AFTER bootstrap so it wins) -->
     <link rel="stylesheet" href="assets/css/wedo-theme.css?v=<?php echo @filemtime('assets/css/wedo-theme.css'); ?>">
-
+    <link rel="stylesheet" href="assets/css/lifecycle.css?v=<?php echo $v('assets/css/lifecycle.css'); ?>">
     <script type="text/javascript" src="assets/js/script.js"></script>
-    <script type="text/javascript" src="assets/js/coe.js"></script>
-
-    <style type="text/css">
-        /* toolbar: employee picker + print button */
-        .coe-toolbar { display:flex; gap:16px; align-items:flex-end; flex-wrap:wrap; padding:20px; }
-        .coe-toolbar .wd-field { margin-bottom:0; min-width:260px; flex:1; }
-
-        /* document preview shown as a paper sheet */
-        .coe-paperwrap { padding:24px; background:var(--surface-2); display:flex; justify-content:center; }
-        .coe-paper {
-            width:100%; max-width:820px; min-height:760px; position:relative;
-            background:#fff; border:1px solid var(--border); border-radius:var(--radius);
-            box-shadow:var(--shadow); padding:56px 60px 130px;
-            font-family:Tahoma, Geneva, sans-serif; color:#1a1a1a; line-height:1.75;
-        }
-        .coe-paper p { margin:0 0 14px; font-size:14.5px; text-align:justify; }
-        .coe-greeting { margin-bottom:26px !important; }
-
-        /* dynamic values (JS fills the .fullname/.position/... hooks) */
-        .coe-val { font-weight:700; color:var(--text); }
-        .coe-val:empty { display:inline-block; min-width:120px; border-bottom:1px dotted #aaa; }
-
-        .coe-sign { margin-top:54px; }
-        .coe-sign img { display:block; width:150px; margin-bottom:2px; }
-        .coe-sign .coe-signname { font-weight:700; }
-
-        .coe-letterhead { position:absolute; left:60px; right:60px; bottom:34px;
-            border-top:1px solid var(--border); padding-top:14px; }
-        .coe-letterhead img { width:100px; }
-        .coe-address { color:#c0392b; font-size:12.5px; margin:8px 0 0; }
-
-        /* ---- print (body-swap: coe.js replaces document.body with #forprint
-           innerHTML, so these rules MUST live in <head> to survive) ---- */
-        @media print {
-            @page { size:auto; margin:20mm; }
-            body { margin:0; padding:0; height:100%; font-family:Tahoma, sans-serif; color:#000; }
-            p { font-size:14px; text-align:justify; }
-            label { font-weight:normal !important; }
-            .coe-val { font-weight:700; }
-            .coe-val:empty { border:0; min-width:0; }
-            .coe-sign { margin-top:60px; }
-            .coe-sign img { width:150px; }
-            .coe-letterhead { position:fixed; left:0; right:0; bottom:0; border:0; }
-            .coe-address { color:#c0392b; font-size:13px; }
-        }
-    </style>
 </head>
 <body>
     <?php $wd_active = 'coe'; include 'includes/wd-header.php'; ?>
@@ -79,76 +51,143 @@ if (isset($_SESSION['id']) && $_SESSION['id']!="0"){}
     <div class="wd-pagehead">
         <div>
             <h1>Certificate of Employment</h1>
-            <p>Select an employee and print an official certificate of employment.</p>
+            <p><?php echo $isIssuer ? 'Approve COE requests, or issue one for anyone — including former employees.'
+                                    : 'Request a certificate of employment and print it once HR approves.'; ?></p>
         </div>
+<?php if ($isIssuer && lcy_ready($lcypdo)): ?>
+        <button type="button" class="wd-btn wd-btn--primary" id="coeIssueBtn"><i class="fa-solid fa-file-circle-plus"></i> Issue a COE</button>
+<?php endif; ?>
     </div>
 
+<?php if (!lcy_ready($lcypdo)): ?>
+    <section class="wd-card"><div class="lcy-empty">COE requests are not set up on this server yet — run <code>sql/2026-10-14-add-employee-lifecycle.sql</code>.</div></section>
+<?php else: ?>
+
+<?php if ($isIssuer): ?>
     <section class="wd-card">
         <div class="wd-card__head">
-            <h3>Generate certificate</h3>
-        </div>
-
-        <div class="coe-toolbar">
-            <div class="wd-field">
-                <label for="employeelist">Select employee</label>
-                <select class="wd-select" id="employeelist"></select>
+            <h3>Requests</h3>
+            <div class="lcy-tabs" id="coeTabs">
+                <button type="button" class="lcy-tab is-on" data-status="pending">Waiting <span id="coePendingN"></span></button>
+                <button type="button" class="lcy-tab" data-status="approved">Approved</button>
+                <button type="button" class="lcy-tab" data-status="rejected">Rejected</button>
+                <button type="button" class="lcy-tab" data-status="">All</button>
             </div>
-            <button class="wd-btn wd-btn--primary printthis"><i class="fa-solid fa-print"></i> Print</button>
         </div>
+        <div id="coeQueue"><div class="lcy-empty">Loading&hellip;</div></div>
+    </section>
+<?php endif; ?>
+
+    <section class="wd-card">
+        <div class="wd-card__head"><h3>Request my certificate</h3></div>
+        <form class="lcy-card-body lcy-row" id="coeRequestForm" autocomplete="off">
+            <div class="wd-field">
+                <label for="coePurpose">What is it for?</label>
+                <input type="text" class="wd-input" id="coePurpose" name="purpose" maxlength="200" list="coePurposes" required placeholder="e.g. Bank loan application">
+                <datalist id="coePurposes">
+                    <option value="Bank loan application"><option value="Visa application"><option value="Housing / Pag-IBIG loan">
+                    <option value="New employer requirement"><option value="Government requirement">
+                </datalist>
+            </div>
+            <label class="lcy-check" style="margin-bottom:12px !important"><input type="checkbox" name="salary" value="1"> Include my monthly salary</label>
+            <button type="submit" class="wd-btn wd-btn--primary"><i class="fa-solid fa-paper-plane"></i> Send request</button>
+        </form>
+        <p class="lcy-modal-error" id="coeRequestErr" style="padding:0 20px"></p>
+        <div class="wd-card__head" style="border-top:1px solid var(--border)"><h3>My requests</h3></div>
+        <div id="coeMine"><div class="lcy-empty">Loading&hellip;</div></div>
     </section>
 
-    <section class="wd-card" style="margin-top:20px">
+    <section class="wd-card lcy-hidden" id="coePreview">
         <div class="wd-card__head">
-            <h3>Preview</h3>
-            <span class="wd-pill wd-pill--info">Issued <?php echo date("M d, Y"); ?></span>
+            <h3>Certificate <span class="lcy-muted" id="coePreviewNo"></span></h3>
+            <div class="lcy-actions">
+                <button type="button" class="wd-btn wd-btn--primary" id="coePrint"><i class="fa-solid fa-print"></i> Print</button>
+                <button type="button" class="wd-btn wd-btn--ghost" id="coeClose">Close</button>
+            </div>
         </div>
-
         <div class="coe-paperwrap">
-            <!-- #forprint is the print source (coe.js body-swaps this innerHTML). All
-                 .coe-val hook classes (fullname/position/Salutation/lastname/datehired/
-                 basic/heshe/selfintro) are filled by coe.js — do not rename them. -->
             <div id="forprint" class="coe-paper">
+                <div class="coe-control" id="coeControl"></div>
                 <p class="coe-greeting">To whom it may concern;</p>
-
-                <p>
-                    This is to certify that <span class="coe-val fullname"></span>
-                    is presently connected with WeDo BPO Inc. In
-                    <span class="coe-val selfintro"></span> capacity as
-                    <span class="coe-val position"></span>
-                    <span class="coe-val Salutation"></span><span class="coe-val lastname"></span>
-                    has been connected with this company since
-                    <span class="coe-val datehired"></span>.
-                </p>
-
-                <p>
-                    <span class="coe-val Salutation"></span><span class="coe-val lastname"></span>
-                    receives a gross monthly compensation of Pesos
-                    <span class="coe-val basic"></span>, exclusive of overtime pay, bonuses and
-                    other salary-related fringe benefits, of which
-                    <span class="coe-val heshe"></span> entitled to receive.
-                </p>
-
-                <p>Should you have clarifications, please call <?php echo htmlspecialchars($coeInfo['phone']); ?> anytime during office hours.</p>
-
-                <p>This certification is issued at the request of <span class="coe-val fullname"></span> for whatever legal purpose it may serve.</p>
-
-                <p>Issued on <?php echo date("M-d-Y"); ?>, at Pasig City, Philippines.</p>
-
+                <div id="coeBody"></div>
+                <p>Should you have clarifications, please call <?php echo $e($coeInfo['phone']); ?> anytime during office hours.</p>
+                <p id="coeIssuedFor"></p>
+                <p id="coeIssuedOn"></p>
+                <p class="coe-verifynote" id="coeVerifyNote"></p>
                 <p>Thank you.</p>
-
                 <div class="coe-sign">
-                    <img src="assets/images/sign/ogm.png" alt="Signature">
+                    <img id="coeSign" alt="Signature"><?php /* src set per approved request (query/signature.php checks it) */ ?>
                     <p class="coe-signname">Jose Modesto A. Ferrer</p>
                     <p>General Manager - WeDo BPO Inc.</p>
                 </div>
-
                 <div class="coe-letterhead">
                     <img src="assets/images/logos/WeDo.png" alt="WeDo BPO Inc.">
-                    <p class="coe-address"><?php echo htmlspecialchars(implode(', ', $coeInfo['address'])); ?></p>
+                    <p class="coe-address"><?php echo $e(implode(', ', $coeInfo['address'])); ?></p>
                 </div>
             </div>
         </div>
     </section>
+
+<?php if ($isIssuer): ?>
+    <!-- issue a COE for anyone (HR) -->
+    <div class="modal fade" id="coeIssueModal" tabindex="-1">
+        <div class="modal-dialog">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <button type="button" class="close" data-dismiss="modal" aria-label="Close">&times;</button>
+                    <h4 class="modal-title">Issue a COE</h4>
+                </div>
+                <form class="modal-body" id="coeIssueForm" autocomplete="off">
+                    <input type="hidden" name="emp">
+                    <div class="wd-field lcy-search">
+                        <label for="coeIssueSearch">Employee — current or former</label>
+                        <input type="search" class="wd-input" id="coeIssueSearch" placeholder="Start typing a name&hellip;">
+                        <div class="lcy-results" id="coeIssueResults"></div>
+                    </div>
+                    <div class="wd-field">
+                        <label for="coeIssuePurpose">Purpose</label>
+                        <input type="text" class="wd-input" id="coeIssuePurpose" name="purpose" maxlength="200" list="coePurposes" required>
+                    </div>
+                    <label class="lcy-check"><input type="checkbox" name="salary" value="1"> Include monthly salary</label>
+                    <p class="lcy-muted" style="margin-top:10px">Use this for requests by phone, email or walk-in — e.g. someone who has left and can no longer sign in. It is approved at once.</p>
+                    <p class="lcy-modal-error" id="coeIssueErr"></p>
+                </form>
+                <div class="modal-footer">
+                    <button type="button" class="wd-btn wd-btn--ghost" data-dismiss="modal">Cancel</button>
+                    <button type="button" class="wd-btn wd-btn--primary" id="coeIssueSave"><i class="fa-solid fa-check"></i> Issue</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- reject with a reason -->
+    <div class="modal fade" id="coeRejectModal" tabindex="-1">
+        <div class="modal-dialog modal-sm">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <button type="button" class="close" data-dismiss="modal" aria-label="Close">&times;</button>
+                    <h4 class="modal-title">Reject request</h4>
+                </div>
+                <div class="modal-body">
+                    <div class="wd-field">
+                        <label for="coeRejectWhy">Reason (the employee sees this)</label>
+                        <textarea class="wd-textarea" id="coeRejectWhy" rows="3" maxlength="300"></textarea>
+                    </div>
+                    <p class="lcy-modal-error" id="coeRejectErr"></p>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="wd-btn wd-btn--ghost" data-dismiss="modal">Cancel</button>
+                    <button type="button" class="wd-btn wd-btn--danger" id="coeRejectSave">Reject</button>
+                </div>
+            </div>
+        </div>
+    </div>
+<?php endif; ?>
+
+    <script>window.LCY_BOOT = <?php echo json_encode($boot, JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT); ?>;</script>
+    <script src="assets/js/lifecycle-common.js?v=<?php echo $v('assets/js/lifecycle-common.js'); ?>"></script>
+    <script src="assets/js/coe.js?v=<?php echo $v('assets/js/coe.js'); ?>"></script>
+<?php endif; ?>
 
     <?php include 'includes/wd-footer.php'; ?>
 </body>

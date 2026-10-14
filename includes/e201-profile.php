@@ -141,7 +141,7 @@ $initials = strtoupper(substr(trim($res['EmpFN']), 0, 1) . substr(trim($res['Emp
 
 // Employment status → pill tone
 $status = trim((string)$res['StatusEmpDesc']);
-$statusTone = ['Employed' => 'ok', 'Resigned' => 'warn', 'Terminated' => 'danger'][$status] ?? 'info';
+$statusTone = ['Employed' => 'ok', 'Resigned' => 'warn', 'Terminated' => 'danger', 'AWOL' => 'danger'][$status] ?? 'info';
 // a stale resigned date on an active employee shouldn't cut their tenure short
 $resigned = $status !== 'Employed' ? e2date($res['EmpDateResigned']) : null;
 $tenure   = e2span($res['EmpDateHired'], $resigned ? $res['EmpDateResigned'] : null);

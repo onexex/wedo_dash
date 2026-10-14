@@ -1,0 +1,9 @@
+# Signatories' signatures: never served directly (anyone could copy them onto a
+# fake COE). Pages load them through query/signature.php, which checks rights.
+<IfModule mod_authz_core.c>
+  Require all denied
+</IfModule>
+<IfModule !mod_authz_core.c>
+  Order allow,deny
+  Deny from all
+</IfModule>

@@ -43,6 +43,9 @@ CREATE TABLE `accessrights` (
   `ur` int(11) NOT NULL DEFAULT 1,
   `srch` int(11) NOT NULL DEFAULT 1,
   `updte` int(11) NOT NULL DEFAULT 1,
+  `separation` int(11) NOT NULL DEFAULT 1,
+  `empverify` int(11) NOT NULL DEFAULT 1,
+  `applicants` int(11) NOT NULL DEFAULT 1,
   `idcard` int(11) NOT NULL DEFAULT 1,
   `gcorner` int(11) NOT NULL DEFAULT 2,
   `cddv` int(11) NOT NULL DEFAULT 1,
@@ -285,6 +288,193 @@ CREATE TABLE `checkregister` (
 /*!40101 SET character_set_client = @saved_cs_client */;
 /*!40101 SET @saved_cs_client     = @@character_set_client */;
 /*!40101 SET character_set_client = utf8 */;
+CREATE TABLE `applicant_education` (
+  `id` int(11) NOT NULL AUTO_INCREMENT,
+  `ApplicantID` int(11) NOT NULL,
+  `Program` varchar(10) NOT NULL,
+  `School` varchar(100) DEFAULT NULL,
+  `YearStarted` varchar(4) DEFAULT NULL,
+  `YearEnded` varchar(4) DEFAULT NULL,
+  `Address` varchar(100) DEFAULT NULL,
+  PRIMARY KEY (`id`),
+  KEY `ix_apl_edu` (`ApplicantID`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
+/*!40101 SET character_set_client = @saved_cs_client */;
+/*!40101 SET @saved_cs_client     = @@character_set_client */;
+/*!40101 SET character_set_client = utf8 */;
+CREATE TABLE `applicant_events` (
+  `id` int(11) NOT NULL AUTO_INCREMENT,
+  `ApplicantID` int(11) NOT NULL,
+  `FromStage` varchar(12) DEFAULT NULL,
+  `ToStage` varchar(12) NOT NULL,
+  `Notes` varchar(1000) DEFAULT NULL,
+  `ByEmpID` varchar(50) DEFAULT NULL,
+  `CreatedAt` datetime NOT NULL DEFAULT current_timestamp(),
+  PRIMARY KEY (`id`),
+  KEY `ix_apl_ev` (`ApplicantID`,`CreatedAt`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
+/*!40101 SET character_set_client = @saved_cs_client */;
+/*!40101 SET @saved_cs_client     = @@character_set_client */;
+/*!40101 SET character_set_client = utf8 */;
+CREATE TABLE `applicant_family` (
+  `id` int(11) NOT NULL AUTO_INCREMENT,
+  `ApplicantID` int(11) NOT NULL,
+  `Name` varchar(150) NOT NULL,
+  `Relationship` varchar(50) NOT NULL,
+  `Address` varchar(250) DEFAULT NULL,
+  `Contact` varchar(50) DEFAULT NULL,
+  `Emergency` tinyint(1) NOT NULL DEFAULT 0,
+  PRIMARY KEY (`id`),
+  KEY `ix_apl_fam` (`ApplicantID`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
+/*!40101 SET character_set_client = @saved_cs_client */;
+/*!40101 SET @saved_cs_client     = @@character_set_client */;
+/*!40101 SET character_set_client = utf8 */;
+CREATE TABLE `applicants` (
+  `id` int(11) NOT NULL AUTO_INCREMENT,
+  `OpeningID` int(11) DEFAULT NULL,
+  `FirstName` varchar(80) NOT NULL,
+  `MiddleName` varchar(80) DEFAULT NULL,
+  `LastName` varchar(80) NOT NULL,
+  `Suffix` varchar(10) DEFAULT NULL,
+  `BirthDate` date NOT NULL,
+  `Gender` varchar(6) NOT NULL,
+  `CivilStatus` varchar(10) NOT NULL,
+  `Citizenship` varchar(60) DEFAULT NULL,
+  `Religion` varchar(60) DEFAULT NULL,
+  `Email` varchar(150) NOT NULL,
+  `Mobile` varchar(30) NOT NULL,
+  `HomePhone` varchar(30) DEFAULT NULL,
+  `Street` varchar(150) NOT NULL,
+  `Barangay` varchar(100) NOT NULL,
+  `City` varchar(100) NOT NULL,
+  `Province` varchar(100) NOT NULL,
+  `Zip` varchar(10) DEFAULT NULL,
+  `Country` varchar(60) NOT NULL DEFAULT 'Philippines',
+  `SSS` varchar(30) DEFAULT NULL,
+  `TIN` varchar(30) DEFAULT NULL,
+  `PhilHealth` varchar(30) DEFAULT NULL,
+  `PagIbig` varchar(30) DEFAULT NULL,
+  `UMID` varchar(30) DEFAULT NULL,
+  `PassportNo` varchar(30) DEFAULT NULL,
+  `PassportExpiry` date DEFAULT NULL,
+  `PassportIssuer` varchar(80) DEFAULT NULL,
+  `PrevCompany` varchar(150) DEFAULT NULL,
+  `PrevStart` date DEFAULT NULL,
+  `PrevDept` varchar(100) DEFAULT NULL,
+  `PrevPosition` varchar(100) DEFAULT NULL,
+  `Source` varchar(80) DEFAULT NULL,
+  `ResumeKey` varchar(80) DEFAULT NULL,
+  `ResumeName` varchar(120) DEFAULT NULL,
+  `Stage` varchar(12) NOT NULL DEFAULT 'new',
+  `StageAt` datetime NOT NULL DEFAULT current_timestamp(),
+  `ConsentAt` datetime NOT NULL,
+  `IP` varchar(45) DEFAULT NULL,
+  `CreatedAt` datetime NOT NULL DEFAULT current_timestamp(),
+  `EmpID` varchar(50) DEFAULT NULL,
+  `HiredAt` datetime DEFAULT NULL,
+  PRIMARY KEY (`id`),
+  KEY `ix_apl_stage` (`Stage`,`CreatedAt`),
+  KEY `ix_apl_opening` (`OpeningID`),
+  KEY `ix_apl_email` (`Email`),
+  KEY `ix_apl_ip` (`IP`,`CreatedAt`),
+  KEY `ix_apl_name` (`LastName`,`FirstName`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
+/*!40101 SET character_set_client = @saved_cs_client */;
+/*!40101 SET @saved_cs_client     = @@character_set_client */;
+/*!40101 SET character_set_client = utf8 */;
+CREATE TABLE `job_openings` (
+  `id` int(11) NOT NULL AUTO_INCREMENT,
+  `Title` varchar(120) NOT NULL,
+  `Location` varchar(120) DEFAULT NULL,
+  `Description` varchar(2000) DEFAULT NULL,
+  `IsOpen` tinyint(1) NOT NULL DEFAULT 1,
+  `CreatedBy` varchar(50) DEFAULT NULL,
+  `CreatedAt` datetime NOT NULL DEFAULT current_timestamp(),
+  `UpdatedAt` datetime NOT NULL DEFAULT current_timestamp() ON UPDATE current_timestamp(),
+  PRIMARY KEY (`id`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
+/*!40101 SET character_set_client = @saved_cs_client */;
+/*!40101 SET @saved_cs_client     = @@character_set_client */;
+/*!40101 SET character_set_client = utf8 */;
+CREATE TABLE `coe_requests` (
+  `id` int(11) NOT NULL AUTO_INCREMENT,
+  `EmpID` varchar(50) NOT NULL,
+  `Purpose` varchar(200) NOT NULL,
+  `IncludeSalary` tinyint(1) NOT NULL DEFAULT 0,
+  `Channel` varchar(6) NOT NULL DEFAULT 'self',
+  `Status` varchar(10) NOT NULL DEFAULT 'pending',
+  `RequestedBy` varchar(50) NOT NULL,
+  `RequestedAt` datetime NOT NULL DEFAULT current_timestamp(),
+  `ProcessedBy` varchar(50) DEFAULT NULL,
+  `ProcessedAt` datetime DEFAULT NULL,
+  `Remarks` varchar(300) DEFAULT NULL,
+  `ControlNo` varchar(20) DEFAULT NULL,
+  `PrintedAt` datetime DEFAULT NULL,
+  PRIMARY KEY (`id`),
+  UNIQUE KEY `ux_coe_control` (`ControlNo`),
+  KEY `ix_coe_emp` (`EmpID`,`RequestedAt`),
+  KEY `ix_coe_status` (`Status`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
+/*!40101 SET character_set_client = @saved_cs_client */;
+/*!40101 SET @saved_cs_client     = @@character_set_client */;
+/*!40101 SET character_set_client = utf8 */;
+CREATE TABLE `emp_lifecycle_events` (
+  `id` int(11) NOT NULL AUTO_INCREMENT,
+  `EmpID` varchar(50) NOT NULL,
+  `EventType` varchar(20) NOT NULL,
+  `FromVal` varchar(100) DEFAULT NULL,
+  `ToVal` varchar(100) DEFAULT NULL,
+  `EffectiveDate` date DEFAULT NULL,
+  `Notes` varchar(500) DEFAULT NULL,
+  `ByEmpID` varchar(50) DEFAULT NULL,
+  `CreatedAt` datetime NOT NULL DEFAULT current_timestamp(),
+  PRIMARY KEY (`id`),
+  KEY `ix_lcy_events_emp` (`EmpID`,`CreatedAt`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
+/*!40101 SET character_set_client = @saved_cs_client */;
+/*!40101 SET @saved_cs_client     = @@character_set_client */;
+/*!40101 SET character_set_client = utf8 */;
+CREATE TABLE `emp_separations` (
+  `id` int(11) NOT NULL AUTO_INCREMENT,
+  `EmpID` varchar(50) NOT NULL,
+  `Type` varchar(12) NOT NULL,
+  `LastDay` date NOT NULL,
+  `Reason` varchar(500) DEFAULT NULL,
+  `RehireEligible` varchar(8) NOT NULL DEFAULT 'review',
+  `RehireNote` varchar(500) DEFAULT NULL,
+  `ClearanceDone` tinyint(1) NOT NULL DEFAULT 0,
+  `RecordedBy` varchar(50) DEFAULT NULL,
+  `RecordedAt` datetime NOT NULL DEFAULT current_timestamp(),
+  `UpdatedAt` datetime NOT NULL DEFAULT current_timestamp() ON UPDATE current_timestamp(),
+  PRIMARY KEY (`id`),
+  KEY `ix_lcy_sep_emp` (`EmpID`,`LastDay`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
+/*!40101 SET character_set_client = @saved_cs_client */;
+/*!40101 SET @saved_cs_client     = @@character_set_client */;
+/*!40101 SET character_set_client = utf8 */;
+CREATE TABLE `employment_verifications` (
+  `id` int(11) NOT NULL AUTO_INCREMENT,
+  `EmpID` varchar(50) DEFAULT NULL,
+  `AmsID` int(11) DEFAULT NULL,
+  `SubjectName` varchar(150) NOT NULL,
+  `CallerName` varchar(120) NOT NULL,
+  `CallerCompany` varchar(150) NOT NULL,
+  `CallerContact` varchar(120) DEFAULT NULL,
+  `Purpose` varchar(12) NOT NULL,
+  `ConsentConfirmed` tinyint(1) NOT NULL DEFAULT 0,
+  `Disclosed` varchar(200) DEFAULT NULL,
+  `Notes` varchar(500) DEFAULT NULL,
+  `HandledBy` varchar(50) NOT NULL,
+  `CalledAt` datetime NOT NULL DEFAULT current_timestamp(),
+  PRIMARY KEY (`id`),
+  KEY `ix_ver_emp` (`EmpID`),
+  KEY `ix_ver_ams` (`AmsID`),
+  KEY `ix_ver_called` (`CalledAt`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
+/*!40101 SET character_set_client = @saved_cs_client */;
+/*!40101 SET @saved_cs_client     = @@character_set_client */;
+/*!40101 SET character_set_client = utf8 */;
 CREATE TABLE `companies` (
   `CSID` int(11) NOT NULL AUTO_INCREMENT,
   `CompanyID` varchar(10) NOT NULL,
@@ -445,6 +635,7 @@ CREATE TABLE `empdetails` (
   `HMO_ID` varchar(200) DEFAULT NULL,
   `remember_hash` varchar(255) DEFAULT NULL,
   `remember_expiry` datetime DEFAULT NULL,
+  `must_change_pw` tinyint(1) NOT NULL DEFAULT 0,
   PRIMARY KEY (`Seq_ID`),
   UNIQUE KEY `ix_empdetails_empid` (`EmpID`),
   KEY `Seq_ID` (`Seq_ID`),

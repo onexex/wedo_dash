@@ -3,8 +3,8 @@
    account-gate.php  —  resigned / terminated employees can't use WeDo.
 
    The rule is the employee status (employees.EmpStatusID, Maintenance >
-   Employee Status, table estatus): Resigned (2) and Terminated (4) are
-   blocked. The resignation DATE is not used — active staff have one too.
+   Employee Status, table estatus): Resigned (2), Terminated (4) and AWOL (5,
+   sql/2026-10-14-add-employee-lifecycle.sql) are blocked. The resignation DATE is not used — active staff have one too.
    Accounts without an employees row (system accounts) are never blocked.
 
    Exception: the access right `aftersep` — "Sign in after resignation /
@@ -26,7 +26,7 @@
        device out at once and stops push notifications (wd_account_revoke)
    ========================================================================== */
 
-const WD_BLOCKED_STATUSES = [2, 4];   // estatus.ID: Resigned, Terminated
+const WD_BLOCKED_STATUSES = [2, 4, 5];   // estatus.ID: Resigned, Terminated, AWOL
 const WD_GATE_EVERY       = 60;       // seconds between re-checks of a signed-in session
 
 function wd_status_blocked($statusId): bool
@@ -107,9 +107,66 @@ function wd_gate_signed_out(?PDO $pdo = null): bool
 /** Pages: a blocked account goes to the sign-in page ("This account is no longer active"). */
 function wd_account_gate(?PDO $pdo = null): void
 {
-    if (!wd_gate_signed_out($pdo)) { return; }
-    if (!headers_sent()) { header('Location: login.php?inactive=1'); }
-    else { echo '<script>location.replace("login.php?inactive=1")</script>'; }
+    if (wd_gate_signed_out($pdo)) {
+        if (!headers_sent()) { header('Location: login.php?inactive=1'); }
+        else { echo '<script>location.replace("login.php?inactive=1")</script>'; }
+        exit;
+    }
+    wd_password_gate($pdo);
+}
+
+/* --------------------------------------------------------------------------
+   Temporary / default passwords (sql/2026-10-14-add-force-password-change.sql):
+   empdetails.must_change_pw = 1 after Applicants > Hire, Enroll Employee or an
+   admin password reset. Until the person sets their own password, every page
+   sends them to change-password.php. Cleared by any password change.
+   -------------------------------------------------------------------------- */
+
+/** A one-time temporary password for HR to hand over (no look-alike characters). */
+function wd_temp_password(): string
+{
+    $chars = 'abcdefghjkmnpqrstuvwxyzABCDEFGHJKLMNPQRSTUVWXYZ23456789';
+    $p = '';
+    for ($i = 0; $i < 10; $i++) { $p .= $chars[random_int(0, strlen($chars) - 1)]; }
+    return $p . random_int(10, 99);
+}
+
+/** Must this account replace its password first? False when the column isn't there yet. */
+function wd_must_change_password(PDO $pdo, $empId): bool
+{
+    try {
+        $st = $pdo->prepare("SELECT must_change_pw FROM empdetails WHERE EmpID = :id");
+        $st->execute([':id' => (string) $empId]);
+        return (int) $st->fetchColumn() === 1;
+    } catch (Throwable $e) {
+        return false;
+    }
+}
+
+/** Flag (or clear) a forced password change. Silent before the migration has run. */
+function wd_set_must_change_password(PDO $pdo, $empId, bool $on): void
+{
+    try {
+        $pdo->prepare("UPDATE empdetails SET must_change_pw = :f WHERE EmpID = :id")->execute([':f' => $on ? 1 : 0, ':id' => (string) $empId]);
+    } catch (Throwable $e) { /* column not on this server yet */ }
+}
+
+/** Pages: a temporary password goes to change-password.php first (checked until it is changed). */
+function wd_password_gate(?PDO $pdo = null): void
+{
+    if (empty($_SESSION['id']) || $_SESSION['id'] == "0" || !empty($_SESSION['wd_pw_ok'])) { return; }
+    try {
+        if (!$pdo) {
+            $pdo = new PDO("mysql:host={$GLOBALS['servername']};dbname={$GLOBALS['db']}", $GLOBALS['username'], $GLOBALS['password']);
+            $pdo->setAttribute(PDO::ATTR_ERRMODE, PDO::ERRMODE_EXCEPTION);
+        }
+        $must = wd_must_change_password($pdo, $_SESSION['id']);
+    } catch (Throwable $e) {
+        return;
+    }
+    if (!$must) { $_SESSION['wd_pw_ok'] = 1; return; }
+    if (!headers_sent()) { header('Location: change-password.php'); }
+    else { echo '<script>location.replace("change-password.php")</script>'; }
     exit;
 }
 

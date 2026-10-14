@@ -1,0 +1,62 @@
+/* ==========================================================================
+   applicants.css  —  the public Apply page (apply.php) and Management >
+   Applicants (applicants.php). Builds on wedo-theme.css + lifecycle.css.
+   ========================================================================== */
+
+/* ---- public page ---- */
+body.apl-public { background: var(--bg); min-height: 100vh; }
+.apl-wrap { max-width: 920px; margin: 0 auto; padding: 0 16px; }
+.apl-hero { background: var(--navy); color: #fff; padding: 34px 0 70px; text-align: center; }
+.apl-hero h1 { color: #fff; font-size: 28px; margin: 14px 0 6px; }
+.apl-hero p { color: rgba(255, 255, 255, .72); margin: 0 auto; max-width: 560px; font-size: 14px; }
+.apl-logo { height: 52px; width: auto; }
+.apl-main { margin-top: -44px; padding-bottom: 40px; }
+.apl-openings { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius-lg);
+  box-shadow: var(--shadow-sm); padding: 18px 20px; margin-bottom: 20px; }
+.apl-openings h2 { font-size: 17px; margin-bottom: 12px; }
+.apl-jobgrid { display: grid; grid-template-columns: repeat(auto-fill, minmax(240px, 1fr)); gap: 14px; }
+.apl-job { border: 1px solid var(--border); border-radius: var(--radius); padding: 14px; display: flex; flex-direction: column; gap: 6px; }
+.apl-job h3 { font-size: 15px; }
+.apl-job__loc { margin: 0; color: var(--text-2); font-size: 12.5px; }
+.apl-job__desc { margin: 0 0 6px; color: var(--text-2); font-size: 13px; flex: 1; }
+.apl-job .wd-btn { align-self: flex-start; }
+.apl-form { padding: 18px 20px 22px; }
+.apl-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 0 16px; }
+.apl-span2 { grid-column: span 2; }
+@media (max-width: 640px) { .apl-grid { grid-template-columns: minmax(0, 1fr); } .apl-span2 { grid-column: auto; } }
+.apl-sec { font-size: 14px; color: var(--brand); margin: 22px 0 10px; padding-top: 14px; border-top: 1px solid var(--border); }
+.apl-sec:first-of-type { border-top: 0; padding-top: 0; margin-top: 4px; }
+.apl-edu__row { display: grid; grid-template-columns: 130px minmax(0, 2fr) 90px 90px minmax(0, 2fr); gap: 0 12px; align-items: end; }
+.apl-edu__row > b { padding-bottom: 26px; font-size: 13px; color: var(--text-2); }
+@media (max-width: 760px) { .apl-edu__row { grid-template-columns: 1fr 1fr; } .apl-edu__row > b { grid-column: span 2; padding: 6px 0; } }
+.apl-fam { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 0 12px; padding: 12px 12px 4px; margin-bottom: 10px;
+  border: 1px solid var(--border); border-radius: var(--radius); }
+.apl-fam .apl-span2 { grid-column: span 2; }
+.apl-ice { align-self: center; font-size: 13px; }
+@media (max-width: 640px) { .apl-fam { grid-template-columns: minmax(0, 1fr); } .apl-fam .apl-span2 { grid-column: auto; } }
+.apl-consent { margin-top: 18px !important; }
+.apl-consent { background: var(--surface-2); border-radius: var(--radius); padding: 12px 14px; margin: 4px 0 10px; font-size: 13px; }
+.apl-consent .lcy-check { align-items: flex-start; line-height: 1.5; }
+.apl-consent input { margin-top: 3px; flex: none; }
+.apl-submit { width: 100%; justify-content: center; padding: 13px; }
+.apl-hp { position: absolute; left: -10000px; width: 1px; height: 1px; overflow: hidden; }
+.apl-form .is-invalid { border-color: var(--danger-text); }
+.apl-done { padding: 40px 20px; text-align: center; }
+.apl-done i { font-size: 42px; color: var(--ok-text); }
+.apl-done h3 { margin: 10px 0 6px; }
+.apl-foot { text-align: center; color: var(--text-3); font-size: 13px; margin-top: 18px; }
+
+/* ---- HR page ---- */
+.apl-filters { display: flex; gap: 12px; flex-wrap: wrap; align-items: flex-end; padding: 14px 20px; border-bottom: 1px solid var(--border); }
+.apl-filters .wd-field { margin: 0; min-width: 180px; }
+.apl-chips { display: flex; gap: 6px; flex-wrap: wrap; padding: 12px 20px 0; }
+.apl-row { cursor: pointer; }
+.apl-row.is-on td { background: var(--brand-tint); }
+.apl-share { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; font-size: 13px; }
+.apl-share code { background: var(--surface-2); padding: 4px 8px; border-radius: 6px; font-size: 12.5px; word-break: break-all; }
+.apl-match { border: 1px solid var(--border); border-radius: var(--radius); padding: 10px 12px; margin-top: 8px; font-size: 13px; }
+.apl-match.is-no { border-color: var(--danger-text); background: var(--danger-bg); }
+.apl-match.is-review { border-color: var(--warn-text); background: var(--warn-bg); }
+.apl-secret { background: var(--ok-bg); color: var(--ok-text); border-radius: var(--radius); padding: 14px 16px; margin-top: 12px; }
+.apl-secret code { font-size: 15px; background: #fff; padding: 3px 8px; border-radius: 6px; user-select: all; }
+.apl-dl h5 { font-size: 12px; text-transform: uppercase; letter-spacing: .05em; color: var(--text-3); margin: 18px 0 6px; }

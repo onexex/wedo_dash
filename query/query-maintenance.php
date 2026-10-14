@@ -747,25 +747,21 @@
    		
    		}
 
-   		if (isset($_GET['citizenship'])){
-   			    	include 'w_conn.php';
-   			 		$sql2=mysqli_query($con, "select DISTINCT EmpCitezen from empprofiles WHERE EmpCitezen like '" . $_REQUEST['data'] . "%'");
-                            while ($res1=mysqli_fetch_array($sql2)) {
-                        ?>
-                         <a class="ctzn-a"><?php echo $res1['EmpCitezen']; ?></a>
-                        <?php
-                            }
-   		}
-
-
-   		if (isset($_GET['religion'])){
-   			    	include 'w_conn.php';
-   			 		$sql2=mysqli_query($con, "select DISTINCT EmpReligion from empprofiles WHERE EmpReligion like '" . $_REQUEST['data'] . "%'");
-                            while ($res1=mysqli_fetch_array($sql2)) {
-                        ?>
-                         <a class="rel-a"><?php echo $res1['EmpReligion']; ?></a>
-                        <?php
-                            }
+   		/* Citizenship / religion suggestions (Enroll + Update Employee). The typed
+   		   text is a bound parameter (it used to be pasted into the SQL), and the
+   		   stored values are escaped: they can come from the public applicant form
+   		   (Applicants > Hire copies them into empprofiles). The JS reads .text(). */
+   		foreach (['citizenship' => ['EmpCitezen', 'ctzn-a'], 'religion' => ['EmpReligion', 'rel-a']] as $__key => [$__col, $__cls]) {
+   			if (!isset($_GET[$__key])) { continue; }
+   			include 'w_conn.php';
+   			$__like = addcslashes((string) ($_REQUEST['data'] ?? ''), '%_\\') . '%';
+   			$__st = mysqli_prepare($con, "SELECT DISTINCT $__col FROM empprofiles WHERE $__col LIKE ? ORDER BY $__col LIMIT 20");
+   			mysqli_stmt_bind_param($__st, 's', $__like);
+   			mysqli_stmt_execute($__st);
+   			mysqli_stmt_bind_result($__st, $__val);
+   			while (mysqli_stmt_fetch($__st)) {
+   				echo '<a class="' . $__cls . '">' . htmlspecialchars((string) $__val, ENT_QUOTES, 'UTF-8') . '</a>';
+   			}
    		}
    		if (isset($_GET['newempPosition'])){
    				include 'w_conn.php';

@@ -299,20 +299,20 @@ if (session_status() === PHP_SESSION_NONE) { session_start(); }
           <br>
           Thank you. <br> <br>
           Truly yours,<br>  <br>
-          <img src="assets/images/sign/ogm.png" style="width:150px"  valign="middle" vspace="5" hspace="5"/> <br>
+          <img src="query/signature.php?s=ogm" style="width:150px"  valign="middle" vspace="5" hspace="5"/> <br>
           <strong>JOMOD A. FERRER</strong> <br>
           General Manager – WeDo Metro Philippines Corp. <br> <br> <br>
           Noted by: <br> <br>
                   <div class="std">
                     <div class="col-lg-3 sig1">
                       <br>
-                    <img src="assets/images/sign/elt.png" style="width:150px"  valign="middle" vspace="6" hspace="6"/> <br>
+                    <img src="query/signature.php?s=elt" style="width:150px"  valign="middle" vspace="6" hspace="6"/> <br>
                     <strong> EMELITA L. TADIQUE	</strong> <br>
                     <p>Signatory</p>
                     </div>
 
                     <div class="col-lg-3 sig2">
-                    <img src="assets/images/sign/kll.png" style="width:150px"  valign="middle" vspace="6" hspace="6"/> <br>
+                    <img src="query/signature.php?s=kll" style="width:150px"  valign="middle" vspace="6" hspace="6"/> <br>
                     <strong>MARK REOLESTER L. LEDESMA</strong>
                     <p>Signatory</p>
                     </div>

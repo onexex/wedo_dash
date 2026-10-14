@@ -1,0 +1,106 @@
+/* ==========================================================================
+   lifecycle.css  —  Separation & Lifecycle (separation.php), Certificate of
+   Employment (coe.php) and Employment Verification (verify.php).
+   Builds on wedo-theme.css tokens.
+   ========================================================================== */
+
+.lcy-card-body { padding: 18px 20px; }
+.lcy-row { display: flex; gap: 16px; flex-wrap: wrap; align-items: flex-end; }
+.lcy-row > .wd-field { flex: 1; min-width: 200px; margin-bottom: 0; }
+.lcy-muted { color: var(--text-3); font-size: 12.5px; }
+.lcy-empty { padding: 26px 20px; text-align: center; color: var(--text-3); font-size: 13px; }
+.lcy-hidden { display: none !important; }
+.lcy-grid2 { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 20px; }
+@media (max-width: 900px) { .lcy-grid2 { grid-template-columns: minmax(0, 1fr); } }
+.lcy-actions { display: flex; gap: 8px; flex-wrap: wrap; }
+.wd-card.lcy-visible { overflow: visible; }   /* lets the search dropdown hang out of the card */
+.lcy-table td { white-space: normal; vertical-align: top; }
+
+/* ---- employee search with dropdown ---- */
+.lcy-search { position: relative; max-width: 520px; }
+.lcy-results { position: absolute; left: 0; right: 0; top: 100%; z-index: 30; margin-top: 6px;
+  background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius);
+  box-shadow: var(--shadow); max-height: 320px; overflow: auto; }
+.lcy-results:empty { display: none; }
+.lcy-results button { display: flex; width: 100%; justify-content: space-between; gap: 12px; align-items: center;
+  text-align: left; padding: 10px 14px; border: 0; border-bottom: 1px solid var(--border); background: none;
+  color: var(--text); font-size: 13px; cursor: pointer; }
+.lcy-results button:last-child { border-bottom: 0; }
+.lcy-results button:hover, .lcy-results button:focus { background: var(--surface-2); outline: none; }
+.lcy-results small { color: var(--text-3); }
+
+/* ---- person header ---- */
+.lcy-person { display: flex; justify-content: space-between; align-items: flex-start; gap: 16px; flex-wrap: wrap;
+  padding: 18px 20px; border-bottom: 1px solid var(--border); }
+.lcy-person h2 { font-size: 19px; margin: 0 0 4px; }
+.lcy-person .lcy-meta { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; color: var(--text-2); font-size: 13px; }
+
+/* ---- timeline ---- */
+.lcy-timeline { list-style: none; margin: 0; padding: 18px 20px 6px 20px; }
+.lcy-timeline li { position: relative; padding: 0 0 18px 26px; }
+.lcy-timeline li::before { content: ""; position: absolute; left: 6px; top: 6px; bottom: -6px; width: 2px; background: var(--border); }
+.lcy-timeline li:last-child::before { display: none; }
+.lcy-timeline li::after { content: ""; position: absolute; left: 0; top: 3px; width: 14px; height: 14px; border-radius: 50%;
+  background: var(--surface); border: 3px solid var(--info-text); }
+.lcy-timeline li.is-hired::after { border-color: var(--ok-text); }
+.lcy-timeline li.is-separated::after { border-color: var(--danger-text); }
+.lcy-timeline li.is-coe::after { border-color: var(--brand); }
+.lcy-timeline .t-date { font-size: 11.5px; color: var(--text-3); font-weight: 600; text-transform: uppercase; letter-spacing: .03em; }
+.lcy-timeline .t-what { font-size: 13.5px; color: var(--text); font-weight: 600; margin: 2px 0; }
+.lcy-timeline .t-note { font-size: 12.5px; color: var(--text-2); }
+
+/* ---- separation / lookup cards ---- */
+.lcy-item { padding: 14px 20px; border-top: 1px solid var(--border); }
+.lcy-item:first-child { border-top: 0; }
+.lcy-item__head { display: flex; justify-content: space-between; gap: 10px; align-items: center; flex-wrap: wrap; }
+.lcy-facts { display: grid; grid-template-columns: repeat(auto-fit, minmax(160px, 1fr)); gap: 8px 18px; margin: 10px 0 0; }
+.lcy-facts dt { font-size: 11px; text-transform: uppercase; letter-spacing: .04em; color: var(--text-3); font-weight: 700; }
+.lcy-facts dd { margin: 2px 0 0; font-size: 13px; color: var(--text); word-break: break-word; }
+.lcy-calls { margin: 10px 0 0; padding: 10px 12px; background: var(--surface-2); border-radius: var(--radius); font-size: 12.5px; }
+.lcy-calls li { margin: 0 0 4px; }
+.lcy-calls ul { margin: 6px 0 0; padding-left: 18px; }
+.lcy-note { background: var(--warn-bg); color: var(--warn-text); border-radius: var(--radius); padding: 10px 14px;
+  font-size: 12.5px; margin: 0 0 14px; }
+
+/* ---- modal form bits ---- */
+.lcy-radios { display: flex; gap: 14px; flex-wrap: wrap; }
+.lcy-radios label, .lcy-check { display: inline-flex !important; align-items: center; gap: 6px; font-weight: 500 !important;
+  color: var(--text) !important; cursor: pointer; margin: 0 !important; }
+.lcy-checks { display: grid; grid-template-columns: repeat(auto-fit, minmax(170px, 1fr)); gap: 6px 14px; }
+.lcy-modal-error { color: var(--danger-text); font-size: 13px; margin: 4px 0 0; min-height: 18px; }
+
+/* ---- COE tabs ---- */
+.lcy-tabs { display: flex; gap: 6px; flex-wrap: wrap; }
+.lcy-tab { border: 1px solid var(--border-2); background: var(--surface); color: var(--text-2); border-radius: var(--radius-pill);
+  padding: 5px 13px; font-size: 12.5px; font-weight: 600; cursor: pointer; }
+.lcy-tab.is-on { background: var(--brand); border-color: var(--brand); color: #fff; }
+
+/* ---- the certificate (coe.php) ---- */
+.coe-paperwrap { padding: 24px; background: var(--surface-2); display: flex; justify-content: center; }
+.coe-paper { width: 100%; max-width: 820px; min-height: 760px; position: relative; background: #fff;
+  border: 1px solid var(--border); border-radius: var(--radius); box-shadow: var(--shadow);
+  padding: 56px 60px 130px; font-family: Tahoma, Geneva, sans-serif; color: #1a1a1a; line-height: 1.75; }
+.coe-paper p { margin: 0 0 14px; font-size: 14.5px; text-align: justify; }
+.coe-control { position: absolute; right: 60px; top: 24px; font-size: 11.5px; color: #555; }
+.coe-greeting { margin-bottom: 26px !important; }
+.coe-val { font-weight: 700; }
+.coe-verifynote { font-size: 11.5px !important; color: #666; margin-top: -6px !important; }
+.coe-sign { margin-top: 54px; }
+.coe-sign img { display: block; width: 150px; margin-bottom: 2px; }
+.coe-sign .coe-signname { font-weight: 700; margin: 0; }
+.coe-letterhead { position: absolute; left: 60px; right: 60px; bottom: 34px; border-top: 1px solid var(--border); padding-top: 14px; }
+.coe-letterhead img { width: 100px; }
+.coe-address { color: #c0392b; font-size: 12.5px; margin: 8px 0 0; }
+
+/* print only the certificate: everything else is hidden, the sheet is pinned to the page */
+@media print {
+  @page { size: auto; margin: 20mm; }
+  body * { visibility: hidden !important; }
+  #forprint, #forprint * { visibility: visible !important; }
+  #forprint { position: fixed; left: 0; top: 0; width: 100%; max-width: none; min-height: 0; height: 100%;
+    margin: 0; padding: 0; border: 0; box-shadow: none; border-radius: 0; }
+  .coe-control { right: 0; top: 0; }
+  .coe-paper p { font-size: 14px; }
+  .coe-letterhead { position: fixed; left: 0; right: 0; bottom: 0; border: 0; }
+  .coe-address { font-size: 13px; }
+}

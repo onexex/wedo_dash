@@ -6,13 +6,26 @@ $(document).ready(function(){
                                   url:'query/query-resetpassword.php', 
                                   data:{data : empidd},
                                   type:'POST',
-                                                                       
-                                   success:function(data){
+                                  dataType:'json',
+                                   success:function(res){
                                         $('#modalWarning').modal('toggle');
                              $('.mdlsc').modal('toggle');
-                                        $('#modalWarning .alert').html("Succesfully Updated !"); 
+                                        var $a = $('#modalWarning .alert').empty();
+                                        if (res && res.status === 'ok') {
+                                            // one-time password: shown once, as text; the employee must change it at sign-in
+                                            $a.append($('<div>').text('Password reset. Temporary password:'))
+                                              .append($('<b style="font-size:16px;user-select:all">').text(res.password))
+                                              .append($('<div style="margin-top:6px;font-size:12px">').text('Give it to the employee privately. They will be asked to set their own password when they sign in.'));
+                                        } else {
+                                            $a.text((res && res.msg) || 'The password was not reset.');
+                                        }
+                                  },
+                                  error:function(xhr){
+                                        $('.mdlsc').modal('toggle');
+                                        $('#modalWarning').modal('toggle');
+                                        var r = xhr.responseJSON;
+                                        $('#modalWarning .alert').text((r && r.msg) || 'The password was not reset.');
                                   }
-                                    
                             });
            });
 
