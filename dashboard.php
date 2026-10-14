@@ -260,9 +260,10 @@ try {
          Only employees actually SCHEDULED to work on the day are counted/displayed
          (rostered non-rest weekday within their work-schedule effectivity, excluding
          holidays). The schedule is the validation, so a person on a rest day or with
-         no schedule is never shown as "not clocked in". Not active-filtered: a live
-         schedule effectivity already implies a current employee (and dodges the local
-         seed's resigned-flag collapse). Same accounting as includes/loginabsencegate.php. */
+         no schedule is never shown as "not clocked in". Also active-filtered
+         (e.EmpStatusID=1): schedule effectivities keep rolling forward after someone
+         resigns/is terminated, so without it ex-employees show as "No time-in".
+         Same accounting as includes/loginabsencegate.php. */
       $attScope = ($scope==='team') ? "d.EmpISID = :uid" : "1=1";
 
       // effective date: today if anyone in scope clocked in today, else latest attendance day
@@ -287,7 +288,7 @@ try {
                     LEFT JOIN positions p ON e.PosID=p.PSID
                     LEFT JOIN departments dp ON p.DepartmentID=dp.DepartmentID
                     LEFT JOIN holidays h ON h.Hdate=:ad3 AND h.HCompID=d.EmpCompID
-                    WHERE h.SID IS NULL AND d.EmpRoleID <> 1 AND COALESCE(p.PositionDesc,'') NOT LIKE '%Manager%' AND $attScope", [':ad1'=>$attnDate, ':ad2'=>$attnDate, ':ad3'=>$attnDate]);
+                    WHERE h.SID IS NULL AND e.EmpStatusID = 1 AND d.EmpRoleID <> 1 AND COALESCE(p.PositionDesc,'') NOT LIKE '%Manager%' AND $attScope", [':ad1'=>$attnDate, ':ad2'=>$attnDate, ':ad3'=>$attnDate]);
           while ($r = $ss->fetch(PDO::FETCH_ASSOC)) { $scheduledEmp[$r['EmpID']] = $r; }
       } catch (Exception $e) {}
       $scheduledCount = count($scheduledEmp);
