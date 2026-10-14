@@ -182,6 +182,52 @@
 .e2-ids__val{font-size:13.5px;font-weight:700;color:var(--text);font-variant-numeric:tabular-nums;
   letter-spacing:.02em;text-align:right;word-break:break-all}
 
+/* work schedule — one panel per week, paged by script-e201.js */
+.e2-sched__nav{display:flex;align-items:center;gap:4px}
+.e2-sched__btn,.e2-sched__reset{height:28px;border:1px solid var(--border-2);background:var(--surface);color:var(--text-2);
+  border-radius:8px;font-family:inherit;font-size:11.5px;font-weight:700;cursor:pointer;
+  transition:background .15s ease,color .15s ease,opacity .15s ease}
+.e2-sched__btn{width:28px;padding:0;display:inline-flex;align-items:center;justify-content:center;font-size:10.5px}
+.e2-sched__reset{padding:0 10px}
+.e2-sched__btn:hover:not(:disabled),.e2-sched__reset:hover:not(:disabled){background:var(--surface-2);color:var(--text)}
+.e2-sched__btn:disabled,.e2-sched__reset:disabled{opacity:.4;cursor:default}
+.e2-sched__btn:focus,.e2-sched__reset:focus{outline:none}
+.e2-sched__btn:focus-visible,.e2-sched__reset:focus-visible{outline:2px solid var(--brand);outline-offset:2px}
+.e2-sched__week[hidden]{display:none}
+.e2-sched__meta{display:flex;align-items:center;justify-content:space-between;gap:10px;padding:12px 20px 6px}
+.e2-sched__meta > div{display:flex;flex-direction:column;min-width:0}
+.e2-sched__meta strong{font-size:13px;font-weight:700;color:var(--text)}
+.e2-sched__meta span{font-size:12px;color:var(--text-2)}
+.e2-sched__meta .e2-count{white-space:nowrap}
+.e2-sched__days{padding:4px 12px 6px}
+.e2-sched__day{position:relative;display:grid;grid-template-columns:44px minmax(0,1fr) auto;align-items:center;gap:12px;
+  padding:7px 8px;border-radius:10px}
+.e2-sched__day + .e2-sched__day{margin-top:2px}
+.e2-sched__date{display:flex;flex-direction:column;align-items:center;justify-content:center;height:44px;border-radius:10px;
+  background:var(--surface-2);line-height:1.1}
+.e2-sched__date b{font-size:10.5px;font-weight:700;letter-spacing:.06em;text-transform:uppercase;color:var(--text-3)}
+.e2-sched__date small{font-family:var(--font-head);font-size:17px;font-weight:700;color:var(--text)}
+.e2-sched__info{display:flex;flex-direction:column;gap:5px;min-width:0}
+.e2-sched__info strong{font-size:13.5px;font-weight:700;color:var(--text);font-variant-numeric:tabular-nums;white-space:nowrap}
+.e2-sched__info sup{margin-left:3px;font-size:9.5px;font-weight:800;color:var(--brand)}
+/* where the shift falls in the 24-hour day */
+.e2-sched__bar{position:relative;display:block;height:5px;border-radius:99px;background:var(--surface-2);overflow:hidden}
+.e2-sched__bar i{position:absolute;top:0;bottom:0;border-radius:99px;background:var(--brand);opacity:.8}
+.e2-sched__day.is-rest .e2-sched__info strong,.e2-sched__day.is-none .e2-sched__info strong{color:var(--text-3);font-weight:600}
+.e2-sched__day.is-rest .e2-sched__date{background:transparent;border:1px dashed var(--border-2)}
+.e2-sched__day.is-past{opacity:.55}
+.e2-sched__day.is-today{background:var(--brand-tint)}
+.e2-sched__day.is-today .e2-sched__date{background:var(--brand)}
+.e2-sched__day.is-today .e2-sched__date b,.e2-sched__day.is-today .e2-sched__date small{color:#fff}
+.e2-sched__hol{display:flex;align-items:center;gap:5px;font-size:11.5px;font-weight:600;color:var(--warn-text);
+  overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.e2-sched__hol i{font-size:9px}
+.e2-sched__tag{font-size:10px;font-weight:800;letter-spacing:.06em;text-transform:uppercase;color:var(--brand);
+  padding:2px 8px;border-radius:var(--radius-pill);background:var(--surface)}
+.e2-sched__eff{display:flex;align-items:center;gap:7px;margin:0;padding:10px 20px 14px;border-top:1px dashed var(--border);
+  font-size:12px;color:var(--text-2)}
+.e2-sched__eff i{color:var(--text-3)}
+
 /* job description */
 .e2-jd{padding:8px 20px 12px}
 .e2-jd li{position:relative;padding:8px 0 8px 26px;font-size:13px;color:var(--text);border-bottom:1px dashed var(--border)}
@@ -303,6 +349,6 @@
 .e201-print .e2-salary__toggle{display:none}
 
 /* chrome that must never appear on paper */
-.e201-print .e2-actions,.e201-print .modal{display:none !important}
+.e201-print .e2-actions,.e201-print .modal,.e201-print .e2-sched__nav{display:none !important}
 
 @page{margin:10mm}

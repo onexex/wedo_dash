@@ -36,6 +36,19 @@ $(document).ready(function(){
         $(this).closest(".e2-salary").toggleClass("is-revealed");
     });
 
+    // Work schedule: page through the pre-rendered weeks (week 1 = this week).
+    $(document).on("click", ".e2-sched__btn, .e2-sched__reset", function(){
+        var $card  = $(this).closest(".e2-sched");
+        var $weeks = $card.find(".e2-sched__week");
+        var cur    = $weeks.index($weeks.filter(":not([hidden])"));
+        var step   = $(this).data("step");
+        var next   = step ? Math.max(0, Math.min($weeks.length - 1, cur + step)) : 1;
+        $weeks.attr("hidden", true).eq(next).removeAttr("hidden");
+        $card.find('.e2-sched__btn[data-step="-1"]').prop("disabled", next === 0);
+        $card.find('.e2-sched__btn[data-step="1"]').prop("disabled", next === $weeks.length - 1);
+        $card.find(".e2-sched__reset").prop("disabled", next === 1);
+    });
+
     $('.search-box').on("keyup input", function(){
  
         /* Get input value on change */

@@ -48,10 +48,49 @@ if (!function_exists('e2h')) {
   }
 
   function e2money($n) { return number_format((float)$n, 2); }
+
+  // "08:00 AM" → "8 AM" / "8:30 AM"
+  function e2time($t) {
+    $ts = strtotime((string)$t);
+    if ($ts === false) { return ''; }
+    return date('i', $ts) === '00' ? date('g A', $ts) : date('g:i A', $ts);
+  }
+
+  // minutes since midnight, or null
+  function e2mins($t) {
+    $ts = strtotime((string)$t);
+    return $ts === false ? null : (int)date('G', $ts) * 60 + (int)date('i', $ts);
+  }
+
+  // ISO weekday numbers (1 = Mon) → "Mon–Thu", "Mon, Wed, Fri", "Mon–Fri, Sun"
+  function e2dayruns(array $days) {
+    $abbr = [1 => 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
+    sort($days);
+    $runs = []; $start = $prev = null;
+    foreach ($days as $d) {
+      if ($prev !== null && $d === $prev + 1) { $prev = $d; continue; }
+      if ($start !== null) { $runs[] = [$start, $prev]; }
+      $start = $prev = $d;
+    }
+    if ($start !== null) { $runs[] = [$start, $prev]; }
+    return implode(', ', array_map(function ($r) use ($abbr) {
+      if ($r[0] === $r[1]) { return $abbr[$r[0]]; }
+      return $abbr[$r[0]] . ($r[1] - $r[0] === 1 ? ', ' : '–') . $abbr[$r[1]];
+    }, $runs));
+  }
+
+  // "May 11 – Dec 20, 2026" (year shown once when both ends share it)
+  function e2range($from, $to) {
+    $a = e2date($from); $b = e2date($to);
+    if (!$a || !$b) { return ''; }
+    return $a->format('Y') === $b->format('Y')
+      ? $a->format('M j') . ' – ' . $b->format('M j, Y')
+      : $a->format('M j, Y') . ' – ' . $b->format('M j, Y');
+  }
 }
 
 $sql = "SELECT empdetails.Seq_ID,empdetails.EmpISID,hmo.HMO_PROVIDER,agency.AgencyName,empdetails.EmpID,empdetails.EmpDateHired,empdetails.EmpDateResigned,empstatus.EmpStatDesc,
-  workschedule.TimeFrom,workschedule.TimeTo,workdays.WDesc,companies.CompanyDesc,empdetails2.EmpBasic,
+  empdetails.EmpCompID,companies.CompanyDesc,empdetails2.EmpBasic,
   empdetails2.EmpHRate,empdetails2.EmpAllowance,employees.EmpFN AS fn,employees.EmpLN AS ln,employees.EmpMN AS mn,
   empprofiles.EmpAddress1,empprofiles.EmpDOB,empprofiles.EmpGender,empprofiles.EmpEmail,empprofiles.EmpMobile,
   empprofiles.EmpPPNo,empprofiles.EmpPINo,empprofiles.EmpPHNo,empprofiles.EmpSSS,empprofiles.EmpTIN,
@@ -64,8 +103,6 @@ FROM empdetails
 LEFT JOIN empstatus ON empdetails.EmpStatID=empstatus.EmpStatID
 LEFT JOIN hmo ON hmo.HMO_ID=empdetails.HMO_ID
 LEFT JOIN agency ON agency.AgencyID=empdetails.AgencyID
-LEFT JOIN workschedule ON empdetails.EmpWSID=workschedule.WorkSchedID
-LEFT JOIN workdays ON empdetails.EmpRDID=workdays.WID
 LEFT JOIN companies ON empdetails.EmpCompID=companies.CompanyID
 LEFT JOIN empdetails2 ON empdetails2.EmpID = empdetails.EmpID
 LEFT JOIN employees ON empdetails.EmpISID=employees.EmpID
@@ -116,13 +153,98 @@ $address = trim(preg_replace('/\s+/', ' ', implode(' ', [
   $res['EmpAddress1'], $res['EmpAddDis'], $res['EmpAddCity'], $res['EmpAddProv'], $res['EmpAddZip'], $res['EmpAddCountry'],
 ])));
 
-$sched = '';
-if (trim((string)$res['TimeFrom']) !== '') {
-  $sched = date('g:i A', strtotime($res['TimeFrom'])) . ' – ' . date('g:i A', strtotime($res['TimeTo']));
-}
-
 $pdo = new PDO("mysql:host=$servername;dbname=$db", $username, $password);
 $pdo->setAttribute(PDO::ATTR_ERRMODE, PDO::ERRMODE_EXCEPTION);
+
+/* ---- Work schedule ---------------------------------------------------------
+ * The live schedule is per weekday in workdays (SchedTime → workschedule,
+ * 0 = rest day), grouped into effectivity ranges (EFID → schedeffectivity).
+ * Each date is resolved against the ranges covering it, newest range first.
+ * Weeks from last week to five weeks ahead are resolved here; the card pages
+ * through them client-side. */
+$tz       = new DateTimeZone('Asia/Manila');
+$today    = new DateTimeImmutable('today', $tz);
+$todayYmd = $today->format('Y-m-d');
+$thisMon  = $today->modify('-' . ($today->format('N') - 1) . ' days');
+$firstMon = $thisMon->modify('-7 days');
+$weekCount = 7;
+$lastDay  = $firstMon->modify('+' . ($weekCount * 7 - 1) . ' days');
+
+$effs = [];   // efids => ['from','to','days' => [Dayname => row]]
+try {
+  $st = $pdo->prepare("SELECT se.efids, se.dfrom, se.dto, wd.Day_s, wd.SchedTime, ws.TimeFrom, ws.TimeTo, ws.TimeCross
+    FROM workdays wd
+    JOIN schedeffectivity se ON se.efids = CAST(wd.EFID AS UNSIGNED)
+    LEFT JOIN workschedule ws ON ws.WorkSchedID = wd.SchedTime
+    WHERE wd.empid = :id AND se.dfrom <= :to AND se.dto >= :from
+    ORDER BY se.efids DESC, wd.WID DESC");
+  $st->execute([':id' => $q, ':from' => $firstMon->format('Y-m-d'), ':to' => $lastDay->format('Y-m-d')]);
+  while ($r = $st->fetch(PDO::FETCH_ASSOC)) {
+    $k = (int)$r['efids'];
+    if (!isset($effs[$k])) { $effs[$k] = ['from' => $r['dfrom'], 'to' => $r['dto'], 'days' => []]; }
+    if (!isset($effs[$k]['days'][$r['Day_s']])) { $effs[$k]['days'][$r['Day_s']] = $r; }
+  }
+} catch (Exception $e) {}
+
+$holidays = [];
+try {
+  $st = $pdo->prepare("SELECT Hdate, Hdescription FROM holidays WHERE HCompID = :c AND Hdate BETWEEN :from AND :to");
+  $st->execute([':c' => (string)$res['EmpCompID'], ':from' => $firstMon->format('Y-m-d'), ':to' => $lastDay->format('Y-m-d')]);
+  while ($r = $st->fetch(PDO::FETCH_ASSOC)) { $holidays[$r['Hdate']] = trim((string)$r['Hdescription']) ?: 'Holiday'; }
+} catch (Exception $e) {}
+
+$weeks = [];
+for ($w = 0; $w < $weekCount; $w++) {
+  $mon  = $firstMon->modify('+' . ($w * 7) . ' days');
+  $days = []; $work = 0; $used = [];
+  for ($i = 0; $i < 7; $i++) {
+    $d   = $mon->modify("+$i days");
+    $ymd = $d->format('Y-m-d');
+    $day = ['date' => $d, 'ymd' => $ymd, 'state' => 'none', 'holiday' => $holidays[$ymd] ?? ''];
+    foreach ($effs as $k => $eff) {
+      if ($ymd < $eff['from'] || $ymd > $eff['to'] || !isset($eff['days'][$d->format('l')])) { continue; }
+      $row = $eff['days'][$d->format('l')];
+      $used[$k] = $eff;
+      if ((int)$row['SchedTime'] === 0 || e2mins($row['TimeFrom']) === null) {
+        $day['state'] = 'rest';
+      } else {
+        $a = e2mins($row['TimeFrom']); $b = e2mins($row['TimeTo']);
+        $day += [
+          'from'  => e2time($row['TimeFrom']),
+          'to'    => e2time($row['TimeTo']),
+          'cross' => (int)$row['TimeCross'] === 1 || ($b !== null && $b <= $a),
+          // time-of-day bar segments, as [left%, width%]
+          'bar'   => ($b !== null && $b <= $a)
+            ? [[$a / 14.4, 100 - $a / 14.4], [0, $b / 14.4]]
+            : [[$a / 14.4, (($b ?? 1440) - $a) / 14.4]],
+        ];
+        $day['state'] = 'work';
+        $work++;
+      }
+      break;
+    }
+    $days[] = $day;
+  }
+  uasort($used, function ($x, $y) { return strcmp($x['from'], $y['from']); });
+  $sun = $mon->modify('+6 days');
+  $weeks[] = [
+    'label' => [0 => 'Last week', 1 => 'This week', 2 => 'Next week'][$w] ?? 'In ' . ($w - 1) . ' weeks',
+    'range' => $mon->format('M') === $sun->format('M')
+      ? $mon->format('M j') . ' – ' . $sun->format('j, Y')
+      : e2range($mon->format('Y-m-d'), $sun->format('Y-m-d')),
+    'days'  => $days,
+    'work'  => $work,
+    'effs'  => array_values($used),
+  ];
+}
+
+// hero summary: today's shift + this week's working days
+$todayInfo = null; $workDays = [];
+foreach ($weeks[1]['days'] as $i => $d) {
+  if ($d['ymd'] === $todayYmd) { $todayInfo = $d; }
+  if ($d['state'] === 'work') { $workDays[] = $i + 1; }
+}
+$hasSched = (bool)$effs;
 ?>
 
 <!-- ============================== HERO ============================== -->
@@ -209,8 +331,15 @@ $pdo->setAttribute(PDO::ATTR_ERRMODE, PDO::ERRMODE_EXCEPTION);
     </div>
     <div class="e2-fact">
       <span class="e2-fact__icon"><i class="fa-solid fa-clock"></i></span>
-      <div><small>Work schedule</small><strong><?php echo e2v($sched); ?></strong>
-        <?php if (trim((string)$res['WDesc']) !== '') { ?><em>Rest day: <?php echo e2h($res['WDesc']); ?></em><?php } ?></div>
+      <div><small>Today's schedule</small>
+        <?php if (!$todayInfo || $todayInfo['state'] === 'none') { ?>
+          <strong><?php echo e2v(''); ?></strong><em><?php echo $hasSched ? 'Not scheduled today' : 'No schedule set'; ?></em>
+        <?php } else { ?>
+          <strong><?php echo $todayInfo['state'] === 'work' ? e2h($todayInfo['from'] . ' – ' . $todayInfo['to']) : 'Rest day'; ?></strong>
+          <em><?php echo $todayInfo['holiday'] !== ''
+            ? e2h($todayInfo['holiday'])
+            : ($workDays ? 'Works ' . e2h(e2dayruns($workDays)) : 'No work days this week'); ?></em>
+        <?php } ?></div>
     </div>
   </div>
 </section>
@@ -326,6 +455,56 @@ $pdo->setAttribute(PDO::ATTR_ERRMODE, PDO::ERRMODE_EXCEPTION);
 
   <!-- ============================== SIDE ============================== -->
   <div class="e2-col">
+
+    <section class="e2-card e2-sched">
+      <header class="e2-card__head">
+        <h3><i class="fa-solid fa-calendar-week"></i>Work schedule</h3>
+        <?php if ($hasSched) { ?>
+          <div class="e2-sched__nav">
+            <button type="button" class="e2-sched__btn" data-step="-1" aria-label="Previous week" title="Previous week"><i class="fa-solid fa-chevron-left"></i></button>
+            <button type="button" class="e2-sched__reset" title="Back to this week" disabled>Today</button>
+            <button type="button" class="e2-sched__btn" data-step="1" aria-label="Next week" title="Next week"><i class="fa-solid fa-chevron-right"></i></button>
+          </div>
+        <?php } ?>
+      </header>
+      <?php if (!$hasSched) { ?>
+        <p class="e2-none">No work schedule assigned yet.</p>
+      <?php } else { foreach ($weeks as $wi => $wk) { ?>
+        <div class="e2-sched__week" data-week="<?php echo $wi; ?>"<?php echo $wi === 1 ? '' : ' hidden'; ?>>
+          <div class="e2-sched__meta">
+            <div><strong><?php echo e2h($wk['label']); ?></strong><span><?php echo e2h($wk['range']); ?></span></div>
+            <span class="e2-count"><?php echo $wk['work']; ?> work day<?php echo $wk['work'] === 1 ? '' : 's'; ?></span>
+          </div>
+          <ul class="e2-sched__days">
+            <?php foreach ($wk['days'] as $d) {
+              $cls = 'is-' . $d['state'];
+              if ($d['ymd'] === $todayYmd) { $cls .= ' is-today'; }
+              elseif ($d['ymd'] < $todayYmd) { $cls .= ' is-past'; }
+              if ($d['holiday'] !== '') { $cls .= ' is-holiday'; } ?>
+              <li class="e2-sched__day <?php echo $cls; ?>"<?php echo $d['ymd'] === $todayYmd ? ' aria-current="date"' : ''; ?>>
+                <span class="e2-sched__date"><b><?php echo $d['date']->format('D'); ?></b><small><?php echo $d['date']->format('j'); ?></small></span>
+                <span class="e2-sched__info">
+                  <?php if ($d['state'] === 'work') { ?>
+                    <strong><?php echo e2h($d['from']); ?> – <?php echo e2h($d['to']); ?><?php if ($d['cross']) { ?><sup title="Ends the next day">+1</sup><?php } ?></strong>
+                    <span class="e2-sched__bar" aria-hidden="true"><?php foreach ($d['bar'] as $seg) { ?><i style="left:<?php echo round($seg[0], 2); ?>%;width:<?php echo round($seg[1], 2); ?>%"></i><?php } ?></span>
+                  <?php } elseif ($d['state'] === 'rest') { ?>
+                    <strong>Rest day</strong>
+                  <?php } else { ?>
+                    <strong>No schedule</strong>
+                  <?php } ?>
+                  <?php if ($d['holiday'] !== '') { ?><span class="e2-sched__hol" title="<?php echo e2h($d['holiday']); ?>"><i class="fa-solid fa-star"></i><?php echo e2h($d['holiday']); ?></span><?php } ?>
+                </span>
+                <?php if ($d['ymd'] === $todayYmd) { ?><span class="e2-sched__tag">Today</span><?php } ?>
+              </li>
+            <?php } ?>
+          </ul>
+          <?php if ($wk['effs']) { ?>
+            <p class="e2-sched__eff"><i class="fa-regular fa-calendar-check"></i>Effective <?php
+              echo e2h(implode(' · ', array_map(function ($e) { return e2range($e['from'], $e['to']); }, $wk['effs']))); ?></p>
+          <?php } ?>
+        </div>
+      <?php } } ?>
+    </section>
 
     <section class="e2-card">
       <header class="e2-card__head"><h3><i class="fa-solid fa-shield-halved"></i>Government IDs</h3></header>
