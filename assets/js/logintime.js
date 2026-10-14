@@ -89,6 +89,9 @@ $(document).ready(function () {
                 } else if (data == 1) {
                     errorMsg.text("Incorrect Password!");
                     errorMsg.fadeIn();
+                } else if ($.trim(data) === '0101') {
+                    errorMsg.text("This account is no longer active. Please contact HR.");
+                    errorMsg.fadeIn();
                 } else if (data == 7) {
                     location.replace("questionnaire.php");
                 } else {

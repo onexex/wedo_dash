@@ -14,6 +14,9 @@ try {
 } catch (PDOException $e) {
     die("ERROR: Could not connect. " . $e->getMessage());
 }
+// resigned / terminated since signing in: signed out everywhere, back to the sign-in page
+require_once __DIR__ . '/account-gate.php';
+wd_account_gate($wdpdo);
 
 /* user + position */
 $wdu = $wdpdo->prepare("SELECT e.EmpLN, e.EmpFN, p.PositionDesc,

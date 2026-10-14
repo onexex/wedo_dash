@@ -56,6 +56,9 @@ try {
    $stmt = $pdo->prepare($sql);
    $stmt->execute([':fn' => $fn, ':mn' => $mn, ':suff' => $suff, ':ln' => $ln, ':pos' => $pos,
                     ':stats' => $stats, ':cid' => $cid, ':id' => $id]);
+   // now resigned / terminated: sign every phone and browser out right away, stop push notifications
+   require_once __DIR__ . '/../includes/account-gate.php';
+   if (wd_account_blocked($pdo, $id)) { wd_account_revoke($pdo, $id); }
 
    	$add1=$_POST['pempstreetno'];
    	$dis=$_POST['pempdistrict'];

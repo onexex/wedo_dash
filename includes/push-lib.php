@@ -124,6 +124,9 @@ function push_send(PDO $pdo, $empIds, string $title, string $body, array $data =
         $ids  = array_values(array_unique(array_filter(array_map('strval', (array) $empIds), 'strlen')));
         if (!$cred || !$ids) { return; }
 
+        require_once __DIR__ . '/account-gate.php';
+        $ids = array_values(array_diff($ids, wd_blocked_among($pdo, $ids)));   // resigned / terminated: nothing
+        if (!$ids) { return; }
         $in = implode(',', array_fill(0, count($ids), '?'));
         $st = $pdo->prepare("SELECT token FROM push_devices WHERE EmpID IN ($in)");
         $st->execute($ids);

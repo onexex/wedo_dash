@@ -18,6 +18,8 @@
 
                 while ($row = $statement->fetch()) {
                     if ((!empty($row['remember_hash']) && password_verify($_COOKIE["WeDoID"], $row['remember_hash']) && (empty($row['remember_expiry']) || strtotime($row['remember_expiry']) > time()))) {
+                        require_once __DIR__ . '/includes/account-gate.php';
+                        if (wd_account_blocked($pdo, $row['EmpID'])) { wd_account_revoke($pdo, $row['EmpID']); break; }   // resigned / terminated
 
                         // Set Core Session Variables
                         $_SESSION['id'] = $row['EmpID'];

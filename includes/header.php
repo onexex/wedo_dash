@@ -1,4 +1,7 @@
 <?php
+  // resigned / terminated since signing in: signed out everywhere, back to the sign-in page
+  require_once __DIR__ . '/account-gate.php';
+  wd_account_gate();
   if (isset($_SESSION['id']) && $_SESSION['id']!="0"){
 
 

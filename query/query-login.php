@@ -75,12 +75,9 @@ die("ERROR: Could not connect. " . $e->getMessage());
             
             	if (password_verify($_POST['pass'], $hash)) {
             	    $id=$row['EmpID'];
-            	    $stmt = $pdo->prepare("select * from employees where EmpID = :id and EmpStatusID=2");
-                    $stmt->bindParam(':id' , $id);
-                    $stmt->execute(); 
-                    $scount=$stmt->rowCount();
-            	    
-            	    if($scount>0){
+            	    // resigned / terminated (unless allowed after separation): "no longer active"
+            	    require_once __DIR__ . '/../includes/account-gate.php';
+            	    if (wd_account_blocked($pdo, $id)) {
             	        echo '0101';
             	        return;
             	    }
