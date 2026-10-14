@@ -88,9 +88,25 @@ final class MessageReviewTest extends AppTestCase
         $this->assertSame(200, $res['status']);
         $this->assertNoPhpErrors($res['body']);
         $this->assertStringContainsString('Message Review', $res['body']);
-        // and Access Rights has the switch
-        $this->assertStringContainsString('msgaudit',
-            $this->request('searchaccessrights.php', ['q' => self::EMP], [], $this->asAdmin())['body']);
+    }
+
+    /** Only the `rgemana` login sees the switch in Access Rights and may change it. */
+    public function testOnlyRgemanaCanGrantTheRight(): void
+    {
+        $switch = fn() => $this->request('searchaccessrights.php', ['q' => self::EMP], [], $this->asAdmin())['body'];
+        $toggle = fn() => $this->request('updateaccess.php', ['empid' => self::EMP, 'mponoff' => 'ON', 'term' => 'msgaudit'], [], $this->asAdmin())['status'];
+        $right  = fn() => (int) self::db()->query("SELECT msgaudit FROM accessrights WHERE EmpID = '" . self::EMP . "'")->fetchColumn();
+
+        // a super user with any other login: no switch, and a forged request is refused
+        $this->assertStringNotContainsString('msgaudit', $switch());
+        $this->assertStringContainsString('msgdel', $switch());
+        $this->assertSame(403, $toggle());
+        $this->assertSame(1, $right());
+
+        self::db()->exec("UPDATE empdetails SET EmpUN = 'rgemana' WHERE EmpID = '" . self::ADMIN . "'");
+        $this->assertStringContainsString('msgaudit', $switch());
+        $this->assertSame(200, $toggle());
+        $this->assertSame(2, $right());
     }
 
     public function testReviewerReadsConversationsTheyAreNotInWithoutMarkingThemRead(): void
