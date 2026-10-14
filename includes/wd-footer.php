@@ -3,6 +3,27 @@
   </div>
 </div>
 
+<script>
+/* The account was made inactive (resigned / terminated) while this page was open: the server answers its
+   background requests with "X-WeDo-Inactive: 1" (includes/account-gate.php) -> go to the sign-in page. */
+(function () {
+  var gone = false;
+  function check(h) {
+    if (!gone && h === '1') { gone = true; location.replace('login.php?inactive=1'); }
+  }
+  if (window.fetch) {
+    var f = window.fetch;
+    window.fetch = function () {
+      return f.apply(this, arguments).then(function (r) { check(r.headers && r.headers.get('X-WeDo-Inactive')); return r; });
+    };
+  }
+  var open = XMLHttpRequest.prototype.open;
+  XMLHttpRequest.prototype.open = function () {
+    this.addEventListener('load', function () { check(this.getResponseHeader('X-WeDo-Inactive')); });
+    return open.apply(this, arguments);
+  };
+})();
+</script>
 <?php include __DIR__ . '/corner-bubble.php'; /* floating Corner bubble (announcements + calendar) */ ?>
 <?php include __DIR__ . '/msg-heads.php'; /* message chat heads (before call-widget: its check-in carries them) */ ?>
 <?php include __DIR__ . '/call-widget.php'; /* video calls: incoming ringer + call window */ ?>

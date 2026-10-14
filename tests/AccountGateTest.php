@@ -123,13 +123,44 @@ final class AccountGateTest extends AppTestCase
         $this->assertSignedOutEverywhere(self::EMP);
     }
 
+    /** An open page polls the call check every few seconds; an open chat talks to Query-messages only. */
+    public function testBackgroundRequestsOfABlockedSessionGetTheInactiveAnswer(): void
+    {
+        foreach (['query/Query-calls.php', 'query/Query-messages.php'] as $endpoint) {
+            $this->signedInEverywhere(self::EMP);
+            $this->setStatus(self::EMP, 2);
+
+            $res = $this->request($endpoint, ['action' => 'incoming'], [], $this->asEmployee());
+            $this->assertSame(401, $res['status'], "$endpoint: " . $res['body']);
+            $json = json_decode($res['body'], true);
+            $this->assertTrue($json['inactive'] ?? false, "$endpoint: " . $res['body']);
+            $this->assertSame('login.php?inactive=1', $json['redirect']);
+            $this->assertSignedOutEverywhere(self::EMP);
+            $this->setStatus(self::EMP, 1);
+        }
+    }
+
+    public function testBackgroundRequestsOfAnEmployedSessionWork(): void
+    {
+        $res = $this->request('query/Query-calls.php', ['action' => 'incoming'], [], $this->asEmployee());
+        $this->assertSame(200, $res['status'], $res['body']);
+        $this->assertSame('ok', json_decode($res['body'], true)['status'] ?? null);
+    }
+
+    public function testEveryPageListensForTheInactiveAnswer(): void
+    {
+        $body = $this->request('e201.php', [], [], $this->asEmployee())['body'];
+        $this->assertStringContainsString("getResponseHeader('X-WeDo-Inactive')", $body);
+        $this->assertStringContainsString("location.replace('login.php?inactive=1')", $body);
+    }
+
     public function testEmployedSessionIsUntouched(): void
     {
         $this->signedInEverywhere(self::EMP);
         $res = $this->request('e201.php', [], [], $this->asEmployee());
         $this->assertSame(200, $res['status']);
         $this->assertStringContainsString('wd-sidebar', $res['body'], 'the page itself rendered');
-        $this->assertStringNotContainsString('login.php?inactive=1', $res['body']);
+        $this->assertStringNotContainsString('location.replace("login.php?inactive=1")', $res['body'], 'no redirect');
         $this->assertCount(1, $this->rows("SELECT id FROM app_remember WHERE EmpID = ?", [self::EMP]));
     }
 

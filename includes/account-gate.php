@@ -17,7 +17,11 @@
      - both "remember me" tokens: the website's WeDoID cookie (login.php,
        index.php) and the app's 30-day token (includes/app-remember.php)
      - someone already signed in: wd_account_gate() on every page
-       (includes/wd-header.php, includes/header.php), at most once a minute
+       (includes/wd-header.php, includes/header.php) and wd_account_gate_api()
+       on the background requests every open page makes (query/Query-calls.php
+       polls every few seconds; query/Query-messages.php) — at most once a
+       minute per session. The API answer carries "X-WeDo-Inactive: 1", which
+       the script in includes/wd-footer.php turns into the sign-in page.
      - HR setting the status (query/Query-updateEmployee.php) signs every
        device out at once and stops push notifications (wd_account_revoke)
    ========================================================================== */
@@ -66,15 +70,16 @@ function wd_account_revoke(PDO $pdo, $empId): void
 }
 
 /**
- * For a signed-in request: if the account has since been blocked, sign it out everywhere and send it
- * to the sign-in page ("This account is no longer active"). Re-checked at most every WD_GATE_EVERY
- * seconds per session. A database error never signs anyone out.
+ * Signed-in request: has the account been blocked since? Re-checked at most every WD_GATE_EVERY
+ * seconds per session (needs the session still open for writing). If it has, it is signed out
+ * everywhere (tokens, push, this session, its cookies) and true is returned. A database error
+ * never signs anyone out.
  */
-function wd_account_gate(?PDO $pdo = null): void
+function wd_gate_signed_out(?PDO $pdo = null): bool
 {
-    if (empty($_SESSION['id']) || $_SESSION['id'] == "0") { return; }
+    if (empty($_SESSION['id']) || $_SESSION['id'] == "0") { return false; }
     $now = time();
-    if (isset($_SESSION['wd_gate_at']) && $now - (int) $_SESSION['wd_gate_at'] < WD_GATE_EVERY) { return; }
+    if (isset($_SESSION['wd_gate_at']) && $now - (int) $_SESSION['wd_gate_at'] < WD_GATE_EVERY) { return false; }
     try {
         if (!$pdo) {
             $pdo = new PDO("mysql:host={$GLOBALS['servername']};dbname={$GLOBALS['db']}", $GLOBALS['username'], $GLOBALS['password']);
@@ -83,9 +88,9 @@ function wd_account_gate(?PDO $pdo = null): void
         $blocked = wd_account_blocked($pdo, $_SESSION['id']);
     } catch (Throwable $e) {
         error_log('[wedo account-gate] check: ' . $e->getMessage());
-        return;
+        return false;
     }
-    if (!$blocked) { $_SESSION['wd_gate_at'] = $now; return; }
+    if (!$blocked) { $_SESSION['wd_gate_at'] = $now; return false; }
 
     wd_account_revoke($pdo, $_SESSION['id']);
     $_SESSION = [];
@@ -95,9 +100,29 @@ function wd_account_gate(?PDO $pdo = null): void
         foreach (['WeDoID', 'WeDoApp'] as $cookie) {
             setcookie($cookie, '', ['expires' => $now - 3600, 'path' => '/', 'httponly' => true, 'samesite' => 'Lax', 'secure' => $secure]);
         }
-        header('Location: login.php?inactive=1');
-    } else {
-        echo '<script>location.replace("login.php?inactive=1")</script>';
     }
+    return true;
+}
+
+/** Pages: a blocked account goes to the sign-in page ("This account is no longer active"). */
+function wd_account_gate(?PDO $pdo = null): void
+{
+    if (!wd_gate_signed_out($pdo)) { return; }
+    if (!headers_sent()) { header('Location: login.php?inactive=1'); }
+    else { echo '<script>location.replace("login.php?inactive=1")</script>'; }
+    exit;
+}
+
+/** JSON endpoints: 401 + "X-WeDo-Inactive: 1" (includes/wd-footer.php then opens the sign-in page). */
+function wd_account_gate_api(?PDO $pdo = null): void
+{
+    if (!wd_gate_signed_out($pdo)) { return; }
+    if (!headers_sent()) {
+        http_response_code(401);
+        header('X-WeDo-Inactive: 1');
+        header('Content-Type: application/json; charset=utf-8');
+    }
+    echo json_encode(['status' => 'error', 'inactive' => true, 'redirect' => 'login.php?inactive=1',
+                      'msg' => 'This account is no longer active. Please contact HR.']);
     exit;
 }

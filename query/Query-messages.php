@@ -48,6 +48,9 @@ if (!isset($_SESSION['id']) || $_SESSION['id'] == "0") {
 }
 
 include 'w_conn.php';
+// resigned / terminated since signing in (an open chat makes no page loads)
+require_once __DIR__ . '/../includes/account-gate.php';
+wd_account_gate_api();
 require_once __DIR__ . '/../includes/messages-lib.php';
 require_once __DIR__ . '/../includes/msg-groups.php';
 require_once __DIR__ . '/../includes/msg-calls.php';
