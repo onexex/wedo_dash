@@ -387,6 +387,33 @@ function push_profile_change_decided(PDO $pdo, string $applicantId, string $deci
               ['url' => 'e201']);
 }
 
+/** An employee asked for a Certificate of Employment: tell the COE approvers. */
+function push_coe_filed(PDO $pdo, string $applicantId, array $approverIds): void
+{
+    push_send($pdo, array_diff($approverIds, [$applicantId]), 'COE request',
+              push_name($pdo, $applicantId) . ' asked for a Certificate of Employment.', ['url' => 'coe']);
+}
+
+/** A COE request was approved (ready to print) or rejected. */
+function push_coe_decided(PDO $pdo, string $applicantId, string $decision, string $actorId, string $remarks = ''): void
+{
+    if ($applicantId === $actorId) { return; }
+    $ok = $decision === 'approved';
+    push_send($pdo, $applicantId, 'COE request ' . ($ok ? 'approved' : 'rejected'),
+              $ok ? 'Your Certificate of Employment is ready to print.'
+                  : 'Your COE request was rejected' . ($remarks !== '' ? ': ' . $remarks : '.'),
+              ['url' => 'coe']);
+}
+
+/** Someone applied through the public Apply page: tell the Applicants reviewers. */
+function push_applicant_filed(PDO $pdo, ?array $applicant, array $reviewerIds): void
+{
+    if (!$applicant) { return; }
+    push_send($pdo, $reviewerIds, 'New applicant',
+              $applicant['name'] . ' applied' . ($applicant['opening'] !== '' ? ' for ' . $applicant['opening'] : '') . '.',
+              ['url' => 'applicants?id=' . (int) $applicant['id']]);
+}
+
 /**
  * New chat message. $with is the conversation key from Query-messages.php
  * (an EmpID for 1:1, "grp:ID" for a group); $kind is text | gif | file.

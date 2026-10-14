@@ -20,7 +20,11 @@
 		   $stmt = $pdo->prepare($sql);
 		   $stmt->bindParam(':empidn', $_SESSION['id']);
 		   $stmt->bindParam(':newpass', $newhash);
-		   $stmt->execute(); 
+		   $stmt->execute();
+		   // their own password now: no more forced change (includes/account-gate.php)
+		   require_once __DIR__ . '/../includes/account-gate.php';
+		   wd_set_must_change_password($pdo, $_SESSION['id'], false);
+		   $_SESSION['wd_pw_ok'] = 1;
 
 		   	$id=$_SESSION['id'];
                        $ch="Youve Changed your Password.";

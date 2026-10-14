@@ -83,6 +83,7 @@ ar_row('fa-chart-column', 'Overtime Viewer',                'atv',              
 ar_row('fa-chart-column', 'Personal Information',           'piv',                   $row);
 ar_row('fa-chart-column', '13th Month Attachment',          'access_13_attachement', $row);
 ar_row('fa-chart-column', 'YTD 13th Month Report',          'access_13',             $row);
+ar_row('fa-file-signature', 'COE: approve requests & issue for anyone', 'coefunction',    $row);
 
 /* ---- Management ---- */
 ar_group('Management');
@@ -92,6 +93,16 @@ ar_row('fa-lock',      'Payee Registry',           'payeereg',   $row);
 ar_row('fa-user-plus', 'Enroll Employee',          'eemployee',  $row);
 ar_row('fa-file-pdf',  'Electronic 201 Document',  'e201d',      $row);
 ar_row('fa-id-card',   'ID Card Generator',        'idcard',     $row);
+// only once sql/2026-10-14-add-employee-lifecycle.sql has run (a missing column would read as ON)
+if (array_key_exists('separation', $row)) {
+    ar_row('fa-user-minus',  'Separation & Lifecycle (resign / terminate / AWOL, rehire flag)', 'separation', $row);
+}
+if (array_key_exists('applicants', $row)) {
+    ar_row('fa-clipboard-list', 'Applicant Pool (job registrations; hiring also needs Enroll Employee)', 'applicants', $row);
+}
+if (array_key_exists('empverify', $row)) {
+    ar_row('fa-phone-volume', 'Employment Verification (CI calls)', 'empverify', $row);
+}
 
 /* ---- Maintenance ---- */
 ar_group('Maintenance');

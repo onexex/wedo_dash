@@ -15,7 +15,7 @@
        }
     
     catch(PDOException $e){
-        die("ERROR: Could not connect. " . $e->getMessage());
+        die("ERROR: Could not connect.");
        }
        //get access rights
    $id=$_SESSION['id'];
@@ -50,7 +50,13 @@
 
 }
 if (isset($_GET['getemplooyeedata'])){
-    $id=$_POST['id'];
+    $id=$_POST['id'] ?? '';
+    // salary + personal data: only COE issuers may read someone else's (coe.php now uses query/lifecycle-action.php)
+    if ($hasAccess == 0 && (string)$id !== (string)$_SESSION['id']) {
+        http_response_code(403);
+        echo json_encode(array("data"=>[],"errcode"=>403));
+        exit;
+    }
     $datas=[];
     $stmt = $pdo->prepare(" SELECT * FROM `employees` as a inner JOIN 
                                 positions as b on a.PosID=b.PSID INNER JOIN 

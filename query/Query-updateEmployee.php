@@ -50,6 +50,11 @@ try {
    // blank = no regularization date (NULL — alas.php treats only NULL as "not set")
    $dor = (isset($_POST['dorInput']) && trim($_POST['dorInput']) !== '') ? $_POST['dorInput'] : null;
 
+   // status + classification before the save, for the lifecycle history (Trainee -> IC, resigned, ...)
+   require_once __DIR__ . '/../includes/lifecycle-lib.php';
+   $lcyBefore = null;
+   try { $lcyBefore = lcy_snapshot($pdo, $id); } catch (Throwable $e) { }
+
    // parameterized: values used to be pasted into the SQL, so any apostrophe
    // (O'Brien, St. Mary's) broke the save
    $sql = "UPDATE employees SET EmpFN=:fn,EmpMN=:mn,EmpSuffix=:suff,EmpLN=:ln,PosID=:pos,EmpStatusID=:stats,EmployeeIDNumber=:cid WHERE EmpID=:id";
@@ -154,6 +159,9 @@ try {
     $stmt = $pdo->prepare($sql);
     $stmt->execute([':dor' => $dor, ':empis' => $empis, ':dep' => $EmpdepID, ':empcom' => $empcom, ':empdh' => $empdh,
                     ':dr' => $dr, ':empclass' => $empclass, ':empage' => $empage, ':emphmo' => $emphmo, ':EmpID' => $EmpID]);
+    // lifecycle history; a new separation gets a record for HR to finish (Separation & Lifecycle)
+    try { lcy_after_employee_update($pdo, $EmpID, $lcyBefore, (string) $_SESSION['id']); }
+    catch (Throwable $e) { error_log('[wedo lifecycle] update hook: ' . $e->getMessage()); }
 
    	$basic=$_POST['empbasic'];
    	$allow=$_POST['empallowance'];

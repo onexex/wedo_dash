@@ -31,6 +31,10 @@
 # RewriteCond %{REQUEST_FILENAME}.html -f 
 # RewriteRule ^(.*)$ $1.html [L]
 
+# 0. 🔒 No folder listings ("Index of /wedo/tools"): a folder without an index
+#    page answers 403 instead of listing its files.
+Options -Indexes
+
 RewriteEngine On
 
 # 1. ✅ Bypass para sa file authentication (Dapat laging nasa pinakataas)
@@ -44,6 +48,11 @@ RewriteRule \.(bak|secbak|orig|save|swp|swo|sql|log)$ - [F,L]
 RewriteRule (^|/)\.git(/|$) - [F,L]
 RewriteRule (^|/)\.user\.ini$ - [F,L]
 RewriteRule (^|/)config\.local\.php$ - [F,L]
+#     Developer-only folders (scripts, tests, Composer packages) — older deploys
+#     copied tools/ to the servers, so it is blocked here as well as left out of the zip
+RewriteRule (^|/)(tools|tests|vendor|\.phpunit\.cache)(/|$) - [F,L]
+#     Database migration notes and Composer / PHPUnit config
+RewriteRule (^|/)(composer\.(json|lock)|phpunit\.xml\.dist)$ - [F,L]
 
 # 2. ✅ TAMA NA REDIRECT: I-force ang HTTP papuntang HTTPS
 RewriteCond %{HTTPS} off

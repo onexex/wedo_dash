@@ -9,8 +9,12 @@
         $pdo = new PDO("mysql:host=$servername;dbname=$db", $username, $password);
         $pdo->setAttribute(PDO::ATTR_ERRMODE, PDO::ERRMODE_EXCEPTION);
     } catch (PDOException $e) {
-        die("ERROR: Could not connect. " . $e->getMessage());
+        die("ERROR: Could not connect.");
     }
+    /* only "Enroll Employee" users (the menu hid the link, but the page itself was open to everyone) */
+    $neAr = $pdo->prepare("SELECT eemployee FROM accessrights WHERE EmpID = :id");
+    $neAr->execute([':id' => $_SESSION['id']]);
+    if ((string) $neAr->fetchColumn() !== '2') { header('location: 404?'); exit; }
     $userType = $_SESSION['UserType'];
     $compID   = isset($_SESSION['CompID']) ? $_SESSION['CompID'] : '';
 

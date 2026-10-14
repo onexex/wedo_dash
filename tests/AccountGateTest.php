@@ -21,7 +21,7 @@ final class AccountGateTest extends AppTestCase
     {
         parent::setUp();
         $db = self::db();
-        $db->exec("INSERT IGNORE INTO estatus (ID, StatusEmpDesc) VALUES (4, 'Terminated')");
+        $db->exec("INSERT IGNORE INTO estatus (ID, StatusEmpDesc) VALUES (4, 'Terminated'), (5, 'AWOL')");
         foreach (['app_remember', 'push_devices'] as $t) { $db->exec("DELETE FROM `$t`"); }
     }
 
@@ -60,13 +60,15 @@ final class AccountGateTest extends AppTestCase
         $this->assertNull($this->row("SELECT remember_hash FROM empdetails WHERE EmpID = ?", [$empId])['remember_hash'], 'remember-me kept');
     }
 
-    public function testOnlyResignedAndTerminatedAreBlocked(): void
+    public function testOnlyResignedTerminatedAndAwolAreBlocked(): void
     {
         $this->assertFalse(wd_account_blocked(self::db(), self::EMP), 'employed');
         $this->setStatus(self::EMP, 2);
         $this->assertTrue(wd_account_blocked(self::db(), self::EMP), 'resigned');
         $this->setStatus(self::EMP, 4);
         $this->assertTrue(wd_account_blocked(self::db(), self::EMP), 'terminated');
+        $this->setStatus(self::EMP, 5);
+        $this->assertTrue(wd_account_blocked(self::db(), self::EMP), 'AWOL');
         $this->assertFalse(wd_account_blocked(self::db(), 'NO-SUCH-EMPLOYEE'), 'no employees row (system account)');
     }
 

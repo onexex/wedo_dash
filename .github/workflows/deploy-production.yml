@@ -125,7 +125,7 @@ jobs:
         run: |
           zip -r -q deploy.zip . \
             -x '.git/*' '.github/*' 'config.local.php' '*.bak' '*.log' 'error_log' 'deploy.zip' \
-               'tests/*' 'vendor/*' 'composer.json' 'composer.lock' 'phpunit.xml.dist' '.phpunit.cache/*' \
+               'tests/*' 'tools/*' 'vendor/*' 'composer.json' 'composer.lock' 'phpunit.xml.dist' '.phpunit.cache/*' \
                'w_conn.php' '*/w_conn.php'
           ls -lh deploy.zip | awk '{print "zip size: " $5}'
 

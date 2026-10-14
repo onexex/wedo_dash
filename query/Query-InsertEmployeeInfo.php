@@ -1,6 +1,12 @@
-<?php 
+<?php
 include 'w_conn.php';
 if (session_status() === PHP_SESSION_NONE) { session_start(); }
+// AJAX endpoint: refuse instead of redirecting
+if (!isset($_SESSION['id']) || $_SESSION['id'] == "0") {
+    http_response_code(401);
+    echo "Your session has expired. Please sign in again.";
+    exit;
+}
 // $conn = new mysqli($servername, $username, $password, $db);
 // $name=$_POST['name'];
 
@@ -13,8 +19,16 @@ $pdo->setAttribute(PDO::ATTR_ERRMODE, PDO::ERRMODE_EXCEPTION);
    }
 catch(PDOException $e)
    {
-die("ERROR: Could not connect. " . $e->getMessage());
+die("ERROR: Could not connect.");
    }
+// only "Enroll Employee" users may create accounts (the page hides the menu, this is the real guard)
+$__ar = $pdo->prepare('SELECT eemployee FROM accessrights WHERE EmpID = ?');
+$__ar->execute([$_SESSION['id']]);
+if ((string)$__ar->fetchColumn() !== '2') {
+    http_response_code(403);
+    echo "You don't have permission to enroll employees.";
+    exit;
+}
 // insert into employees
 
 $sql = "INSERT INTO employees (EmpID,EmpSuffix,EmpFN,EmpMN,EmpLN,PosID,EmployeeIDNumber) VALUES (:empidn,:empsu,:empfn,:empmn,:empln,:empposition,:empcid)";
@@ -159,6 +173,20 @@ $targetPath="assets/images/profiles/" . $_POST['empidn'] . ".jpg" ;
          $stmt = $pdo->prepare($sql);
          $stmt->bindParam(':id' , $id);
          $stmt->bindParam(':empact', $ch);
-         $stmt->execute(); 
-         
+         $stmt->execute();
+
+      // everyone enrolled here gets the same default password: they must set their own at first sign-in
+      require_once __DIR__ . '/../includes/account-gate.php';
+      wd_set_must_change_password($pdo, $_POST['empidn'], true);
+
+      // lifecycle history starts here: hired as <classification> (Separation & Lifecycle)
+      try {
+         require_once __DIR__ . '/../includes/lifecycle-lib.php';
+         if (lcy_ready($pdo)) {
+            $cls = lcy_class_names($pdo);
+            lcy_log_event($pdo, $_POST['empidn'], 'hired', null, $cls[(int) $_POST['empclassification']] ?? null,
+                          lcy_date($_POST['empdatehired'] ?? '') ?: date('Y-m-d'), null, (string) $id);
+         }
+      } catch (Throwable $e) { error_log('[wedo lifecycle] enroll hook: ' . $e->getMessage()); }
+
  ?>

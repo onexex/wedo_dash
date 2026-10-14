@@ -52,8 +52,27 @@ final class AdminHandlersLoginTest extends AppTestCase
         $res = $this->request('query/query-resetpassword.php', [], ['data' => self::EMP], $this->asAdmin());
         $this->assertSame(200, $res['status']);
         $this->assertNoPhpErrors($res['body']);
-        $this->assertTrue(password_verify('wedoinc2023', (string)$this->empPw(self::EMP)));
+        $temp = json_decode($res['body'], true)['password'];
+        $this->assertTrue(password_verify($temp, (string)$this->empPw(self::EMP)), 'a random one-time password');
+        $this->assertFalse(password_verify('wedoinc2023', (string)$this->empPw(self::EMP)), 'no shared default any more');
+        $this->assertSame('1', (string)$this->row('SELECT must_change_pw FROM empdetails WHERE EmpID=?', [self::EMP])['must_change_pw']);
+        $this->assertStringNotContainsString($temp, json_encode($this->rows('SELECT * FROM dars')), 'never logged');
         $this->assertNull($this->empPw(self::ADMIN), 'other employees untouched');
+    }
+
+    public function testSupervisorsCannotResetPasswords(): void
+    {
+        // a supervisor (UserType 2) without "Update 201 Files" used to be able to reset anyone — even HR — to a known default
+        $sup = ['id' => self::EMP, 'UserType' => 2, 'CompanyName' => 'TestCo', 'CompID' => 'TC'];
+        self::db()->prepare("UPDATE empdetails SET EmpPW=? WHERE EmpID=?")->execute([password_hash('hr-secret', PASSWORD_DEFAULT), self::ADMIN]);
+        $before = $this->empPw(self::ADMIN);
+        $this->assertSame(403, $this->request('query/query-resetpassword.php', [], ['data' => self::ADMIN], $sup)['status']);
+        $this->assertSame($before, $this->empPw(self::ADMIN));
+
+        // HR (updte) who is not an admin still may not reset an admin's password
+        self::db()->exec("UPDATE accessrights SET updte = 2 WHERE EmpID = '" . self::EMP . "'");
+        $this->assertSame(403, $this->request('query/query-resetpassword.php', [], ['data' => self::ADMIN], $sup)['status']);
+        $this->assertSame($before, $this->empPw(self::ADMIN));
     }
 
     public function testResetPasswordMatchesTheIdLiterally(): void
