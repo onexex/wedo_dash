@@ -1,8 +1,8 @@
 {
-  "version": "1.0.5",
-  "versionCode": 28,
+  "version": "1.0.6",
+  "versionCode": 29,
   "size": "6.2 MB",
   "released": "2026-10-14",
   "minAndroid": "6.0",
-  "notes": "New: unlock WeDo with your fingerprint. Turn it on at the bottom of the Menu — the app then asks for your fingerprint, face or phone PIN when you open it."
+  "notes": "Fingerprint unlock now asks every time you open WeDo, and no longer closes the app. Turn it on at the bottom of the Menu."
 }
