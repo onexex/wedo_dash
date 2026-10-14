@@ -266,7 +266,7 @@
                 Get the WeDo app for Android
             </a>
 <?php } ?>
-            <a href="apply.php" class="wd-login__app" style="display:flex;align-items:center;justify-content:center;gap:7px;margin-top:10px;font-size:13px;font-weight:600;color:rgba(255,255,255,.7);text-decoration:none">
+            <a href="apply" class="wd-login__app" style="display:flex;align-items:center;justify-content:center;gap:7px;margin-top:10px;font-size:13px;font-weight:600;color:rgba(255,255,255,.7);text-decoration:none">
                 <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect width="20" height="14" x="2" y="7" rx="2"/><path d="M16 21V5a2 2 0 0 0-2-2h-4a2 2 0 0 0-2 2v16"/></svg>
                 Looking for a job? Apply here
             </a>

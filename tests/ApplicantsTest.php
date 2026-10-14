@@ -201,6 +201,7 @@ final class ApplicantsTest extends AppTestCase
         $this->assertStringContainsString('name="website"', $page['body'], 'honeypot present');
         $this->assertStringContainsString('name="fam[0][relationship]"', $page['body']);
         $this->assertStringNotContainsString('<script>window', $page['body'], 'no inline script (strict CSP)');
+        $this->assertStringNotContainsString('login.php', $page['body'], 'applicants are not pointed to the employee sign-in');
 
         $res = $this->request('query/apply-action.php', [], ['token' => 'nope', 'firstName' => 'X']);
         $this->assertSame(419, $res['status']);

@@ -9,6 +9,8 @@
    whole form again (apl_validate). Submits to query/apply-action.php.
    Security: strict CSP (no inline script), no framing, spam guards and
    Turnstile (when configured) — see includes/applicants-lib.php.
+   Shared as ".../apply" (.htaccess sends /apply.php there); it deliberately
+   has no link to the employee sign-in page.
    ========================================================================== */
 if (session_status() === PHP_SESSION_NONE) { session_start(); }
 date_default_timezone_set("Asia/Manila");
@@ -90,7 +92,6 @@ $steps = ['Position', 'Personal', 'Contact', 'Background', 'Family', 'Review'];
         <div class="apl-wrap">
             <nav class="apl-top">
                 <img src="assets/images/logos/wedo-logo.png" alt="WeDo BPO Inc." class="apl-logo">
-                <a href="login.php" class="apl-top__link">Employee sign-in <i class="fa-solid fa-arrow-right"></i></a>
             </nav>
             <div class="apl-hero__body">
                 <span class="apl-eyebrow"><i class="fa-solid fa-briefcase"></i> Careers at WeDo BPO</span>
@@ -299,7 +300,7 @@ $steps = ['Position', 'Personal', 'Contact', 'Background', 'Family', 'Review'];
 <?php endif; ?>
         <footer class="apl-foot">
             <span>© <?php echo date('Y'); ?> WeDo BPO Inc.</span>
-            <a href="login.php">Already part of the team? Sign in</a>
+            <span>Your information is protected under the Data Privacy Act of 2012.</span>
         </footer>
     </main>
 <?php if ($ready): ?>
