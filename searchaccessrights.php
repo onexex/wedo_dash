@@ -9,6 +9,7 @@
 if (session_status() === PHP_SESSION_NONE) { session_start(); }
 if (!isset($_SESSION['id']) || $_SESSION['id'] == "0") { header('location: login.php'); exit; }
 include 'w_conn.php';
+require_once __DIR__ . '/includes/msgaudit-gate.php';
 
 try {
     $pdo = new PDO("mysql:host=$servername;dbname=$db", $username, $password);
@@ -126,7 +127,10 @@ ar_row('fa-pen-to-square','Update 201 Files',  'updte',   $row);
 ar_row('fa-bullhorn',     "GM'S Corner",       'gcorner', $row);
 ar_row('fa-paperclip',    'Messages: Send Pictures & Documents', 'msgfile', $row);
 ar_row('fa-trash-can',    'Messages: Delete Own Messages',       'msgdel',  $row);
-ar_row('fa-user-shield',  'Messages: Review All Conversations (HR investigations)', 'msgaudit', $row);
+// only rgemana may see / change who can read everyone's messages (includes/msgaudit-gate.php)
+if (array_key_exists('msgaudit', $row) && msgaudit_can_grant($pdo, $_SESSION['id'])) {
+    ar_row('fa-user-shield', 'Messages: Review All Conversations (HR investigations)', 'msgaudit', $row);
+}
 // only once sql/2026-10-14-add-after-separation-access-right.sql has run (a missing column would read as ON)
 if (array_key_exists('aftersep', $row)) {
     ar_row('fa-user-clock', 'Sign in after resignation / termination (e.g. still prepares payroll)', 'aftersep', $row);

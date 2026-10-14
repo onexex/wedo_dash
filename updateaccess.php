@@ -41,6 +41,14 @@
 		exit;
 	}
 
+	// Message Review (msgaudit) can only be granted / revoked by one login (includes/msgaudit-gate.php)
+	require_once __DIR__ . '/includes/msgaudit-gate.php';
+	if ($term === 'msgaudit' && !msgaudit_can_grant($pdo, $_SESSION['id'])) {
+		http_response_code(403);
+		echo "Forbidden";
+		exit;
+	}
+
 	// mponoff -> value (1 == OFF, 2 == ON), and audit-log the change
 	$d  = ($_GET['mponoff'] ?? '') === "OFF" ? 1 : 2;
 	$ch = $d === 1 ? "Updated Access Rights to OFF" : "Updated Access Rights to ON";
