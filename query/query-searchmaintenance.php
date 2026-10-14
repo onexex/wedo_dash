@@ -2,6 +2,9 @@
   // AJAX-only partial: a logged-out caller gets 401 and nothing else
   // (the old redirect had no exit, so the rows were still sent).
   if (!isset($_SESSION['id']) || $_SESSION['id'] == "0") { http_response_code(401); exit; }
+  // SSS / Pag-IBIG / PhilHealth / SIL Loan lists need `SPPContrib` (==2), same as the pages
+  require_once __DIR__ . '/../includes/sppcontrib-gate.php';
+  if (spp_contrib_requested() && !spp_contrib_allowed()) { http_response_code(403); exit; }
 
                 include 'w_conn.php';
 ?>
