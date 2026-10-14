@@ -129,7 +129,8 @@ final class MessageDeleteTest extends AppTestCase
         $this->assertSame(422, $this->post(self::EMP, 'delete', ['id' => 999999])['status']);
     }
 
-    public function testDeletingAPictureRemovesTheFile(): void
+    /** The file is kept for Message Review (msg_deleted_archive), but nobody in the chat can open it any more. */
+    public function testDeletingAPictureHidesTheFileFromTheChat(): void
     {
         $this->grant(self::EMP);
         $mhid = self::EMP . '_' . self::B;
@@ -145,8 +146,9 @@ final class MessageDeleteTest extends AppTestCase
 
         try {
             $this->assertSame(200, $this->post(self::EMP, 'delete', ['id' => $id])['status']);
-            $this->assertFileDoesNotExist($path);
+            $this->assertFileExists($path);
             $this->assertSame(404, $this->request('query/msg-file.php', ['id' => $id], [], $this->as(self::B))['status']);
+            $this->assertSame(404, $this->request('query/msg-file.php', ['id' => $id], [], $this->as(self::EMP))['status']);
         } finally {
             @unlink($path);
         }

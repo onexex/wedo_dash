@@ -8,9 +8,12 @@
  *
  * A deleted message keeps its row and place in the conversation so the chat
  * still reads in order: Kind becomes 'deleted', the text is emptied, its
- * reactions and @mentions go, and a picture/document file is removed from
- * uploads/messages. Everyone sees "This message was deleted" in its place;
- * open conversations learn about it from the `deleted` id list on each poll.
+ * reactions and @mentions go. Everyone sees "This message was deleted" in its
+ * place; open conversations learn about it from the `deleted` id list on each poll.
+ *
+ * The original is archived first for Management > Message Review
+ * (includes/msg-review.php, mr_archive) and its picture/document stays on disk
+ * for reviewers only. Before that migration runs the file is removed instead.
  *
  * Used by: query/Query-messages.php (action=delete, `canDelete`, `deleted`)
  * ========================================================================== */
@@ -18,6 +21,7 @@
 require_once __DIR__ . '/messages-lib.php';
 require_once __DIR__ . '/msg-groups.php';
 require_once __DIR__ . '/msg-files.php';
+require_once __DIR__ . '/msg-review.php';
 
 /** Whether $me holds the `msgdel` right. False until the migration has run. */
 function md_can_delete(PDO $pdo, string $me): bool
@@ -49,6 +53,7 @@ function md_delete(PDO $pdo, string $me, int $msid): array
     $card = in_array($m['Kind'], ['image', 'file'], true) ? mf_card((string) $m['Message']) : null;
     $pdo->beginTransaction();
     try {
+        $kept = mr_archive($pdo, $m);   // reviewers keep the original (and its file)
         $pdo->prepare("UPDATE messages SET Message = '', Kind = 'deleted' WHERE MSID = :id")->execute([':id' => $msid]);
         foreach (['msg_reactions', 'msg_mentions'] as $t) {   // tables from optional migrations
             try { $pdo->prepare("DELETE FROM `$t` WHERE MSID = :id")->execute([':id' => $msid]); }
@@ -59,7 +64,7 @@ function md_delete(PDO $pdo, string $me, int $msid): array
         $pdo->rollBack();
         throw $e;
     }
-    if ($card) { @unlink(mf_dir() . '/' . $card['k']); }   // after the commit: a failed delete keeps the file
+    if ($card && !$kept) { @unlink(mf_dir() . '/' . $card['k']); }   // after the commit: a failed delete keeps the file
     return ['ok' => true];
 }
 

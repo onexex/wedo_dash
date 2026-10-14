@@ -58,6 +58,7 @@ CREATE TABLE `accessrights` (
   `pfam` int(11) NOT NULL DEFAULT 1,
   `msgfile` int(11) NOT NULL DEFAULT 1,
   `msgdel` int(11) NOT NULL DEFAULT 1,
+  `msgaudit` int(11) NOT NULL DEFAULT 1,
   `fdetls` int(11) NOT NULL DEFAULT 1,
   `nwblogs` int(11) NOT NULL DEFAULT 1,
   `notif` int(11) NOT NULL DEFAULT 2,
@@ -1417,4 +1418,28 @@ CREATE TABLE IF NOT EXISTS `msg_cleared` (
   `cleared_msid` INT(11)      NOT NULL,
   `cleared_at`   DATETIME     NOT NULL,
   PRIMARY KEY (`EmpID`, `MHID`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+-- messages: review by HR (sql/2026-10-14-add-message-review.sql)
+CREATE TABLE IF NOT EXISTS `msg_deleted_archive` (
+  `MSID`       INT(11)      NOT NULL,
+  `MHID`       VARCHAR(100) NOT NULL,
+  `SenderID`   VARCHAR(50)  NOT NULL,
+  `Kind`       VARCHAR(10)  NOT NULL,
+  `Message`    TEXT         NOT NULL,
+  `file_key`   VARCHAR(120) DEFAULT NULL,
+  `deleted_at` DATETIME     NOT NULL,
+  PRIMARY KEY (`MSID`),
+  KEY `ix_mda_mhid` (`MHID`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+CREATE TABLE IF NOT EXISTS `msg_review_log` (
+  `id`        INT(11)      NOT NULL AUTO_INCREMENT,
+  `EmpID`     VARCHAR(50)  NOT NULL,
+  `action`    VARCHAR(20)  NOT NULL,
+  `MHID`      VARCHAR(100) DEFAULT NULL,
+  `detail`    VARCHAR(255) NOT NULL DEFAULT '',
+  `logged_at` DATETIME     NOT NULL,
+  PRIMARY KEY (`id`),
+  KEY `ix_mrl_at` (`logged_at`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
