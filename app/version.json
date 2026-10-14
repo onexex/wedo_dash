@@ -1,8 +1,8 @@
 {
-  "version": "1.0.3",
-  "versionCode": 26,
+  "version": "1.0.4",
+  "versionCode": 27,
   "size": "6.1 MB",
   "released": "2026-10-14",
   "minAndroid": "6.0",
-  "notes": "Chat: the keyboard no longer covers the conversation and message box on newer Android phones."
+  "notes": "Chat: the keyboard no longer covers the conversation and message box on newer Android phones. Cleaner version line in the Menu."
 }
