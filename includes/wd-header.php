@@ -68,6 +68,12 @@ try {
                      ':s1'=>$wdSince, ':s2'=>$wdSince, ':s3'=>$wdSince, ':s4'=>$wdSince]);
     $nrow = (int) $wdnst->fetchColumn();
 } catch (Exception $wdErr) { $nrow = 0; }
+// Corner announcements are listed in notifications.php too: new ones (not mine) count until it is opened
+try {
+    $wdna = $wdpdo->prepare("SELECT COUNT(*) FROM announcements WHERE EmpID <> :id AND ADate > :s");
+    $wdna->execute([':id' => $_SESSION['id'], ':s' => $wdSince]);
+    $nrow += (int) $wdna->fetchColumn();
+} catch (Exception $wdErr) { }
 
 /* unseen company announcements (Corner badge): recent announcements with no
    annseen row for me, excluding my own posts. The 30-day window keeps the badge

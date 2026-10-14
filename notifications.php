@@ -429,8 +429,35 @@ die("ERROR: Could not connect. " . $e->getMessage());
                     } catch (Exception $e) {
                         echo 'Caught exception: ',  $e->getMessage(), "\n";
                     }
-                  while ($row = $statement->fetch()){
-                        
+                  // filings + recent Corner announcements (they are pushed to the phone too), newest first
+                  $rows = isset($statement) ? $statement->fetchAll() : [];
+                  try {
+                      $annSt = $pdo->prepare("SELECT a.aid, a.ADesc, a.ADate, e.EmpFN, e.EmpLN FROM announcements a
+                          LEFT JOIN employees e ON e.EmpID = a.EmpID
+                          WHERE a.EmpID <> :id AND a.ADate >= (NOW() - INTERVAL 30 DAY)
+                          ORDER BY a.ADate DESC LIMIT 10");
+                      $annSt->execute([':id' => $_SESSION['id']]);
+                      foreach ($annSt->fetchAll(PDO::FETCH_ASSOC) as $a) {
+                          $who  = trim(($a['EmpFN'] ?? '') . ' ' . ($a['EmpLN'] ?? ''));
+                          $text = trim(preg_replace('/\s+/', ' ', html_entity_decode(strip_tags((string) $a['ADesc']), ENT_QUOTES, 'UTF-8')));
+                          if (mb_strlen($text) > 180) { $text = rtrim(mb_substr($text, 0, 177)) . '...'; }
+                          $rows[] = ['st' => 'ANN', 'dtp' => $a['ADate'], 'ntype' => 'Announcement' . ($who !== '' ? ' from ' . $who : ''), 'text' => $text];
+                      }
+                  } catch (Exception $e) { /* no announcements table: filings only */ }
+                  usort($rows, function ($x, $y) { return strcmp((string) $y['dtp'], (string) $x['dtp']); });
+                  foreach ($rows as $row){
+                    if (($row['st'] ?? '') === 'ANN') {
+                    ?>
+                     <tr class="notif-ann">
+                    <td class="notif-type"><?php echo htmlspecialchars($row['ntype']); ?></td>
+                    <td class="notif-details"><?php echo htmlspecialchars($row['text']); ?></td>
+                    <td><?php echo date("F d, Y h:i:s A", strtotime($row['dtp'])); ?></td>
+                    <td><?php echo wd_status_pill('Corner'); ?></td>
+                    <td><a class="wd-iconbtn" href="corner" title="View in the Corner"><i class="fa-solid fa-eye" aria-hidden="true"></i></a></td>
+                     </tr>
+                    <?php
+                        continue;
+                    }
                     ?>
                      <tr>
                     <td class="notif-type"><?php echo $row['ntype']; ?></td>

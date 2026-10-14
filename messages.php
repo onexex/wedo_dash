@@ -25,11 +25,11 @@
     <script type="text/javascript" src="assets/js/script-message.js?v=<?php echo $msgVer; ?>" defer></script>
 
     <style type="text/css">
-      .msg-app{display:grid;grid-template-columns:340px 1fr;height:calc(100vh - var(--topbar-h) - 140px);min-height:460px;margin:18px 0 0;overflow:hidden}
+      .msg-app{display:grid;grid-template-columns:340px minmax(0,1fr);height:calc(100vh - var(--topbar-h) - 140px);min-height:460px;margin:18px 0 0;overflow:hidden}
       .msg-app [hidden]{display:none !important}   /* the display:flex rules below must not un-hide panels */
 
       /* ---------------------------------------------------------------- side: search, tabs, list */
-      .msg-side{display:flex;flex-direction:column;min-height:0;border-right:1px solid var(--border);background:var(--surface)}
+      .msg-side{display:flex;flex-direction:column;min-height:0;min-width:0;border-right:1px solid var(--border);background:var(--surface)}
       .msg-side__head{padding:14px 14px 10px;display:flex;flex-direction:column;gap:10px}
       .msg-search{position:relative}
       .msg-search i{position:absolute;left:12px;top:50%;transform:translateY(-50%);color:var(--text-3);font-size:13px}
@@ -307,7 +307,7 @@
 
       /* ---------------------------------------------------------------- phones: one pane at a time */
       @media(max-width:760px){
-        .msg-app{grid-template-columns:1fr;height:calc(100vh - var(--topbar-h) - 120px)}
+        .msg-app{grid-template-columns:minmax(0,1fr);height:calc(100vh - var(--topbar-h) - 120px)}   /* minmax(0,…): a long "Online now" row scrolls instead of widening the panel past the screen */
         .msg-app.has-thread .msg-side{display:none}
         .msg-app:not(.has-thread) .msg-main{display:none}
         .msg-side{border-right:0}
