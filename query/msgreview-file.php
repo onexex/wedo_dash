@@ -3,9 +3,7 @@
    msgreview-file.php  —  open / download a picture or document for
    Management > Message Review, including the kept original of a deleted one.
 
-   GET id=MSID[&dl=1]   only with the `msgaudit` access right; opening a file
-   is recorded in msg_review_log. &t=1 = a thumbnail inside a transcript, which
-   is covered by that conversation's own "open" entry. Chat members use
+   GET id=MSID[&dl=1]   only with the `msgaudit` access right. Chat members use
    query/msg-file.php instead.
    ========================================================================== */
 if (session_status() === PHP_SESSION_NONE) { session_start(); }
@@ -44,7 +42,6 @@ $path = mf_dir() . '/' . $f['card']['k'];
 if (!is_file($path)) { mrf_fail(404, 'This file is no longer on the server.'); }
 
 $name = (string) $f['card']['n'];
-if (empty($_GET['t'])) { mr_log($pdo, $me, 'file', $f['mhid'], $name . ' (message #' . $id . ')'); }
 
 $ext    = $f['card']['ext'];
 $type   = mf_types()[$ext][1];
