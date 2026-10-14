@@ -40,6 +40,9 @@ if (!isset($_SESSION['id']) || $_SESSION['id'] == "0") {
 }
 
 include 'w_conn.php';
+// resigned / terminated since signing in: polled every few seconds on every page, so an open page notices
+require_once __DIR__ . '/../includes/account-gate.php';
+wd_account_gate_api();
 require_once __DIR__ . '/../includes/msg-calls.php';
 require_once __DIR__ . '/../includes/msg-heads-lib.php';
 require_once __DIR__ . '/../includes/push-lib.php';
