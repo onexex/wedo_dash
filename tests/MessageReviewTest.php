@@ -5,10 +5,11 @@ use Wedo\Tests\Support\AppTestCase;
 
 /**
  * Management > Message Review: HR / admin with the `msgaudit` access right read
- * every conversation (read-only), deleted messages included; every look is logged.
+ * every conversation (read-only), deleted messages included. Nothing about a
+ * review is recorded (the review log was removed; msg_review_log stays empty).
  *
- *   includes/msg-review.php          who may review, conversation list / transcript, archive, log
- *   query/msgreview-action.php       list | thread | people | log | print (403 without the right)
+ *   includes/msg-review.php          who may review, conversation list / transcript, archive
+ *   query/msgreview-action.php       list | thread | people (403 without the right)
  *   query/msgreview-file.php         pictures/documents incl. a deleted message's kept file
  *   includes/msg-delete.php          archives the original before wiping it
  */
@@ -126,12 +127,8 @@ final class MessageReviewTest extends AppTestCase
         $this->assertSame(self::B, $t['messages'][0]['sender']['id']);
         $this->assertFalse($t['messages'][0]['read']);
 
-        // read-only: still unread for Cora, and the open is logged
+        // read-only: still unread for Cora
         $this->assertSame(1, (int) self::db()->query("SELECT Status FROM messages WHERE MHID = " . self::db()->quote($key))->fetchColumn());
-        $this->assertSame(['open'], $this->logActions());
-        $log = $this->review(['action' => 'log'])['json']['log'];
-        $this->assertSame('Ada Admin', $log[0]['who']);
-        $this->assertSame('Ben Bautista & Cora Cruz', $log[0]['title']);
     }
 
     public function testFiltersByPersonWordsAndType(): void
@@ -150,7 +147,6 @@ final class MessageReviewTest extends AppTestCase
         $this->assertSame(['Ben Bautista & Cora Cruz'], array_column($hit, 'title'));
         $this->assertSame(1, $hit[0]['hits']);
         $this->assertSame([], $titles(['q' => 'password', 'to' => '2000-01-01']));
-        $this->assertSame(['search', 'search', 'search', 'search'], $this->logActions());
 
         $people = $this->review(['action' => 'people', 'q' => 'cruz'])['json']['people'];
         $this->assertEqualsCanonicalizing([self::EMP, self::C], array_column($people, 'id'));
@@ -209,22 +205,23 @@ final class MessageReviewTest extends AppTestCase
             $m = $this->review(['action' => 'thread', 'key' => $mhid])['json']['messages'][0];
             $this->assertSame('file', $m['original']['kind']);
             $this->assertTrue($m['original']['file']);
-            // two file opens + the thread open; a transcript thumbnail (t=1) isn't logged separately
-            $this->request('query/msgreview-file.php', ['id' => $id, 't' => 1], [], $this->as(self::ADMIN));
-            $this->assertSame(['file', 'file', 'open'], $this->logActions());
         } finally {
             @unlink($path);
         }
     }
 
-    public function testPrintIsLoggedAndNeedsTheToken(): void
+    /** The review log is gone: no log/print actions, and reviewing records nothing. */
+    public function testReviewingIsNotLogged(): void
     {
         $this->grant(self::ADMIN);
         $this->say(self::EMP, self::B, 'hi');
-        $key  = self::EMP . '_' . self::B;
-        $post = fn(array $p) => $this->request('query/msgreview-action.php', ['action' => 'print'], ['action' => 'print', 'key' => $key] + $p, $this->as(self::ADMIN))['status'];
-        $this->assertSame(419, $post(['token' => 'wrong']));
-        $this->assertSame(200, $post(['token' => self::TOKEN]));
-        $this->assertSame(['print'], $this->logActions());
+        $key = self::EMP . '_' . self::B;
+        $this->review(['action' => 'list', 'q' => 'hi']);
+        $this->review(['action' => 'thread', 'key' => $key]);
+        $this->assertSame(400, $this->review(['action' => 'log'])['status']);
+        $this->assertSame(400, $this->request('query/msgreview-action.php', ['action' => 'print'],
+            ['action' => 'print', 'key' => $key], $this->as(self::ADMIN))['status']);
+        $this->assertStringNotContainsString('Review log', $this->request('msgreview.php', [], [], $this->as(self::ADMIN))['body']);
+        $this->assertSame([], $this->logActions());
     }
 }

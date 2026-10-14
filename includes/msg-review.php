@@ -13,9 +13,6 @@
  * first, so the original text and its picture/document stay available here
  * while the chat itself shows "This message was deleted".
  *
- * Every review action is written to msg_review_log and listed on the page,
- * so reviewers are accountable to each other.
- *
  * Used by: msgreview.php, query/msgreview-action.php, query/msgreview-file.php,
  *          includes/msg-delete.php (mr_archive)
  * ========================================================================== */
@@ -40,14 +37,7 @@ function mr_can_review(PDO $pdo, string $me): bool
     }
 }
 
-/** Per-session token for the page's one write (recording a print). */
-function mr_csrf_token(): string
-{
-    if (empty($_SESSION['mr_csrf'])) { $_SESSION['mr_csrf'] = bin2hex(random_bytes(16)); }
-    return $_SESSION['mr_csrf'];
-}
-
-/** Whether table $t exists (the archive / log tables come with the migration). */
+/** Whether table $t exists (the archive table comes with the migration). */
 function mr_table(PDO $pdo, string $t): bool
 {
     static $has = [];
@@ -76,47 +66,6 @@ function mr_archive(PDO $pdo, array $m): bool
         ->execute([':id' => (int) $m['MSID'], ':h' => $m['MHID'], ':s' => $m['SenderID'], ':k' => $m['Kind'],
                    ':m' => (string) $m['Message'], ':f' => $card['k'] ?? null, ':at' => date('Y-m-d H:i:s')]);
     return true;
-}
-
-/* ------------------------------------------------------------------ audit log */
-
-/** Record a review action. Best-effort: never blocks the reviewer. */
-function mr_log(PDO $pdo, string $me, string $action, ?string $mhid, string $detail = ''): void
-{
-    if (!mr_table($pdo, 'msg_review_log')) { return; }
-    try {
-        $pdo->prepare("INSERT INTO msg_review_log (EmpID, action, MHID, detail, logged_at) VALUES (:e, :a, :h, :d, :t)")
-            ->execute([':e' => $me, ':a' => $action, ':h' => $mhid, ':d' => mb_substr($detail, 0, 255), ':t' => date('Y-m-d H:i:s')]);
-    } catch (Throwable $e) { /* audit is best-effort */ }
-}
-
-/** Latest review actions, newest first, with the reviewer's name and a readable conversation title. */
-function mr_log_list(PDO $pdo, int $limit = 200): array
-{
-    if (!mr_table($pdo, 'msg_review_log')) { return []; }
-    $st = $pdo->prepare("SELECT l.id, l.EmpID, l.action, l.MHID, l.detail, l.logged_at, e.EmpFN, e.EmpLN
-        FROM msg_review_log l LEFT JOIN employees e ON e.EmpID = l.EmpID
-        ORDER BY l.id DESC LIMIT " . max(1, min(500, $limit)));
-    $st->execute();
-    $titles = [];
-    $out = [];
-    foreach ($st->fetchAll(PDO::FETCH_ASSOC) as $r) {
-        $h = $r['MHID'];
-        if ($h !== null && !array_key_exists($h, $titles)) {
-            $c = mr_conversation($pdo, $h);
-            $titles[$h] = $c ? $c['title'] : $h;
-        }
-        $out[] = [
-            'id'     => (int) $r['id'],
-            'who'    => trim($r['EmpFN'] . ' ' . $r['EmpLN']) ?: $r['EmpID'],
-            'action' => $r['action'],
-            'key'    => $h,
-            'title'  => $h === null ? '' : $titles[$h],
-            'detail' => $r['detail'],
-            'at'     => $r['logged_at'],
-        ];
-    }
-    return $out;
 }
 
 /* ------------------------------------------------------------------ people */

@@ -21,7 +21,6 @@ try {
 if (!mr_can_review($mrpdo, (string) $_SESSION['id'])) { header('location: 404?'); exit(); }
 
 $boot = [
-    'token'   => mr_csrf_token(),
     'archive' => mr_table($mrpdo, 'msg_deleted_archive'),
     'open'    => (string) ($_GET['key'] ?? ''),
 ];
@@ -59,16 +58,12 @@ $v = function ($f) { return @filemtime(__DIR__ . '/' . $f) ?: 0; };
           <h1>Message Review</h1>
           <p>Read every conversation in Messages — 1-to-1 and groups, deleted messages included — for investigations.</p>
         </div>
-        <div class="mr-headactions">
-          <button type="button" class="wd-btn wd-btn--ghost" id="mrLogBtn"><i class="fa-solid fa-clock-rotate-left"></i> Review log</button>
-        </div>
       </div>
 
       <div class="mr-notice mr-noprint" role="note">
         <i class="fa-solid fa-user-shield"></i>
         <div>
           <b>Confidential — use only for an open investigation.</b>
-          Opening a conversation, searching, printing and opening files are recorded under your name in the review log.
           Nothing here marks messages as read or tells anyone you looked.
           <?php if (!$boot['archive']): ?>
             <br><span class="mr-warn">Deleted messages aren’t being kept yet: run <code>sql/2026-10-14-add-message-review.sql</code> on this server.</span>
@@ -110,7 +105,7 @@ $v = function ($f) { return @filemtime(__DIR__ . '/' . $f) ?: 0; };
           <div class="mr-list" id="mrList" aria-live="polite"></div>
         </section>
 
-        <!-- ------------------------------------------------ transcript / log -->
+        <!-- ------------------------------------------------ transcript -->
         <section class="wd-card mr-main" id="mrMain">
           <div class="mr-empty" id="mrEmpty">
             <i class="fa-regular fa-comments"></i>
@@ -129,22 +124,6 @@ $v = function ($f) { return @filemtime(__DIR__ . '/' . $f) ?: 0; };
             </header>
             <div class="mr-printnote" id="mrPrintNote"></div>
             <div class="mr-msgs" id="mrMsgs"></div>
-          </div>
-
-          <div class="mr-log" id="mrLog" hidden>
-            <header class="mr-threadhead">
-              <div class="mr-threadhead__main">
-                <div class="mr-threadhead__type">Accountability</div>
-                <h2>Review log</h2>
-                <p class="wd-muted">The latest 200 actions by everyone with access to Message Review.</p>
-              </div>
-            </header>
-            <div class="mr-logwrap">
-              <table class="wd-table mr-logtable">
-                <thead><tr><th>When</th><th>Who</th><th>Did</th><th>Conversation / details</th></tr></thead>
-                <tbody id="mrLogBody"></tbody>
-              </table>
-            </div>
           </div>
         </section>
       </div>

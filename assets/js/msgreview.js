@@ -201,12 +201,10 @@
   /* ------------------------------------------------------------ transcript */
   var msgsBox = $('mrMsgs');
 
-  function show(which) {   // 'empty' | 'thread' | 'log'
+  function show(which) {   // 'empty' | 'thread'
     $('mrEmpty').hidden = which !== 'empty';
     $('mrThread').hidden = which !== 'thread';
-    $('mrLog').hidden = which !== 'log';
     $('mrApp').classList.toggle('is-reading', which !== 'empty');
-    $('mrLogBtn').classList.toggle('is-on', which === 'log');
   }
 
   function openThread(key) {
@@ -302,7 +300,7 @@
       var href = FILE + '?id=' + id;
       if (k === 'image') {
         var a = el('a', 'mr-photo'); a.href = href; a.target = '_blank'; a.rel = 'noopener';
-        a.title = 'Open full size (recorded in the review log)';
+        a.title = 'Open full size';
         var img = el('img'); img.src = href + '&t=1'; img.alt = name; img.loading = 'lazy';
         a.appendChild(img);
         box.appendChild(a);
@@ -366,52 +364,10 @@
 
   /* ------------------------------------------------------------ print */
   $('mrPrint').addEventListener('click', function () {
-    var key = state.key;
-    if (!key) { return; }
-    var go = function () {
-      var now = new Date();
-      $('mrPrintNote').textContent = 'Printed ' + now.toLocaleString() + ' from WeDo Message Review. Confidential.' +
-        (state.older ? ' Older messages were not loaded and are not included.' : '');
-      window.print();
-    };
-    var body = new URLSearchParams({ action: 'print', key: key, token: BOOT.token || '' });
-    fetch(API, { method: 'POST', credentials: 'same-origin', body: body }).then(go, go);
-  });
-
-  /* ------------------------------------------------------------ review log */
-  var LOG_VERB = { open: 'Opened', search: 'Searched', file: 'Opened file', print: 'Printed' };
-  $('mrLogBtn').addEventListener('click', function () {
-    if (!$('mrLog').hidden) { show(state.key ? 'thread' : 'empty'); return; }
-    show('log');
-    var body = $('mrLogBody');
-    body.textContent = '';
-    var tr0 = el('tr'); var td0 = el('td', '', 'Loading…'); td0.colSpan = 4; tr0.appendChild(td0); body.appendChild(tr0);
-    get({ action: 'log' }).then(function (res) {
-      body.textContent = '';
-      var rows = (res && res.log) || [];
-      if (!rows.length) {
-        var tr = el('tr'); var td = el('td', '', 'Nothing recorded yet.'); td.colSpan = 4; tr.appendChild(td); body.appendChild(tr);
-        return;
-      }
-      rows.forEach(function (r) {
-        var tr = el('tr');
-        tr.appendChild(el('td', '', fmtWhen(r.at)));
-        tr.appendChild(el('td', '', r.who));
-        tr.appendChild(el('td', '', LOG_VERB[r.action] || r.action));
-        var td = el('td', 'mr-logdetail');
-        if (r.key) {
-          var a = el('button', 'mr-link', r.title || r.key);
-          a.type = 'button';
-          a.addEventListener('click', function () { openThread(r.key); });
-          td.appendChild(a);
-          if (r.detail) { td.appendChild(document.createTextNode(' · ' + r.detail)); }
-        } else {
-          td.textContent = r.detail;
-        }
-        tr.appendChild(td);
-        body.appendChild(tr);
-      });
-    });
+    if (!state.key) { return; }
+    $('mrPrintNote').textContent = 'Printed ' + new Date().toLocaleString() + ' from WeDo Message Review. Confidential.' +
+      (state.older ? ' Older messages were not loaded and are not included.' : '');
+    window.print();
   });
 
   /* ------------------------------------------------------------ start */
