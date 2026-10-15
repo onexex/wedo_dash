@@ -451,6 +451,44 @@
   $('#aplHireModal').on('shown.bs.modal', function () { $('.modal-backdrop').last().addClass('apl-hire-backdrop'); })
     .on('hidden.bs.modal', function () { if ($('#aplModal').hasClass('in')) { $('body').addClass('modal-open'); } });
 
+  /* ------------------------------------------------------------ email setup (Brevo) */
+  var CHECK_ICON = { ok: 'fa-circle-check', warn: 'fa-triangle-exclamation', bad: 'fa-circle-xmark' };
+  function mailStatus() {
+    var list = $id('aplMailChecks');
+    list.innerHTML = '<li class="is-wait"><i class="fa-solid fa-spinner fa-spin"></i> Checking with Brevo…</li>';
+    post('mail_status', {}).then(function (res) {
+      if (res.status !== 'ok') { list.innerHTML = '<li class="is-bad"><i class="fa-solid fa-circle-xmark"></i> ' + esc(res.msg) + '</li>'; return; }
+      var m = res.mail;
+      list.innerHTML = m.checks.map(function (c) {
+        return '<li class="is-' + esc(c.level) + '"><i class="fa-solid ' + (CHECK_ICON[c.level] || 'fa-circle') + '"></i> ' + esc(c.text) + '</li>';
+      }).join('')
+        + '<li class="apl-checks__sum is-' + (m.enabled ? 'ok' : 'bad') + '">' + (m.enabled
+          ? '<b>Email is on.</b> Send a test below to confirm it arrives.'
+          : '<b>Email is off on this server.</b> Fix the red items, then press "Check again".') + '</li>';
+    });
+  }
+  $id('aplMailBtn').addEventListener('click', function () {
+    $id('aplMailTestRes').textContent = '';
+    if (!$id('aplMailTo').value) { $id('aplMailTo').value = BOOT.myEmail || ''; }
+    mailStatus();
+    $('#aplMailModal').modal('show');
+  });
+  $id('aplMailRecheck').addEventListener('click', mailStatus);
+  $id('aplMailTestForm').addEventListener('submit', function (ev) {
+    ev.preventDefault();
+    var btn = $id('aplMailTestBtn'), r = $id('aplMailTestRes');
+    btn.disabled = true;
+    r.className = 'apl-mailres';
+    r.textContent = 'Sending…';
+    post('mail_test', { to: $id('aplMailTo').value.trim() }).then(function (res) {
+      btn.disabled = false;
+      if (res.status !== 'ok') { r.className = 'apl-mailres is-bad'; r.textContent = res.msg; return; }
+      r.className = 'apl-mailres ' + (res.sent ? 'is-ok' : 'is-bad');
+      r.textContent = res.sent ? 'Brevo accepted it — check the inbox (and Spam) of ' + $id('aplMailTo').value.trim() + '.'
+        : 'Not sent: ' + (res.error || 'unknown error');
+    });
+  });
+
   /* ------------------------------------------------------------ openings */
   function renderOpenings(list) {
     BOOT.openings = list;

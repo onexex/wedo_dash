@@ -437,6 +437,26 @@ final class ApplicantsTest extends AppTestCase
         $this->assertStringNotContainsString($hire['json']['password'], json_encode($welcome), 'the password is never emailed');
     }
 
+    public function testEmailSetupCheckAndTestEmail(): void
+    {
+        $this->mailOn(false);
+        $st = $this->act('mail_status', [])['json']['mail'];
+        $this->assertFalse($st['enabled']);
+        $this->assertContains('bad', array_column($st['checks'], 'level'));
+        $off = $this->act('mail_test', ['to' => 'hr@example.com'])['json'];
+        $this->assertFalse($off['sent']);
+        $this->assertCount(0, $this->sent());
+
+        $this->mailOn();
+        $this->assertTrue($this->act('mail_status', [])['json']['mail']['enabled']);
+        $this->assertSame(422, $this->act('mail_test', ['to' => 'nope'])['status']);
+        $on = $this->act('mail_test', ['to' => 'boss@example.com'])['json'];
+        $this->assertTrue($on['sent'], $on['error'] ?? '');
+        $this->assertSame('boss@example.com', $this->sent()[0]['to'][0]['email']);
+        $this->assertSame(403, $this->act('mail_test', ['to' => 'x@example.com'], $this->asEmployee() + ['apl_csrf' => self::TOKEN])['status'], 'HR only');
+        $this->assertStringContainsString('id="aplMailBtn"', $this->request('applicants.php', [], [], $this->asAdmin())['body']);
+    }
+
     public function testNotSelectedEmailAndNoEmailWhenNotSetUp(): void
     {
         $this->mailOn(false);   // no valid sender: email is off

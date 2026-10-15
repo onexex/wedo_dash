@@ -5,6 +5,7 @@
    `applicants` access right and the per-session token from apl_csrf_token():
      list, detail, stage, delete, openings, save_opening
      hire_options, hire     (+ "Enroll Employee": hiring creates an account)
+     mail_status, mail_test (the "Email setup" check + a test email)
    Emails to the applicant (includes/applicants-mail.php, only when Brevo is
    set up): stage with email=1 + emailMessage (Job offer / Not selected only),
    hire with welcome=1 (employee no. + username, never the password).
@@ -91,6 +92,22 @@ try {
         $r = apl_save_opening($pdo, (int) $p('id'), $p('title'), $p('location'), $p('description'), $p('open') === '1', $actor);
         $fail($r);
         apx_out(200, ['status' => 'ok', 'id' => $r['id'], 'openings' => apl_openings($pdo, false)]);
+
+    case 'mail_status':   // the "Email setup" check: each step, Brevo's own answer included
+        apx_out(200, ['status' => 'ok', 'mail' => wd_mail_diagnose()]);
+
+    case 'mail_test':
+        $to = trim($p('to'));
+        if (!filter_var($to, FILTER_VALIDATE_EMAIL)) { apx_out(422, ['status' => 'error', 'msg' => 'Enter a valid email address.']); }
+        if (!wd_mail_enabled()) {
+            apx_out(200, ['status' => 'ok', 'sent' => false, 'error' => 'Email is off on this server — fix the red items above first.']);
+        }
+        $body = '<p>This is a test from the WeDo Applicant Pool.</p><p>If you can read this, emails to applicants work: '
+              . 'application received, job offer, not selected and the welcome on hire.</p>';
+        $r = wd_mail_send($to, '', 'WeDo test email', wd_mail_layout('Email works!', $body),
+                          "This is a test from the WeDo Applicant Pool.\nIf you can read this, emails to applicants work.");
+        lcy_audit($pdo, 'Applicants: test email to ' . $to . ($r['ok'] ? '' : ' failed: ' . mb_substr($r['error'], 0, 120)));
+        apx_out(200, ['status' => 'ok', 'sent' => $r['ok'], 'error' => $r['error']]);
 
     case 'hire_options':
         $needHire();
