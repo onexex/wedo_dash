@@ -366,6 +366,7 @@ CREATE TABLE `applicants` (
   `Source` varchar(80) DEFAULT NULL,
   `ResumeKey` varchar(80) DEFAULT NULL,
   `ResumeName` varchar(120) DEFAULT NULL,
+  `ResumeHash` char(40) DEFAULT NULL,
   `Stage` varchar(12) NOT NULL DEFAULT 'new',
   `StageAt` datetime NOT NULL DEFAULT current_timestamp(),
   `ConsentAt` datetime NOT NULL,
@@ -393,6 +394,19 @@ CREATE TABLE `job_openings` (
   `CreatedAt` datetime NOT NULL DEFAULT current_timestamp(),
   `UpdatedAt` datetime NOT NULL DEFAULT current_timestamp() ON UPDATE current_timestamp(),
   PRIMARY KEY (`id`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
+/*!40101 SET character_set_client = @saved_cs_client */;
+/*!40101 SET @saved_cs_client     = @@character_set_client */;
+/*!40101 SET character_set_client = utf8 */;
+CREATE TABLE `login_attempts` (
+  `id` int(11) NOT NULL AUTO_INCREMENT,
+  `Username` varchar(150) NOT NULL,
+  `IP` varchar(45) NOT NULL,
+  `Success` tinyint(1) NOT NULL DEFAULT 0,
+  `CreatedAt` datetime NOT NULL,
+  PRIMARY KEY (`id`),
+  KEY `ix_login_user` (`Username`,`CreatedAt`),
+  KEY `ix_login_ip` (`IP`,`CreatedAt`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
 /*!40101 SET character_set_client = @saved_cs_client */;
 /*!40101 SET @saved_cs_client     = @@character_set_client */;

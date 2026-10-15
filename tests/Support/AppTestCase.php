@@ -24,7 +24,7 @@ abstract class AppTestCase extends TestCase
         'empeducationalbackground', 'fdetails', 'accessrights', 'dars', 'profile_change_requests',
         'idcard_cards', 'idcard_print_log', 'idcard_settings', 'credit', 'credit_years', 'credit_log', 'hleaves', 'messageheader', 'messages', 'msg_presence', 'msg_calls', 'msg_call_members', 'msg_call_signals', 'msg_groups', 'msg_group_members', 'msg_reactions', 'msg_mentions', 'push_devices', 'app_remember', 'msg_cleared', 'msg_deleted_archive', 'msg_review_log', 'announcements',
         'emp_lifecycle_events', 'emp_separations', 'coe_requests', 'employment_verifications', 'amsarchive',
-        'job_openings', 'applicants', 'applicant_education', 'applicant_family', 'applicant_events',
+        'job_openings', 'applicants', 'applicant_education', 'applicant_family', 'applicant_events', 'login_attempts',
     ];
 
     protected function setUp(): void

@@ -58,8 +58,16 @@ RewriteRule (^|/)(composer\.(json|lock)|phpunit\.xml\.dist)$ - [F,L]
 RewriteCond %{HTTPS} off
 RewriteRule ^(.*)$ https://%{HTTP_HOST}%{REQUEST_URI} [L,R=301]
 
+# 2b. Public job application: applicants only ever see ".../apply". A browser
+#     opening /apply.php (old links) is sent there; the form's own endpoint
+#     (query/apply-action.php) is a different name and is never redirected.
+RewriteCond %{REQUEST_METHOD} =GET
+RewriteCond %{THE_REQUEST} \s[^?\s]*/apply\.php[\s?]
+RewriteCond %{REQUEST_URI} ^(.*/)apply\.php$
+RewriteRule ^ %1apply [R=301,L]
+
 # 3. ✅ Extension removal / Clean URLs
-RewriteCond %{REQUEST_FILENAME} !-d 
+RewriteCond %{REQUEST_FILENAME} !-d
 RewriteCond %{REQUEST_FILENAME}.php -f 
 RewriteRule ^(.*)$ $1.php [L]
 

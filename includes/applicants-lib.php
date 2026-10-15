@@ -18,6 +18,7 @@
    ========================================================================== */
 date_default_timezone_set("Asia/Manila");
 require_once __DIR__ . '/lifecycle-lib.php';
+require_once __DIR__ . '/bot-guard.php';
 
 const APL_STAGES = ['new' => 'New', 'screening' => 'Screening', 'interview' => 'Interview', 'exam' => 'Exam / Assessment',
                     'offer' => 'Job offer', 'hired' => 'Hired', 'rejected' => 'Not selected', 'withdrawn' => 'Withdrawn'];
@@ -27,7 +28,14 @@ const APL_MAX_RESUME   = 5 * 1024 * 1024;
 const APL_RESUME_TYPES = ['pdf', 'doc', 'docx'];
 const APL_PER_IP_HOUR  = 3;               // applications from one address per hour
 const APL_PER_HOUR_ALL = 60;              // all applications per hour (a flood from many addresses)
-const APL_MIN_SECONDS  = 4;               // a person needs at least this long to fill the form
+const APL_MIN_SECONDS  = 20;              // nobody fills the six steps faster than this
+const APL_FORM_TTL     = 7200;            // a loaded form expires after 2 hours
+const APL_REPEAT_DAYS  = 30;              // same email+position, mobile or resume file: once per 30 days
+/** Throwaway-mailbox services (spam uses them; real applicants don't). */
+const APL_DISPOSABLE = ['mailinator.com', 'guerrillamail.com', 'guerrillamail.net', 'sharklasers.com', '10minutemail.com',
+    'tempmail.com', 'temp-mail.org', 'tempmail.net', 'yopmail.com', 'trashmail.com', 'getnada.com', 'maildrop.cc',
+    'dispostable.com', 'throwawaymail.com', 'fakeinbox.com', 'mintemail.com', 'mohmal.com', 'emailondeck.com',
+    'tempr.email', 'spamgourmet.com', 'mailnesia.com', 'mytemp.email', 'burnermail.io', 'moakt.com'];
 const APL_MAX_FAMILY   = 6;
 const APL_PROGRAMS     = ['Primary', 'Secondary', 'Tertiary'];
 const APL_GENDERS      = ['Female', 'Male'];
@@ -57,14 +65,6 @@ const APL_LABELS = [
     'firstName' => 'first name', 'lastName' => 'last name', 'street' => 'street address', 'barangay' => 'barangay',
     'city' => 'city / municipality', 'province' => 'province', 'country' => 'country',
 ];
-
-/* Cloudflare's edge ranges (https://www.cloudflare.com/ips/): only when the
-   request really comes from one of them is CF-Connecting-IP trusted as the
-   visitor's address — anyone else could fake that header. */
-const APL_CF_RANGES = ['173.245.48.0/20', '103.21.244.0/22', '103.22.200.0/22', '103.31.4.0/22', '141.101.64.0/18',
-    '108.162.192.0/18', '190.93.240.0/20', '188.114.96.0/20', '197.234.240.0/22', '198.41.128.0/17', '162.158.0.0/15',
-    '104.16.0.0/13', '104.24.0.0/14', '172.64.0.0/13', '131.0.72.0/22', '2400:cb00::/32', '2606:4700::/32',
-    '2803:f800::/32', '2405:b500::/32', '2405:8100::/32', '2a06:98c0::/29', '2c0f:f248::/32'];
 
 /* ------------------------------------------------------------------ access */
 
@@ -177,62 +177,50 @@ function apl_resume_path($key, ?string $dir = null) {
 
 /* ------------------------------------------------------------------ public registration */
 
-function apl_ip_in($ip, $cidr) {
-    [$net, $bits] = explode('/', $cidr);
-    $a = @inet_pton($ip);
-    $b = @inet_pton($net);
-    if ($a === false || $b === false || strlen($a) !== strlen($b)) { return false; }
-    $bits = (int) $bits;
-    $bytes = intdiv($bits, 8);
-    if (strncmp($a, $b, $bytes) !== 0) { return false; }
-    if ($bits % 8 === 0) { return true; }
-    $mask = chr((0xFF << (8 - $bits % 8)) & 0xFF);
-    return (($a[$bytes] & $mask) === ($b[$bytes] & $mask));
-}
+/** The visitor's address — see includes/bot-guard.php. */
+function apl_client_ip() { return wd_client_ip(); }
 
-/** The visitor's address (behind Cloudflare: the real one, never a spoofed header). */
-function apl_client_ip() {
-    $remote = (string) ($_SERVER['REMOTE_ADDR'] ?? '');
-    $cf = trim((string) ($_SERVER['HTTP_CF_CONNECTING_IP'] ?? ''));
-    if ($cf !== '' && filter_var($cf, FILTER_VALIDATE_IP)) {
-        foreach (APL_CF_RANGES as $r) {
-            if (apl_ip_in($remote, $r)) { return substr($cf, 0, 45); }
-        }
-    }
-    return substr($remote, 0, 45);
-}
-
-/**
- * Cloudflare Turnstile keys for the Apply page, or null when not configured.
- * Set them in config.local.php ('turnstile_site' => ..., 'turnstile_secret' => ...)
- * or as env vars TURNSTILE_SITE / TURNSTILE_SECRET. Without them the page
- * relies on the honeypot, the fill time and the rate limits.
- */
-function apl_turnstile() {
-    $cfg  = $GLOBALS['__cfg'] ?? [];
-    $site = getenv('TURNSTILE_SITE') ?: ($cfg['turnstile_site'] ?? '');
-    $sec  = getenv('TURNSTILE_SECRET') ?: ($cfg['turnstile_secret'] ?? '');
-    return ($site !== '' && $sec !== '') ? ['site' => (string) $site, 'secret' => (string) $sec] : null;
-}
-
-/** Ask Cloudflare whether the Turnstile answer is genuine. Fails closed. */
-function apl_turnstile_ok($response, $ip) {
-    $ts = apl_turnstile();
-    if (!$ts) { return true; }
-    if (!is_string($response) || $response === '' || strlen($response) > 2048) { return false; }
-    $body = http_build_query(['secret' => $ts['secret'], 'response' => $response, 'remoteip' => $ip]);
-    $ctx = stream_context_create(['http' => ['method' => 'POST', 'timeout' => 8, 'ignore_errors' => true,
-        'header' => "Content-Type: application/x-www-form-urlencoded\r\n", 'content' => $body]]);
-    $res = @file_get_contents('https://challenges.cloudflare.com/turnstile/v0/siteverify', false, $ctx);
-    $j = is_string($res) ? json_decode($res, true) : null;
-    return is_array($j) && !empty($j['success']);
-}
-
+/** Turnstile keys (config.local.php turnstile_site / turnstile_secret), or null — see includes/bot-guard.php. */
+function apl_turnstile() { return wd_turnstile(); }
 /** Token + render time for the public form (a bot posting straight away is refused). */
 function apl_public_token() {
     if (empty($_SESSION['apl_pub'])) { $_SESSION['apl_pub'] = bin2hex(random_bytes(16)); }
     $_SESSION['apl_pub_at'] = time();
     return $_SESSION['apl_pub'];
+}
+
+/** Is applicants.ResumeHash there (sql/2026-10-14-add-bot-protection.sql)? */
+function apl_has_resume_hash(PDO $pdo) {
+    static $has = null;
+    if ($has === null) {
+        try { $pdo->query("SELECT ResumeHash FROM applicants LIMIT 1"); $has = true; } catch (Throwable $e) { $has = false; }
+    }
+    return $has;
+}
+
+/** A Philippine mobile number as typed (09xx xxx xxxx / +63 9xx …): the digits, or false. */
+function apl_ph_mobile($v) {
+    $d = preg_replace('/[\s\-()]/', '', (string) $v);
+    if (preg_match('/^(?:\+?63|0)(9\d{9})$/', $d, $m)) { return '0' . $m[1]; }
+    return false;
+}
+
+/** Spam signals in the posted text: a web link, or a name that isn't a name. Returns a message or ''. */
+function apl_spam_signal(array $p) {
+    foreach ($p as $k => $val) {
+        if (in_array($k, ['token', 'cf-turnstile-response', 'email'], true)) { continue; }
+        $flat = is_array($val) ? json_encode($val, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES) : (string) $val;
+        if (preg_match('~(https?://|www\.|\b[a-z0-9-]+\.(com|net|org|xyz|ru|top|info|biz|io|co|site|online|click|link)\b(?!\.))~i', $flat)) {
+            return 'Please remove web links from the form.';
+        }
+    }
+    foreach (['firstName' => 'first name', 'middleName' => 'middle name', 'lastName' => 'last name'] as $k => $label) {
+        $v = trim((string) ($p[$k] ?? ''));
+        if ($v !== '' && !preg_match("/^\p{L}[\p{L}\p{M} .'\-]*$/u", $v)) { return "Check your $label — letters only."; }
+    }
+    $suffix = trim((string) ($p['suffix'] ?? ''));
+    if ($suffix !== '' && !preg_match('/^(jr|sr|ii|iii|iv|v|vi)\.?$/i', $suffix)) { return 'Check your suffix (e.g. Jr, Sr, III).'; }
+    return '';
 }
 
 /** A phone number as typed: digits, spaces, + ( ) - only. */
@@ -261,6 +249,8 @@ function apl_validate(PDO $pdo, array $p) {
         $flat = is_array($val) ? json_encode($val) : (string) $val;
         if (strpbrk($flat, '<>') !== false) { return ['ok' => false, 'msg' => 'Please remove the < and > characters from the form.']; }
     }
+    $spam = apl_spam_signal($p);
+    if ($spam !== '') { return ['ok' => false, 'msg' => $spam]; }
     $row = [];
     foreach (APL_TEXT_FIELDS as $k => [$col, $max, $req]) {
         $v = lcy_text($p[$k] ?? '', $max);
@@ -291,10 +281,16 @@ function apl_validate(PDO $pdo, array $p) {
 
     $email = trim((string) ($p['email'] ?? ''));
     if (!filter_var($email, FILTER_VALIDATE_EMAIL) || strlen($email) > 150) { return ['ok' => false, 'msg' => 'Enter a valid email address.']; }
+    $domain = strtolower(substr(strrchr($email, '@'), 1));
+    foreach (APL_DISPOSABLE as $d) {
+        if ($domain === $d || substr($domain, -strlen($d) - 1) === '.' . $d) {
+            return ['ok' => false, 'msg' => 'Please use your own email address, not a temporary one.'];
+        }
+    }
     $row['Email'] = $email;
-    $mobile = apl_phone($p['mobile'] ?? '', true);
+    $mobile = apl_ph_mobile($p['mobile'] ?? '');
     $home   = apl_phone($p['homePhone'] ?? '', false);
-    if ($mobile === false) { return ['ok' => false, 'msg' => 'Enter a valid mobile number.']; }
+    if ($mobile === false) { return ['ok' => false, 'msg' => 'Enter a valid mobile number (e.g. 0917 123 4567).']; }
     if ($home === false) { return ['ok' => false, 'msg' => 'Check your home phone number.']; }
     $row['Mobile'] = $mobile;
     $row['HomePhone'] = $home;
@@ -344,8 +340,12 @@ function apl_submit(PDO $pdo, array $p, ?array $file, $ip, $uploaded = true) {
     if (trim((string) ($p['website'] ?? '')) !== '') {   // honeypot: people never see this field
         return ['ok' => true, 'id' => 0];                 // pretend it worked, keep nothing
     }
-    if (time() - (int) ($_SESSION['apl_pub_at'] ?? 0) < APL_MIN_SECONDS) {
+    $age = time() - (int) ($_SESSION['apl_pub_at'] ?? 0);
+    if ($age < APL_MIN_SECONDS) {
         return ['ok' => false, 'msg' => 'That was quick — please check your details and send again.'];
+    }
+    if ($age > APL_FORM_TTL) {
+        return ['ok' => false, 'msg' => 'This form has expired — reload the page and try again.', 'code' => 419];
     }
     $st = $pdo->prepare("SELECT COUNT(*) FROM applicants WHERE IP = :ip AND CreatedAt > (NOW() - INTERVAL 1 HOUR)");
     $st->execute([':ip' => $ip]);
@@ -356,7 +356,8 @@ function apl_submit(PDO $pdo, array $p, ?array $file, $ip, $uploaded = true) {
     if ($all >= APL_PER_HOUR_ALL) {
         return ['ok' => false, 'msg' => 'We are receiving a lot of applications right now — please try again later.', 'code' => 429];
     }
-    if (!apl_turnstile_ok($p['cf-turnstile-response'] ?? '', $ip)) {
+    // 'unreachable' (Cloudflare down) lets a real applicant through; the limits above still apply
+    if (wd_turnstile_check($p['cf-turnstile-response'] ?? '', $ip) === 'bad') {
         return ['ok' => false, 'msg' => 'Please complete the "I am human" check and send again.'];
     }
 
@@ -370,11 +371,25 @@ function apl_submit(PDO $pdo, array $p, ?array $file, $ip, $uploaded = true) {
         $st->execute([':id' => $opening]);
         if ((int) $st->fetchColumn() !== 1) { return ['ok' => false, 'msg' => 'That position is no longer open — please choose another.']; }
     }
-    $st = $pdo->prepare("SELECT COUNT(*) FROM applicants WHERE Email = :e AND COALESCE(OpeningID, 0) = :o
-                         AND CreatedAt > (NOW() - INTERVAL 30 DAY)");
+    $recent = "CreatedAt > (NOW() - INTERVAL " . APL_REPEAT_DAYS . " DAY)";
+    $st = $pdo->prepare("SELECT COUNT(*) FROM applicants WHERE Email = :e AND COALESCE(OpeningID, 0) = :o AND $recent");
     $st->execute([':e' => $v['row']['Email'], ':o' => $opening]);
     if ((int) $st->fetchColumn() > 0) {
         return ['ok' => false, 'msg' => 'You already applied for this position recently — we will contact you.'];
+    }
+    // one person (or bot) re-sending under different emails: same mobile or the very same resume file
+    $st = $pdo->prepare("SELECT COUNT(*) FROM applicants WHERE Mobile = :m AND COALESCE(OpeningID, 0) = :o AND $recent");
+    $st->execute([':m' => $v['row']['Mobile'], ':o' => $opening]);
+    if ((int) $st->fetchColumn() > 0) {
+        return ['ok' => false, 'msg' => 'An application with this mobile number was already received — we will contact you.'];
+    }
+    $hash = (!empty($file['tmp_name']) && is_file($file['tmp_name'])) ? sha1_file($file['tmp_name']) : null;
+    if ($hash && apl_has_resume_hash($pdo)) {
+        $st = $pdo->prepare("SELECT COUNT(*) FROM applicants WHERE ResumeHash = :h AND $recent");
+        $st->execute([':h' => $hash]);
+        if ((int) $st->fetchColumn() > 0) {
+            return ['ok' => false, 'msg' => 'This resume was already sent recently — we will contact you.'];
+        }
     }
 
     $resume = apl_store_resume($file ?? ['error' => UPLOAD_ERR_NO_FILE], $uploaded);
@@ -382,6 +397,7 @@ function apl_submit(PDO $pdo, array $p, ?array $file, $ip, $uploaded = true) {
 
     $row = $v['row'] + ['OpeningID' => $opening ?: null, 'ResumeKey' => $resume['key'], 'ResumeName' => mb_substr($resume['name'], 0, 120),
                         'IP' => $ip];
+    if ($hash && apl_has_resume_hash($pdo)) { $row['ResumeHash'] = $hash; }
     $cols = array_keys($row);
     $pdo->beginTransaction();
     try {

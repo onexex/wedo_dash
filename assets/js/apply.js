@@ -45,6 +45,12 @@
     0: function () { return []; },
     1: function () {
       var bad = required(1), b = form.elements.birthDate;
+      ['firstName', 'middleName', 'lastName'].forEach(function (k) {
+        var el = form.elements[k];
+        if (el.value.trim() && !/^\p{L}[\p{L}\p{M} .'\-]*$/u.test(el.value.trim())) { bad.push([el, 'Letters only.']); }
+      });
+      var sx = form.elements.suffix;
+      if (sx.value.trim() && !/^(jr|sr|ii|iii|iv|v|vi)\.?$/i.test(sx.value.trim())) { bad.push([sx, 'e.g. Jr, Sr, III']); }
       if (b.value) {
         var d = new Date(b.value + 'T00:00:00'), age = (Date.now() - d) / 31557600000;
         if (isNaN(d) || age < 15 || age > 80) { bad.push([b, 'Check your date of birth.']); }
@@ -54,7 +60,7 @@
     2: function () {
       var bad = required(2), em = form.elements.email, mo = form.elements.mobile, hp = form.elements.homePhone;
       if (em.value && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(em.value.trim())) { bad.push([em, 'Enter a valid email address.']); }
-      if (mo.value && !/^[0-9+()\-\s]{7,30}$/.test(mo.value.trim())) { bad.push([mo, 'Enter a valid mobile number.']); }
+      if (mo.value && !/^(?:\+?63|0)9\d{9}$/.test(mo.value.replace(/[\s\-()]/g, ''))) { bad.push([mo, 'Enter a valid mobile number (e.g. 0917 123 4567).']); }
       if (hp.value && !/^[0-9+()\-\s]{7,30}$/.test(hp.value.trim())) { bad.push([hp, 'Check this phone number.']); }
       return bad;
     },
@@ -117,6 +123,9 @@
     var bad = [];
     steps[step].querySelectorAll('input[type=text], input[type=email], input[type=tel], input:not([type]), textarea').forEach(function (el) {
       if (/[<>]/.test(el.value)) { bad.push([el, 'Please remove the < and > characters.']); }
+      else if (el.type !== 'email' && /(https?:\/\/|www\.|\b[a-z0-9-]+\.(com|net|org|xyz|ru|top|info|biz|io|co|site|online|click|link)\b)/i.test(el.value)) {
+        bad.push([el, 'Please remove web links.']);
+      }
     });
     return bad;
   }

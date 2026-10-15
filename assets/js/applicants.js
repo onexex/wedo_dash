@@ -278,7 +278,7 @@
   });
 
   /* ------------------------------------------------------------ wire up */
-  var link = new URL('apply.php', window.location.href).href;
+  var link = new URL('apply', window.location.href).href;   // the clean public address (.htaccess)
   $id('aplLink').textContent = link;
   $id('aplCopy').addEventListener('click', function () {
     var b = this;

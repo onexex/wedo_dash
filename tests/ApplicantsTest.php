@@ -50,10 +50,12 @@ final class ApplicantsTest extends AppTestCase
 
     // ------------------------------------------------------------ helpers
 
-    private function pdf(): array
+    /** A small real PDF; unique each time unless $same (the same file twice is refused as a repeat). */
+    private function pdf(string $same = ''): array
     {
         $tmp = tempnam(sys_get_temp_dir(), 'apl') ;
-        file_put_contents($tmp, "%PDF-1.4\n1 0 obj << /Type /Catalog >> endobj\ntrailer << /Root 1 0 R >>\n%%EOF\n");
+        file_put_contents($tmp, "%PDF-1.4\n% " . ($same !== '' ? $same : bin2hex(random_bytes(8)))
+            . "\n1 0 obj << /Type /Catalog >> endobj\ntrailer << /Root 1 0 R >>\n%%EOF\n");
         $this->files[] = $tmp;
         return ['name' => 'My Resume.pdf', 'tmp_name' => $tmp, 'size' => filesize($tmp), 'error' => UPLOAD_ERR_OK];
     }
@@ -108,7 +110,7 @@ final class ApplicantsTest extends AppTestCase
         $r = $this->submit();
         $this->assertTrue($r['ok'], $r['msg'] ?? '');
         $a = $this->row("SELECT * FROM applicants WHERE id = ?", [$r['id']]);
-        $this->assertSame(['Maria', 'Santos', '1998-03-14', 'Single', '0917 123 4567', 'San Roque', '34-5678901-2', 'new'],
+        $this->assertSame(['Maria', 'Santos', '1998-03-14', 'Single', '09171234567', 'San Roque', '34-5678901-2', 'new'],
             [$a['FirstName'], $a['LastName'], $a['BirthDate'], $a['CivilStatus'], $a['Mobile'], $a['Barangay'], $a['SSS'], $a['Stage']]);
         $this->assertNotNull($a['ConsentAt']);
         $this->assertSame('203.0.113.5', $a['IP']);
@@ -136,11 +138,11 @@ final class ApplicantsTest extends AppTestCase
         $this->assertCount(0, $this->rows("SELECT id FROM applicants"));
 
         for ($i = 1; $i <= APL_PER_IP_HOUR; $i++) {
-            $this->assertTrue($this->submit(['email' => "p$i@example.com"])['ok']);
+            $this->assertTrue($this->submit(['email' => "p$i@example.com", 'mobile' => "0918000000$i"])['ok']);
         }
-        $limited = $this->submit(['email' => 'p9@example.com']);
+        $limited = $this->submit(['email' => 'p9@example.com', 'mobile' => '09180000009']);
         $this->assertSame(429, $limited['code'], 'per-address hourly limit');
-        $this->assertTrue($this->submit(['email' => 'p9@example.com'], null, '198.51.100.7')['ok'], 'another address is fine');
+        $this->assertTrue($this->submit(['email' => 'p9@example.com', 'mobile' => '09180000009'], null, '198.51.100.7')['ok'], 'another address is fine');
     }
 
     public function testRegistrationIsValidated(): void
@@ -166,6 +168,46 @@ final class ApplicantsTest extends AppTestCase
             $this->assertStringContainsStringIgnoringCase($needle, $r['msg'], $what);
         }
         $this->assertCount(0, $this->rows("SELECT id FROM applicants"), 'nothing saved');
+    }
+
+    public function testSpamContentIsRefused(): void
+    {
+        $cases = [
+            'link in a field'     => [['religion' => 'see www.cheap-pills.com'], 'web links'],
+            'link with scheme'    => [['edu' => ['Tertiary' => ['school' => 'http://spam.example']]], 'web links'],
+            'bot name'            => [['firstName' => 'xX_bot42'], 'letters only'],
+            'odd suffix'          => [['suffix' => 'Esq123'], 'suffix'],
+            'throwaway email'     => [['email' => 'a@mailinator.com'], 'temporary'],
+            'subdomain throwaway' => [['email' => 'a@x.yopmail.com'], 'temporary'],
+            'not a PH mobile'     => [['mobile' => '12345678'], 'mobile'],
+        ];
+        foreach ($cases as $what => [$over, $needle]) {
+            $r = $this->submit($over);
+            $this->assertFalse($r['ok'], $what);
+            $this->assertStringContainsStringIgnoringCase($needle, $r['msg'], $what);
+        }
+        $ok = $this->submit(['firstName' => 'José María', 'lastName' => "O'Brien-Dela Peña", 'suffix' => 'Jr.', 'mobile' => '+63 917-123-4567']);
+        $this->assertTrue($ok['ok'], 'real names with accents, apostrophes and hyphens; +63 format: ' . ($ok['msg'] ?? ''));
+        $this->assertSame('09171234567', $this->row("SELECT Mobile FROM applicants WHERE id = ?", [$ok['id']])['Mobile'], 'stored in one format');
+    }
+
+    public function testRepeatsUnderAnotherEmailAreRefused(): void
+    {
+        $this->assertTrue($this->submit(['email' => 'one@example.com'], $this->pdf('same-file'))['ok']);
+        $r = $this->submit(['email' => 'two@example.com', 'mobile' => '0917 999 0000'], $this->pdf('same-file'), '198.51.100.20');
+        $this->assertStringContainsString('resume was already sent', $r['msg'], 'the same resume file');
+        $r = $this->submit(['email' => 'three@example.com'], null, '198.51.100.21');
+        $this->assertStringContainsString('mobile number', $r['msg'], 'the same mobile number');
+    }
+
+    public function testFormsExpire(): void
+    {
+        $_SESSION['apl_pub'] = self::PUB;
+        $_SESSION['apl_pub_at'] = time() - APL_FORM_TTL - 5;
+        $r = apl_submit(self::db(), $this->form(), $this->pdf(), '203.0.113.5', false);
+        $this->assertSame(419, $r['code']);
+        $_SESSION['apl_pub_at'] = time() - 10;   // under the 20-second minimum
+        $this->assertFalse(apl_submit(self::db(), $this->form(), $this->pdf(), '203.0.113.5', false)['ok']);
     }
 
     public function testOnlyRealPdfOrWordResumesAreAccepted(): void
@@ -201,6 +243,7 @@ final class ApplicantsTest extends AppTestCase
         $this->assertStringContainsString('name="website"', $page['body'], 'honeypot present');
         $this->assertStringContainsString('name="fam[0][relationship]"', $page['body']);
         $this->assertStringNotContainsString('<script>window', $page['body'], 'no inline script (strict CSP)');
+        $this->assertStringNotContainsString('login.php', $page['body'], 'applicants are not pointed to the employee sign-in');
 
         $res = $this->request('query/apply-action.php', [], ['token' => 'nope', 'firstName' => 'X']);
         $this->assertSame(419, $res['status']);
@@ -286,7 +329,7 @@ final class ApplicantsTest extends AppTestCase
         $this->assertSame('1', (string) $d['must_change_pw'], 'must set their own password at first sign-in');
         $this->assertStringNotContainsString($res['json']['password'], json_encode($this->rows("SELECT * FROM dars")), 'never logged');
         $p = $this->row("SELECT * FROM empprofiles WHERE EmpID = ?", [$empId]);
-        $this->assertSame(['12 Mabini St', 'San Roque', 'Pasig', '0917 123 4567', '1998-03-14', 'Single', 'maria@example.com', '34-5678901-2', 'Acme Call Center', 'HMO-9'],
+        $this->assertSame(['12 Mabini St', 'San Roque', 'Pasig', '09171234567', '1998-03-14', 'Single', 'maria@example.com', '34-5678901-2', 'Acme Call Center', 'HMO-9'],
             [$p['EmpAddress1'], $p['EmpAddDis'], $p['EmpAddCity'], $p['EmpPhone'], $p['EmpDOB'], $p['EmpCS'], $p['EmpEmail'], $p['EmpSSS'], $p['EmpPP'], $p['EmpHMONumber']]);
         $this->assertSame(['Primary', 'Secondary', 'Tertiary'], array_column($this->rows("SELECT Program FROM empeducationalbackground WHERE EmpID = ? ORDER BY EB_ID", [$empId]), 'Program'));
         $f = $this->row("SELECT * FROM fdetails WHERE FDetID = ?", [$empId]);
