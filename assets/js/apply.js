@@ -169,6 +169,7 @@
 
   /* ------------------------------------------------------------ navigation */
   function go(n, quiet) {
+    n = Math.max(0, Math.min(steps.length - 1, n));
     cur = n;
     reached = Math.max(reached, n);
     steps.forEach(function (s, i) { s.hidden = i !== n; s.classList.toggle('is-on', i === n); });

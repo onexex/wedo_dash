@@ -5,6 +5,7 @@
 
 /* =========================================================== public page */
 body.apl-public { background: #f4f6fb; min-height: 100vh; color: var(--text); }
+.apl-public [hidden] { display: none !important; }   /* .wd-btn sets display, which would beat the hidden attribute */
 .apl-wrap { max-width: 980px; margin: 0 auto; padding: 0 16px; }
 .apl-public .apl-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 14px 16px; }
 @media (max-width: 640px) { .apl-public .apl-grid { grid-template-columns: minmax(0, 1fr); } }
