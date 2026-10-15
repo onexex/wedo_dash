@@ -59,9 +59,9 @@ $famRow = function ($i) use ($e, $rels) {
     return '<fieldset class="apl-person" data-row="' . $i . '"><legend>Person <span class="apl-person__n"></span></legend>'
          . '<button type="button" class="apl-person__del" aria-label="Remove this person"><i class="fa-solid fa-xmark"></i></button>'
          . '<div class="apl-grid">'
-         . '<div class="apl-f"><label>Full name</label><input class="wd-input" name="fam[' . $i . '][name]" maxlength="150" autocomplete="off"></div>'
+         . '<div class="apl-f"><label>Full name</label><input class="wd-input" name="fam[' . $i . '][name]" maxlength="150" autocomplete="off" placeholder="First and last name"></div>'
          . '<div class="apl-f"><label>Relationship</label><select class="wd-select" name="fam[' . $i . '][relationship]">' . $opts . '</select></div>'
-         . '<div class="apl-f"><label>Contact number</label><input type="tel" class="wd-input" name="fam[' . $i . '][contact]" maxlength="30" autocomplete="off"></div>'
+         . '<div class="apl-f"><label>Mobile number</label><input type="tel" class="wd-input" name="fam[' . $i . '][contact]" maxlength="16" autocomplete="off" inputmode="numeric" placeholder="09xx xxx xxxx" data-mobile></div>'
          . '<div class="apl-f"><label>Address</label><input class="wd-input" name="fam[' . $i . '][address]" maxlength="250" autocomplete="off"></div>'
          . '</div>'
          . '<label class="apl-toggle"><input type="checkbox" name="fam[' . $i . '][emergency]" value="1"' . ($i === 0 ? ' checked' : '') . '>'
@@ -191,7 +191,7 @@ $steps = ['Position', 'Personal', 'Contact', 'Background', 'Family', 'Review'];
                     <h3 class="apl-step__title">How can we reach you?</h3>
                     <div class="apl-grid">
                         <?php echo $field('email', 'Email *', 'maxlength="150" required autocomplete="email" placeholder="you@example.com"', 'email');
-                              echo $field('mobile', 'Mobile number *', 'maxlength="30" required autocomplete="tel" inputmode="tel" placeholder="09xx xxx xxxx"', 'tel');
+                              echo $field('mobile', 'Mobile number *', 'maxlength="16" required autocomplete="tel" inputmode="numeric" placeholder="09xx xxx xxxx" data-mobile', 'tel');
                               echo $field('homePhone', 'Home phone', 'maxlength="30" inputmode="tel"', 'tel');
                               echo $field('street', 'House no. / street / subdivision *', 'maxlength="150" required autocomplete="address-line1"', 'text', '', true);
                               echo $field('barangay', 'Barangay *', 'maxlength="100" required');

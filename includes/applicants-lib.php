@@ -315,10 +315,14 @@ function apl_validate(PDO $pdo, array $p) {
         $f = (array) $f;
         $name = lcy_text($f['name'] ?? '', 150);
         if ($name === '') { continue; }
+        if (!preg_match("/^\p{L}[\p{L}\p{M} .'\-]*$/u", $name)) { return ['ok' => false, 'msg' => "Check the name \"$name\" — letters only."]; }
+        if (count(preg_split('/\s+/u', $name)) < 2) { return ['ok' => false, 'msg' => "Enter the first and last name of \"$name\"."]; }
         $rel = lcy_text($f['relationship'] ?? '', 50);
         if (!in_array(strtolower($rel), $rels, true)) { return ['ok' => false, 'msg' => "Choose the relationship of $name."]; }
-        $contact = apl_phone($f['contact'] ?? '', false);
-        if ($contact === false) { return ['ok' => false, 'msg' => "Check the contact number of $name."]; }
+        // family contacts are mobile numbers too, stored as 09xxxxxxxxx
+        $rawContact = trim((string) ($f['contact'] ?? ''));
+        $contact = $rawContact === '' ? null : apl_ph_mobile($rawContact);
+        if ($contact === false) { return ['ok' => false, 'msg' => "Enter an 11-digit mobile number for $name (e.g. 0917 123 4567)."]; }
         $fam[] = ['Name' => $name, 'Relationship' => $rel, 'Address' => lcy_text($f['address'] ?? '', 250) ?: null,
                   'Contact' => $contact, 'Emergency' => !empty($f['emergency']) ? 1 : 0];
     }

@@ -180,6 +180,9 @@ final class ApplicantsTest extends AppTestCase
             'throwaway email'     => [['email' => 'a@mailinator.com'], 'temporary'],
             'subdomain throwaway' => [['email' => 'a@x.yopmail.com'], 'temporary'],
             'not a PH mobile'     => [['mobile' => '12345678'], 'mobile'],
+            'family number'       => [['fam' => [['contact' => '435435435']]], '11-digit mobile'],
+            'family one name'     => [['fam' => [['name' => 'ert']]], 'first and last name'],
+            'family bot name'     => [['fam' => [['name' => 'Ana 123']]], 'letters only'],
         ];
         foreach ($cases as $what => [$over, $needle]) {
             $r = $this->submit($over);

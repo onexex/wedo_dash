@@ -37,6 +37,29 @@
     el.removeAttribute('aria-invalid');
     if (e) { e.remove(); }
   }
+  /* Philippine mobile numbers format themselves: "0917 123 4567" or "+63 917 123 4567"
+     (digits only, right length). Reformatted while typing at the end, and always on leaving the field. */
+  var PH_MOBILE = /^(?:\+?63|0)9\d{9}$/;
+  function formatMobile(v) {
+    var plus = /^\s*\+/.test(v), d = v.replace(/\D/g, '');
+    if (plus || /^63/.test(d)) {
+      d = d.replace(/^63/, '').slice(0, 10);
+      return ('+63 ' + [d.slice(0, 3), d.slice(3, 6), d.slice(6, 10)].filter(Boolean).join(' ')).trim();
+    }
+    if (/^9/.test(d)) { d = '0' + d; }   // typed without the leading 0
+    d = d.slice(0, 11);
+    return [d.slice(0, 4), d.slice(4, 7), d.slice(7, 11)].filter(Boolean).join(' ');
+  }
+  function isMobile(v) { return PH_MOBILE.test(v.replace(/[\s\-()]/g, '')); }
+  form.addEventListener('input', function (ev) {
+    var el = ev.target;
+    if (el.hasAttribute && el.hasAttribute('data-mobile') && el.selectionStart === el.value.length) { el.value = formatMobile(el.value); }
+  });
+  form.addEventListener('focusout', function (ev) {
+    var el = ev.target;
+    if (el.hasAttribute && el.hasAttribute('data-mobile') && el.value.trim()) { el.value = formatMobile(el.value); }
+  });
+
   form.addEventListener('input', function (ev) { dirty = true; clearErr(ev.target); $('aplErr').textContent = ''; });
   form.addEventListener('change', function (ev) { dirty = true; clearErr(ev.target); });
 
@@ -60,7 +83,7 @@
     2: function () {
       var bad = required(2), em = form.elements.email, mo = form.elements.mobile, hp = form.elements.homePhone;
       if (em.value && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(em.value.trim())) { bad.push([em, 'Enter a valid email address.']); }
-      if (mo.value && !/^(?:\+?63|0)9\d{9}$/.test(mo.value.replace(/[\s\-()]/g, ''))) { bad.push([mo, 'Enter a valid mobile number (e.g. 0917 123 4567).']); }
+      if (mo.value && !isMobile(mo.value)) { bad.push([mo, 'Enter an 11-digit mobile number (e.g. 0917 123 4567).']); }
       if (hp.value && !/^[0-9+()\-\s]{7,30}$/.test(hp.value.trim())) { bad.push([hp, 'Check this phone number.']); }
       return bad;
     },
@@ -93,8 +116,11 @@
           if (r.value || c.value.trim()) { bad.push([n, 'Enter this person’s name.']); }
           return;
         }
+        var nm = n.value.trim();
+        if (!/^\p{L}[\p{L}\p{M} .'\-]*$/u.test(nm)) { bad.push([n, 'Letters only.']); }
+        else if (nm.split(/\s+/).length < 2) { bad.push([n, 'Enter the first and last name.']); }
         if (!r.value) { bad.push([r, 'Choose the relationship.']); }
-        if (c.value.trim() && !/^[0-9+()\-\s]{7,30}$/.test(c.value.trim())) { bad.push([c, 'Check this number.']); }
+        if (c.value.trim() && !isMobile(c.value)) { bad.push([c, 'Enter an 11-digit mobile number (e.g. 0917 123 4567).']); }
         if (em.checked) {
           if (!c.value.trim()) { bad.push([c, 'An emergency contact needs a number.']); } else { ice = true; }
         }
