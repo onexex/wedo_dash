@@ -318,6 +318,7 @@ $steps = ['Position', 'Personal', 'Contact', 'Background', 'Family', 'Review'];
                 <h3>Application received!</h3>
                 <p id="aplDoneMsg"></p>
                 <p class="apl-ref" id="aplRef" hidden>Reference no. <b id="aplRefNo"></b></p>
+                <p class="apl-mailed" id="aplMailed" hidden><i class="fa-regular fa-envelope"></i> We also emailed a confirmation to <b id="aplMailedTo"></b>.</p>
                 <ol class="apl-next">
                     <li><b>HR reviews</b> your application — usually within a few working days.</li>
                     <li><b>We contact you</b> by email or phone for an interview or assessment.</li>

@@ -17,6 +17,7 @@ if (!isset($_SESSION['id']) || $_SESSION['id'] == "0") { header('location: login
 
 include 'w_conn.php';
 require_once __DIR__ . '/includes/applicants-lib.php';
+require_once __DIR__ . '/includes/applicants-mail.php';
 
 try {
     $aplpdo = new PDO("mysql:host=$servername;dbname=$db;charset=utf8mb4", $username, $password);
@@ -29,6 +30,8 @@ $boot = [
     'token'     => apl_csrf_token(),
     'stages'    => APL_STAGES,
     'hireStage' => APL_HIRE_STAGE,
+    'canMail'   => wd_mail_enabled(),          // Brevo set up: offer emails to the applicant
+    'mailStages'=> APL_MAIL_STAGES,
     'canHire'   => apl_can_hire($aplpdo),
     'canLife'   => lcy_can_separate($aplpdo),
     'openings'  => $ready ? apl_openings($aplpdo, false) : [],
@@ -111,9 +114,15 @@ $v = function ($f) { return @filemtime(__DIR__ . '/' . $f) ?: 0; };
                 <form class="apl-card" id="aplStageForm" autocomplete="off">
                   <h5 class="apl-card__title"><i class="fa-solid fa-arrow-right-arrow-left"></i> Move to stage</h5>
                   <div class="wd-field"><label for="aplStage">Stage</label><select class="wd-select" id="aplStage" name="stage"></select><small class="apl-stage-hint" id="aplStageHint"></small></div>
-                  <div class="wd-field"><label for="aplNotes">Note <span class="lcy-muted">(optional)</span></label><textarea class="wd-textarea" id="aplNotes" name="notes" rows="2" maxlength="1000" placeholder="e.g. Passed the initial interview"></textarea></div>
+                  <div class="wd-field"><label for="aplNotes">Internal note <span class="lcy-muted">(only HR sees it)</span></label><textarea class="wd-textarea" id="aplNotes" name="notes" rows="2" maxlength="1000" placeholder="e.g. Passed the initial interview"></textarea></div>
+                  <div class="apl-mailopt lcy-hidden" id="aplMailOpt">
+                    <label class="apl-toggle"><input type="checkbox" id="aplMailOn"><span class="apl-toggle__ui"></span> <span><i class="fa-regular fa-envelope"></i> Email the applicant</span></label>
+                    <div class="wd-field lcy-hidden" id="aplMailMsgBox"><label for="aplMailMsg">Message to include <span class="lcy-muted">(optional)</span></label>
+                      <textarea class="wd-textarea" id="aplMailMsg" rows="3" maxlength="2000"></textarea></div>
+                  </div>
                   <p class="lcy-modal-error" id="aplStageErr"></p>
                   <button type="submit" class="wd-btn wd-btn--primary apl-card__btn"><i class="fa-solid fa-check"></i> Save</button>
+                  <p class="apl-mailres" id="aplMailRes" role="status"></p>
                 </form>
                 <section class="apl-card">
                   <h5 class="apl-card__title"><i class="fa-solid fa-clock-rotate-left"></i> Activity</h5>
@@ -179,6 +188,8 @@ $v = function ($f) { return @filemtime(__DIR__ . '/' . $f) ?: 0; };
                 </div>
               </section>
 
+              <label class="apl-toggle apl-hire__welcome lcy-hidden" id="aplHireWelcomeRow"><input type="checkbox" id="aplHireWelcome" checked><span class="apl-toggle__ui"></span>
+                <span><i class="fa-regular fa-envelope"></i> Email a welcome message <small>— employee no. and username, never the password</small></span></label>
               <p class="lcy-modal-error" id="aplHireErr" role="alert"></p>
             </form>
 

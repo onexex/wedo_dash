@@ -248,6 +248,10 @@
       : (nextIdx > 0 && nextIdx < PIPE.length - 1 ? 'Stages go in order — next is ' + STAGES[PIPE[nextIdx]] + '.' : '');
     $id('aplStageForm').classList.toggle('lcy-hidden', a.stage === 'hired');
     $id('aplNotes').value = '';
+    $id('aplMailOn').checked = false;
+    $id('aplMailMsg').value = '';
+    $id('aplMailRes').textContent = '';
+    syncMailOpt();
     $id('aplStageErr').textContent = '';
 
     var hb = $id('aplHireBtn');
@@ -274,12 +278,29 @@
     });
   });
 
+  /* email the applicant on a move to Job offer / Not selected (only when Brevo is set up) */
+  var MAIL_HINT = { offer: 'e.g. Start date, where and when to report, what to bring', rejected: 'e.g. Thank you for coming to the interview' };
+  function syncMailOpt() {
+    var st = $id('aplStage').value;
+    var can = !!BOOT.canMail && current && st !== current.stage && (BOOT.mailStages || []).indexOf(st) >= 0;
+    $id('aplMailOpt').classList.toggle('lcy-hidden', !can);
+    $id('aplMailMsgBox').classList.toggle('lcy-hidden', !can || !$id('aplMailOn').checked);
+    $id('aplMailMsg').placeholder = MAIL_HINT[st] || '';
+  }
+  $id('aplStage').addEventListener('change', syncMailOpt);
+  $id('aplMailOn').addEventListener('change', syncMailOpt);
+
   $id('aplStageForm').addEventListener('submit', function (ev) {
     ev.preventDefault();
-    post('stage', { id: current.id, stage: $id('aplStage').value, notes: $id('aplNotes').value }).then(function (res) {
+    var email = !$id('aplMailOpt').classList.contains('lcy-hidden') && $id('aplMailOn').checked;
+    post('stage', { id: current.id, stage: $id('aplStage').value, notes: $id('aplNotes').value,
+                    email: email ? '1' : '', emailMessage: email ? $id('aplMailMsg').value : '' }).then(function (res) {
       if (res.status !== 'ok') { $id('aplStageErr').textContent = res.msg; return; }
       render(res.applicant);
       load();
+      var r = $id('aplMailRes');
+      if (res.mailed === true) { r.className = 'apl-mailres is-ok'; r.textContent = 'Saved and emailed ' + res.applicant.email + '.'; }
+      else if (res.mailed === false) { r.className = 'apl-mailres is-bad'; r.textContent = 'Saved, but the email could not be sent: ' + (res.mailError || 'unknown error') + '.'; }
     });
   });
 
@@ -352,6 +373,8 @@
       f.reset();
       Array.prototype.forEach.call(f.querySelectorAll('.is-invalid'), hireClear);
       $id('aplHireErr').textContent = '';
+      $id('aplHireWelcomeRow').classList.toggle('lcy-hidden', !BOOT.canMail);
+      $id('aplHireWelcome').checked = !!BOOT.canMail;
       hireMode(false);
       $id('aplHireAv').innerHTML = face(current);
       $id('aplHireAv').classList.toggle('has-photo', !!current.hasPhoto);
@@ -387,6 +410,8 @@
       + '<div class="apl-creds">' + cred('Username', res.username, 'fa-user') + cred('Temporary password', res.password, 'fa-key') + '</div>'
       + '<button type="button" class="wd-btn wd-btn--ghost wd-btn--sm apl-cred__both" data-copy="' + esc('Username: ' + res.username + '\nTemporary password: ' + res.password) + '">'
       + '<i class="fa-regular fa-copy"></i> Copy both</button>'
+      + (res.mailed === true ? '<p class="apl-mailres is-ok"><i class="fa-regular fa-envelope"></i> Welcome email sent to ' + esc(current.email) + ' (without the password).</p>'
+        : res.mailed === false ? '<p class="apl-mailres is-bad"><i class="fa-solid fa-envelope-circle-check"></i> The welcome email could not be sent: ' + esc(res.mailError || 'unknown error') + '</p>' : '')
       + '<p class="apl-hire__warn"><i class="fa-solid fa-triangle-exclamation"></i> Give these to the new hire privately. The password is shown <b>only now</b> — it is not stored anywhere in readable form, and they must set their own at first sign-in.</p>';
     hireMode(true);
   }
@@ -399,6 +424,7 @@
     if (!hireCheck()) { $id('aplHireErr').textContent = 'Please fill in the highlighted fields.'; return; }
     var btn = this, d = L.formData($id('aplHireForm'));
     d.id = current.id;
+    d.welcome = BOOT.canMail && $id('aplHireWelcome').checked ? '1' : '';
     ['basic', 'allowance', 'hourly'].forEach(function (k) { d[k] = String(d[k] || '').replace(/,/g, '').trim(); });
     btn.disabled = true;
     btn.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> Creating…';

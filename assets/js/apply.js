@@ -443,6 +443,7 @@
         document.querySelector('.apl-panel__head').hidden = true;
         $('aplDoneMsg').textContent = res.msg;
         if (res.ref) { $('aplRefNo').textContent = res.ref; $('aplRef').hidden = false; }
+        if (res.mailed) { $('aplMailedTo').textContent = val('email'); $('aplMailed').hidden = false; }
         $('aplDone').hidden = false;
         scrollToApp();
       });

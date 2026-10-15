@@ -19,6 +19,12 @@ $GLOBALS['WEDO_TEST_DB'] = $cfg = [
     'name' => $env('TEST_DB_NAME', 'wedo_test'),
 ];
 
+// Tests never send real email, even when config.local.php holds a Brevo key: every
+// message goes to this file instead (includes/mail-lib.php). Inherited by the pages
+// tests run in a separate process.
+$GLOBALS['WEDO_MAIL_LOG'] = sys_get_temp_dir() . DIRECTORY_SEPARATOR . 'wedo-tests-mail.log';
+putenv('WEDO_MAIL_LOG=' . $GLOBALS['WEDO_MAIL_LOG']);
+
 // This database is dropped on every run — refuse anything that isn't clearly a test DB.
 if (!preg_match('/test/i', $cfg['name'])) {
     fwrite(STDERR, "Refusing to use database '{$cfg['name']}': TEST_DB_NAME must contain 'test'.\n");
