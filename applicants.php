@@ -28,6 +28,7 @@ $ready = apl_ready($aplpdo);
 $boot = [
     'token'     => apl_csrf_token(),
     'stages'    => APL_STAGES,
+    'hireStage' => APL_HIRE_STAGE,
     'canHire'   => apl_can_hire($aplpdo),
     'canLife'   => lcy_can_separate($aplpdo),
     'openings'  => $ready ? apl_openings($aplpdo, false) : [],
