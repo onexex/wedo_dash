@@ -51,13 +51,33 @@ function wd_client_ip(): string
     return substr($remote, 0, 45);
 }
 
+/**
+ * config.local.php's settings, read straight from the file (once per request).
+ * Not via w_conn.php: the deploy never uploads w_conn.php, so a server may run
+ * an older copy that doesn't load config.local.php (production did) — the same
+ * reason push-lib.php reads the file itself.
+ */
+function wd_local_config(): array
+{
+    static $cfg = null;
+    if ($cfg !== null) { return $cfg; }
+    $cfg = [];
+    $file = dirname(__DIR__) . '/config.local.php';
+    if (is_file($file)) {
+        $read = require $file;
+        if (is_array($read)) { $cfg = $read; }
+    }
+    if (isset($GLOBALS['__cfg']) && is_array($GLOBALS['__cfg'])) { $cfg += $GLOBALS['__cfg']; }
+    return $cfg;
+}
+
 /** Turnstile keys, or null when not configured (then pages rely on their other guards). */
 function wd_turnstile(): ?array
 {
-    $cfg  = $GLOBALS['__cfg'] ?? [];
+    $cfg  = wd_local_config();
     $site = getenv('TURNSTILE_SITE') ?: ($cfg['turnstile_site'] ?? '');
     $sec  = getenv('TURNSTILE_SECRET') ?: ($cfg['turnstile_secret'] ?? '');
-    return ($site !== '' && $sec !== '') ? ['site' => (string) $site, 'secret' => (string) $sec] : null;
+    return ($site !== '' && $sec !== '') ? ['site' => trim((string) $site), 'secret' => trim((string) $sec)] : null;
 }
 
 /**
