@@ -78,20 +78,99 @@ function wd_mail_send(string $toEmail, string $toName, string $subject, string $
         return ['ok' => true, 'error' => ''];
     }
 
-    $ctx = stream_context_create(['http' => ['method' => 'POST', 'timeout' => 8, 'ignore_errors' => true,
-        'header' => "Content-Type: application/json\r\nAccept: application/json\r\napi-key: " . $cfg['key'] . "\r\n",
-        'content' => json_encode($msg, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES)]]);
-    $res  = @file_get_contents('https://api.brevo.com/v3/smtp/email', false, $ctx);
+    $r = wd_brevo('POST', '/smtp/email', $cfg['key'], $msg);
+    if ($r['code'] >= 200 && $r['code'] < 300) { return ['ok' => true, 'error' => '']; }
+    error_log('[wedo mail] to ' . $toEmail . ': ' . $r['error']);
+    return ['ok' => false, 'error' => $r['error']];
+}
+
+/**
+ * One call to Brevo's API (https://api.brevo.com/v3 + $path).
+ * @return array{code:int, json:?array, error:string} code 0 = Brevo not reached
+ */
+function wd_brevo(string $method, string $path, string $key, ?array $body = null): array
+{
+    $opts = ['method' => $method, 'timeout' => 8, 'ignore_errors' => true,
+             'header' => "Accept: application/json\r\napi-key: " . $key . "\r\n"];
+    if ($body !== null) {
+        $opts['header'] .= "Content-Type: application/json\r\n";
+        $opts['content'] = json_encode($body, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
+    }
+    $res  = @file_get_contents('https://api.brevo.com/v3' . $path, false, stream_context_create(['http' => $opts]));
     $code = 0;
     foreach ($http_response_header ?? [] as $h) {
         if (preg_match('#^HTTP/\S+\s+(\d{3})#', $h, $m)) { $code = (int) $m[1]; }
     }
-    if ($code >= 200 && $code < 300) { return ['ok' => true, 'error' => '']; }
-
     $j = is_string($res) ? json_decode($res, true) : null;
-    $why = is_array($j) && !empty($j['message']) ? (string) $j['message'] : ($code ? "HTTP $code" : 'Brevo could not be reached');
-    error_log('[wedo mail] to ' . $toEmail . ': ' . $why);
-    return ['ok' => false, 'error' => $why];
+    if ($code >= 200 && $code < 300) { return ['code' => $code, 'json' => is_array($j) ? $j : null, 'error' => '']; }
+    if ($code === 0) {
+        $last = error_get_last();
+        $why = 'Brevo could not be reached' . ($last ? ' (' . $last['message'] . ')' : '');
+    } else {
+        $why = is_array($j) && !empty($j['message']) ? (string) $j['message'] : "HTTP $code";
+    }
+    return ['code' => $code, 'json' => is_array($j) ? $j : null, 'error' => $why];
+}
+
+/**
+ * Why email does or doesn't work on this server, step by step — for the
+ * "Email setup" check in the Applicant Pool. Asks Brevo whether the key is
+ * accepted and whether the sender is verified. Never returns the key itself.
+ * @return array{enabled:bool, from:string, checks:array<int, array{level:string, text:string}>}
+ */
+function wd_mail_diagnose(): array
+{
+    $checks = [];
+    $add = function ($level, $text) use (&$checks) { $checks[] = ['level' => $level, 'text' => $text]; };
+    $cfg  = wd_local_config();
+    $env  = function ($e, $k) use ($cfg) { $v = getenv($e); return trim((string) ($v !== false && $v !== '' ? $v : ($cfg[$k] ?? ''))); };
+    $file = dirname(__DIR__) . '/config.local.php';
+
+    if (is_file($file)) { $add('ok', 'Settings file config.local.php found in ' . basename(dirname(__DIR__)) . '/.'); }
+    else { $add('bad', 'No config.local.php in ' . basename(dirname(__DIR__)) . '/ — create it next to w_conn.php.'); }
+
+    $key = $env('BREVO_API_KEY', 'brevo_api_key');
+    if ($key === '') {
+        $add('bad', "brevo_api_key is missing — add 'brevo_api_key' => 'xkeysib-…' inside the return [ … ] array.");
+    } elseif (strpos($key, 'xsmtpsib-') === 0) {
+        $add('bad', 'brevo_api_key is an SMTP key (xsmtpsib-…). Use an API key instead: Brevo > SMTP & API > API keys (it starts with xkeysib-).');
+    } else {
+        // only the public "xkeysib-" prefix and the last 4 characters of a full-length key are ever shown
+        $isApi = strpos($key, 'xkeysib-') === 0;
+        $hint  = ($isApi ? 'xkeysib-…' : '') . (strlen($key) >= 24 ? substr($key, -4) . ', ' : '') . strlen($key) . ' characters';
+        $add($isApi ? 'ok' : 'warn', 'API key is set (' . $hint . ')' . ($isApi ? '.' : ' — Brevo API keys usually start with xkeysib-.'));
+    }
+
+    $from = $env('MAIL_FROM', 'mail_from');
+    if ($from === '') { $add('bad', "mail_from is missing — add 'mail_from' => 'you@yourdomain' (a sender verified in Brevo)."); }
+    elseif (!filter_var($from, FILTER_VALIDATE_EMAIL)) { $add('bad', 'mail_from "' . $from . '" is not a valid email address.'); }
+    else { $add('ok', 'Sender (mail_from): ' . $from); }
+
+    $canReach = ini_get('allow_url_fopen') && extension_loaded('openssl');
+    if (!$canReach) { $add('bad', 'This server cannot call Brevo: PHP needs allow_url_fopen = On and the openssl extension.'); }
+
+    $ready = $key !== '' && strpos($key, 'xsmtpsib-') !== 0 && $canReach;
+    if ($ready && !getenv('WEDO_MAIL_LOG')) {   // tests never call Brevo
+        $acct = wd_brevo('GET', '/account', $key);
+        if ($acct['code'] === 200) {
+            $plan = $acct['json']['plan'][0]['type'] ?? '';
+            $add('ok', 'Brevo accepted the key — account ' . ($acct['json']['email'] ?? '?') . ($plan !== '' ? ' (' . $plan . ' plan)' : '') . '.');
+            if (filter_var($from, FILTER_VALIDATE_EMAIL)) {
+                $s = wd_brevo('GET', '/senders', $key);
+                $found = null;
+                foreach (($s['json']['senders'] ?? []) as $x) {
+                    if (strcasecmp((string) ($x['email'] ?? ''), $from) === 0) { $found = $x; }
+                }
+                if ($s['code'] !== 200) { $add('warn', 'Could not read the sender list from Brevo: ' . $s['error']); }
+                elseif ($found === null) { $add('bad', $from . ' is not a sender in Brevo — add and verify it under Senders, Domains & IPs.'); }
+                elseif (empty($found['active'])) { $add('bad', $from . ' is in Brevo but not verified yet — open the confirmation email Brevo sent to that address.'); }
+                else { $add('ok', $from . ' is a verified sender in Brevo.'); }
+            }
+        } else {
+            $add('bad', ($acct['code'] === 0 ? '' : 'Brevo rejected the key: ') . $acct['error']);
+        }
+    }
+    return ['enabled' => wd_mail_enabled(), 'from' => $from, 'checks' => $checks];
 }
 
 /**

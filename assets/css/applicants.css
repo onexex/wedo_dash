@@ -386,6 +386,19 @@ body.apl-public { background: #f4f6fb; min-height: 100vh; color: var(--text); }
 .apl-card .wd-field { margin-bottom: 10px; }
 .apl-card .wd-textarea { resize: vertical; min-height: 60px; }
 .apl-card__btn { width: 100%; justify-content: center; }
+.apl-checks { list-style: none; margin: 0 0 16px; padding: 0; display: flex; flex-direction: column; gap: 8px; }
+.apl-checks li { display: flex; gap: 10px; align-items: flex-start; padding: 10px 12px; border-radius: 10px; font-size: 13px; line-height: 1.45;
+  background: var(--surface-2); color: var(--text); word-break: break-word; }
+.apl-checks li i { margin-top: 2px; }
+.apl-checks li.is-ok i { color: var(--ok-text); }
+.apl-checks li.is-warn { background: var(--warn-bg); } .apl-checks li.is-warn i { color: var(--warn-text); }
+.apl-checks li.is-bad { background: var(--danger-bg); } .apl-checks li.is-bad i { color: var(--danger-text); }
+.apl-checks li.is-wait { color: var(--text-2); }
+.apl-checks__sum { display: block !important; }
+.apl-checks__sum.is-ok { background: var(--ok-bg) !important; color: var(--ok-text) !important; }
+.apl-checks__sum.is-bad { background: var(--danger-bg) !important; color: var(--danger-text) !important; }
+.apl-mailtest { display: flex; gap: 10px; align-items: flex-end; flex-wrap: wrap; }
+.apl-mailtest .wd-field { flex: 1; min-width: 200px; margin: 0; }
 .apl-mailopt { margin: -2px 0 10px; }
 .apl-mailopt .apl-toggle { margin: 0 0 10px; font-size: 13px; }
 .apl-mailopt .apl-toggle i { color: var(--brand); }

@@ -65,6 +65,26 @@ final class MailTest extends AppTestCase
         $this->assertCount(0, $this->sent());
     }
 
+    public function testTheSetupCheckNamesWhatIsMissing(): void
+    {
+        $levels = fn (array $d) => array_column($d['checks'], 'level', 'text');
+
+        $ok = wd_mail_diagnose();
+        $this->assertTrue($ok['enabled']);
+        $this->assertSame('hr@example.com', $ok['from']);
+        $this->assertNotContains('bad', array_slice(array_values($levels($ok)), 1), 'key + sender fine (the settings file itself may be absent in tests)');
+        $this->assertStringNotContainsString('test-key', json_encode($ok), 'the key is never shown');
+
+        putenv('BREVO_API_KEY=xsmtpsib-abc123');
+        $smtp = wd_mail_diagnose();
+        $this->assertStringContainsString('SMTP key', implode(' ', array_keys($levels($smtp))), 'the usual mix-up is named');
+
+        putenv('MAIL_FROM=careers');
+        $from = wd_mail_diagnose();
+        $this->assertFalse($from['enabled']);
+        $this->assertStringContainsString('not a valid email address', implode(' ', array_keys($levels($from))));
+    }
+
     public function testTheLayoutEscapesItsTitle(): void
     {
         $html = wd_mail_layout('Hi <script>x</script>', '<p>body</p>');

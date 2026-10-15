@@ -26,12 +26,19 @@ try {
 if (!apl_can_manage($aplpdo)) { header('location: 404?'); exit(); }
 
 $ready = apl_ready($aplpdo);
+$myEmail = '';   // prefilled as the "Email setup" test address
+try {
+    $st = $aplpdo->prepare("SELECT EmpEmail FROM empprofiles WHERE EmpID = :id");
+    $st->execute([':id' => $_SESSION['id']]);
+    $myEmail = (string) $st->fetchColumn();
+} catch (Throwable $e) { /* optional */ }
 $boot = [
     'token'     => apl_csrf_token(),
     'stages'    => APL_STAGES,
     'hireStage' => APL_HIRE_STAGE,
     'canMail'   => wd_mail_enabled(),          // Brevo set up: offer emails to the applicant
     'mailStages'=> APL_MAIL_STAGES,
+    'myEmail'   => filter_var(trim($myEmail), FILTER_VALIDATE_EMAIL) ? trim($myEmail) : '',
     'canHire'   => apl_can_hire($aplpdo),
     'canLife'   => lcy_can_separate($aplpdo),
     'openings'  => $ready ? apl_openings($aplpdo, false) : [],
@@ -70,7 +77,10 @@ $v = function ($f) { return @filemtime(__DIR__ . '/' . $f) ?: 0; };
           <p>Everyone who registered on the public Apply page. Move each one through the stages, then hire — WeDo pulls their registration into the employee records, as Trainee.</p>
         </div>
 <?php if ($ready): ?>
-        <button type="button" class="wd-btn wd-btn--ghost" id="aplOpeningsBtn"><i class="fa-solid fa-briefcase"></i> Job openings</button>
+        <div class="lcy-actions">
+          <button type="button" class="wd-btn wd-btn--ghost" id="aplMailBtn"><i class="fa-regular fa-envelope"></i> Email setup</button>
+          <button type="button" class="wd-btn wd-btn--ghost" id="aplOpeningsBtn"><i class="fa-solid fa-briefcase"></i> Job openings</button>
+        </div>
 <?php endif; ?>
       </div>
 
@@ -200,6 +210,31 @@ $v = function ($f) { return @filemtime(__DIR__ . '/' . $f) ?: 0; };
               <button type="button" class="wd-btn wd-btn--ghost" data-dismiss="modal" id="aplHireCancel">Cancel</button>
               <button type="button" class="wd-btn wd-btn--success" id="aplHireSave"><i class="fa-solid fa-user-plus"></i> Create employee</button>
             </footer>
+          </div>
+        </div>
+      </div>
+
+      <!-- email setup: is Brevo working here? + a test email -->
+      <div class="modal fade" id="aplMailModal" tabindex="-1">
+        <div class="modal-dialog">
+          <div class="modal-content">
+            <div class="modal-header">
+              <button type="button" class="close" data-dismiss="modal" aria-label="Close">&times;</button>
+              <h4 class="modal-title"><i class="fa-regular fa-envelope"></i> Email setup (Brevo)</h4>
+            </div>
+            <div class="modal-body">
+              <p class="lcy-muted" style="margin-top:0">Emails to applicants need a Brevo API key and a verified sender in this server's <code>config.local.php</code>. Each step is checked below.</p>
+              <ul class="apl-checks" id="aplMailChecks"><li class="is-wait"><i class="fa-solid fa-spinner fa-spin"></i> Checking…</li></ul>
+              <form class="apl-mailtest" id="aplMailTestForm" autocomplete="off">
+                <div class="wd-field"><label for="aplMailTo">Send a test email to</label><input type="email" class="wd-input" id="aplMailTo" maxlength="150" required placeholder="you@example.com"></div>
+                <button type="submit" class="wd-btn wd-btn--primary" id="aplMailTestBtn"><i class="fa-solid fa-paper-plane"></i> Send test</button>
+              </form>
+              <p class="apl-mailres" id="aplMailTestRes" role="status"></p>
+            </div>
+            <div class="modal-footer">
+              <button type="button" class="wd-btn wd-btn--ghost" id="aplMailRecheck"><i class="fa-solid fa-rotate"></i> Check again</button>
+              <button type="button" class="wd-btn wd-btn--primary" data-dismiss="modal">Close</button>
+            </div>
           </div>
         </div>
       </div>
