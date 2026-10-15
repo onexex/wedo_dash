@@ -1,8 +1,8 @@
 {
-  "version": "1.0.7",
-  "versionCode": 30,
+  "version": "1.0.8",
+  "versionCode": 31,
   "size": "6.2 MB",
-  "released": "2026-10-14",
+  "released": "2026-10-15",
   "minAndroid": "6.0",
-  "notes": "A new look for the fingerprint lock screen. The app now tells you right away when a new version is available."
+  "notes": "HR: the Applicant Pool now looks and works like the rest of the app, and resumes open right on your phone."
 }
