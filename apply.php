@@ -176,9 +176,9 @@ $steps = ['Position', 'Personal', 'Contact', 'Background', 'Family', 'Review'];
                     <h3 class="apl-step__title">Tell us about yourself</h3>
                     <p class="apl-step__sub">Use your name exactly as it appears on your government ID.</p>
 <?php if ($hasPhoto): ?>
-                    <!-- live camera photo only (no file picker): it becomes the employee photo if hired -->
+                    <!-- optional, live camera photo only (no file picker): it becomes the employee photo if hired -->
                     <div class="apl-f apl-f--wide apl-photo-f">
-                        <label>Your photo *</label>
+                        <label>Your photo <span class="apl-hint">(optional)</span></label>
                         <div class="apl-cam" id="aplCam" tabindex="-1">
                             <div class="apl-cam__stage">
                                 <video id="aplCamVideo" playsinline muted autoplay hidden></video>
@@ -295,7 +295,7 @@ $steps = ['Position', 'Personal', 'Contact', 'Background', 'Family', 'Review'];
 
                     <div class="apl-consent">
                         <label class="apl-toggle apl-toggle--top"><input type="checkbox" name="consent" value="1" required><span class="apl-toggle__ui"></span>
-                            <span>I certify that the information above is true<?php echo $hasPhoto ? ' and the photo is of me' : ''; ?>, and I agree that WeDo BPO Inc. may collect and process my personal
+                            <span>I certify that the information above is true<?php echo $hasPhoto ? ' and any photo I took is of me' : ''; ?>, and I agree that WeDo BPO Inc. may collect and process my personal
                             information for recruitment and, if I am hired, for my employment records, in line with the Data Privacy Act of 2012
                             (RA 10173). If I am not hired, my application may be deleted.</span></label>
                     </div>

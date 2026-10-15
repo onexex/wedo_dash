@@ -240,12 +240,15 @@ final class ApplicantsTest extends AppTestCase
         $this->assertFileExists(dirname(__DIR__) . '/uploads/applicants/.htaccess', 'no web access to the folder');
     }
 
-    public function testThePhotoIsRequiredAndRedrawn(): void
+    public function testThePhotoIsOptionalAndRedrawn(): void
     {
+        $none = $this->submit(['email' => 'nophoto@example.com', 'mobile' => '0917 555 0000'], null, '198.51.100.30', ['error' => UPLOAD_ERR_NO_FILE]);
+        $this->assertTrue($none['ok'], 'no photo is fine: ' . ($none['msg'] ?? ''));
+        $this->assertNull($this->row("SELECT PhotoKey FROM applicants WHERE id = ?", [$none['id']])['PhotoKey']);
+        $this->assertFalse($this->act('detail', ['id' => $none['id']])['json']['applicant']['hasPhoto']);
+
         $files = function () { return count(glob(dirname(__DIR__) . '/uploads/applicants/*/*/*') ?: []); };
         $before = $files();
-        $none = $this->submit([], null, '203.0.113.5', ['error' => UPLOAD_ERR_NO_FILE]);
-        $this->assertStringContainsString('photo', $none['msg']);
         $tmp = tempnam(sys_get_temp_dir(), 'apl');
         file_put_contents($tmp, "<html><body>not a picture</body></html>");
         $this->files[] = $tmp;
@@ -253,7 +256,7 @@ final class ApplicantsTest extends AppTestCase
         $this->assertStringContainsString('photo', $fake['msg'], 'a renamed file is refused');
         $tiny = $this->submit([], null, '203.0.113.5', $this->jpeg(120, 90));
         $this->assertFalse($tiny['ok'], 'too small to be a camera photo');
-        $this->assertCount(0, $this->rows("SELECT id FROM applicants"), 'nothing saved');
+        $this->assertCount(1, $this->rows("SELECT id FROM applicants"), 'a bad photo is refused, not dropped silently');
         $this->assertSame($before, $files(), 'no resume or photo kept for a refused application');
 
         $r = $this->submit();
