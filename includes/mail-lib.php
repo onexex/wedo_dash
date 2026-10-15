@@ -65,7 +65,7 @@ function wd_mail_send(string $toEmail, string $toName, string $subject, string $
 
     $msg = [
         'sender'      => ['email' => $cfg['from'], 'name' => $cfg['fromName']],
-        'to'          => [['email' => $toEmail, 'name' => mb_substr($toName, 0, 70)]],
+        'to'          => [['email' => $toEmail] + (trim($toName) !== '' ? ['name' => mb_substr(trim($toName), 0, 70)] : [])],   // Brevo refuses an empty name
         'subject'     => $subject,
         'htmlContent' => $html,
     ];

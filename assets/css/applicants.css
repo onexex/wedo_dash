@@ -397,6 +397,7 @@ body.apl-public { background: #f4f6fb; min-height: 100vh; color: var(--text); }
 .apl-checks__sum { display: block !important; }
 .apl-checks__sum.is-ok { background: var(--ok-bg) !important; color: var(--ok-text) !important; }
 .apl-checks__sum.is-bad { background: var(--danger-bg) !important; color: var(--danger-text) !important; }
+.apl-checks__sum.is-warn { background: var(--warn-bg) !important; color: var(--warn-text) !important; }
 .apl-mailtest { display: flex; gap: 10px; align-items: flex-end; flex-wrap: wrap; }
 .apl-mailtest .wd-field { flex: 1; min-width: 200px; margin: 0; }
 .apl-mailopt { margin: -2px 0 10px; }

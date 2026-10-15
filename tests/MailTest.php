@@ -49,6 +49,9 @@ final class MailTest extends AppTestCase
         $this->assertSame(['hr@example.com', 'WeDo Test'], [$m['sender']['email'], $m['sender']['name']]);
         $this->assertSame('ana@example.com', $m['to'][0]['email']);
         $this->assertSame(['Hello', '<p>Hi</p>', 'Hi'], [$m['subject'], $m['htmlContent'], $m['textContent']]);
+
+        wd_mail_send('boss@example.com', '', 'Test', '<p>x</p>');
+        $this->assertSame(['email' => 'boss@example.com'], $this->sent()[1]['to'][0], 'no empty name: Brevo refuses "name is missing"');
     }
 
     public function testEmailIsOffWithoutAValidSender(): void

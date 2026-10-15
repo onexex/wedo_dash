@@ -462,9 +462,14 @@
       list.innerHTML = m.checks.map(function (c) {
         return '<li class="is-' + esc(c.level) + '"><i class="fa-solid ' + (CHECK_ICON[c.level] || 'fa-circle') + '"></i> ' + esc(c.text) + '</li>';
       }).join('')
-        + '<li class="apl-checks__sum is-' + (m.enabled ? 'ok' : 'bad') + '">' + (m.enabled
-          ? '<b>Email is on.</b> Send a test below to confirm it arrives.'
-          : '<b>Email is off on this server.</b> Fix the red items, then press "Check again".') + '</li>';
+        + (function () {
+          var bad = m.checks.some(function (c) { return c.level === 'bad'; });
+          var tone = !m.enabled ? 'bad' : (bad ? 'warn' : 'ok');
+          return '<li class="apl-checks__sum is-' + tone + '">' + (!m.enabled
+            ? '<b>Email is off on this server.</b> Fix the red items, then press "Check again".'
+            : bad ? '<b>Email is switched on, but Brevo will refuse it</b> until the red items are fixed.'
+                  : '<b>Email is on.</b> Send a test below to confirm it arrives.') + '</li>';
+        })();
     });
   }
   $id('aplMailBtn').addEventListener('click', function () {
