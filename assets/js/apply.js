@@ -2,7 +2,7 @@
    apply.js  —  the public application wizard (apply.php).
    Six steps shown one at a time with a progress bar; each step is checked
    before moving on (errors appear under the field); job cards pick the
-   position; the photo is taken live with the camera (no file picker); family
+   position; the optional photo is taken live with the camera (no file picker); family
    rows can be added/removed; the resume can be dropped on the drop zone; the
    last step shows a review of everything typed. Posts the
    whole form (multipart) to query/apply-action.php, which re-checks it all.
@@ -69,7 +69,6 @@
     0: function () { return []; },
     1: function () {
       var bad = required(1), b = form.elements.birthDate;
-      if (cam && !photo) { bad.unshift([cam, 'Take your photo with the camera.']); }
       ['firstName', 'middleName', 'lastName'].forEach(function (k) {
         var el = form.elements[k];
         if (el.value.trim() && !/^\p{L}[\p{L}\p{M} .'\-]*$/u.test(el.value.trim())) { bad.push([el, 'Letters only.']); }

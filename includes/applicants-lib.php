@@ -180,7 +180,7 @@ function apl_resume_path($key, ?string $dir = null) {
     return is_file($path) ? $path : null;
 }
 
-/** Is applicants.PhotoKey there (sql/2026-10-15-add-applicant-photo.sql)? Until then nothing asks for a photo. */
+/** Is applicants.PhotoKey there (sql/2026-10-15-add-applicant-photo.sql)? Until then the Apply page has no photo step. */
 function apl_has_photo(PDO $pdo) {
     static $has = null;
     if ($has === null) {
@@ -399,7 +399,7 @@ function apl_validate(PDO $pdo, array $p) {
 
 /**
  * Save a public registration. $p = posted fields, $file = the resume, $photo = the
- * camera photo (required once applicants.PhotoKey exists).
+ * camera photo (optional; when sent it must be a real picture).
  * @return array{ok:bool, msg?:string, id?:int, code?:int}
  */
 function apl_submit(PDO $pdo, array $p, ?array $file, $ip, $uploaded = true, ?array $photo = null) {
@@ -465,8 +465,8 @@ function apl_submit(PDO $pdo, array $p, ?array $file, $ip, $uploaded = true, ?ar
     $resume = apl_store_resume($file ?? ['error' => UPLOAD_ERR_NO_FILE], $uploaded);
     if (!$resume['ok']) { return ['ok' => false, 'msg' => $resume['msg']]; }
     $pic = null;
-    if (apl_has_photo($pdo)) {
-        $pic = apl_store_photo($photo ?? ['error' => UPLOAD_ERR_NO_FILE], $uploaded);
+    if ($photo && (int) ($photo['error'] ?? UPLOAD_ERR_NO_FILE) !== UPLOAD_ERR_NO_FILE && apl_has_photo($pdo)) {
+        $pic = apl_store_photo($photo, $uploaded);
         if (!$pic['ok']) {
             @unlink((string) apl_resume_path($resume['key']));
             return ['ok' => false, 'msg' => $pic['msg']];
