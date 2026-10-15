@@ -88,21 +88,37 @@ $v = function ($f) { return @filemtime(__DIR__ . '/' . $f) ?: 0; };
       </section>
 
       <!-- one application -->
-      <div class="modal fade" id="aplModal" tabindex="-1">
-        <div class="modal-dialog modal-lg">
+      <div class="modal fade apl-pro" id="aplModal" tabindex="-1" aria-labelledby="aplTitle">
+        <div class="modal-dialog">
           <div class="modal-content">
-            <div class="modal-header">
-              <button type="button" class="close" data-dismiss="modal" aria-label="Close">&times;</button>
-              <h4 class="modal-title" id="aplTitle">Applicant</h4>
-            </div>
-            <div class="modal-body" id="aplBody"></div>
-            <div class="modal-footer">
-              <form class="lcy-row" id="aplStageForm" style="width:100%;text-align:left" autocomplete="off">
-                <div class="wd-field" style="max-width:220px"><label for="aplStage">Stage</label><select class="wd-select" id="aplStage" name="stage"></select></div>
-                <div class="wd-field"><label for="aplNotes">Note</label><input class="wd-input" id="aplNotes" name="notes" maxlength="1000" placeholder="e.g. Passed the initial interview"></div>
-                <button type="submit" class="wd-btn wd-btn--primary">Save</button>
-              </form>
-              <p class="lcy-modal-error" id="aplStageErr" style="text-align:left"></p>
+            <header class="apl-pro__head">
+              <button type="button" class="apl-pro__close" data-dismiss="modal" aria-label="Close"><i class="fa-solid fa-xmark"></i></button>
+              <div class="apl-pro__id">
+                <div class="apl-pro__avatar" id="aplAvatar" aria-hidden="true"></div>
+                <div class="apl-pro__who">
+                  <h4 id="aplTitle">Applicant</h4>
+                  <p class="apl-pro__sub" id="aplSub"></p>
+                  <div class="apl-pro__contact" id="aplContact"></div>
+                </div>
+              </div>
+              <div class="apl-pro__actions" id="aplActions"></div>
+            </header>
+            <div class="apl-pro__track" id="aplTrack"></div>
+            <div class="apl-pro__layout">
+              <div class="apl-pro__main" id="aplBody"></div>
+              <aside class="apl-pro__side">
+                <form class="apl-card" id="aplStageForm" autocomplete="off">
+                  <h5 class="apl-card__title"><i class="fa-solid fa-arrow-right-arrow-left"></i> Move to stage</h5>
+                  <div class="wd-field"><label for="aplStage">Stage</label><select class="wd-select" id="aplStage" name="stage"></select></div>
+                  <div class="wd-field"><label for="aplNotes">Note <span class="lcy-muted">(optional)</span></label><textarea class="wd-textarea" id="aplNotes" name="notes" rows="2" maxlength="1000" placeholder="e.g. Passed the initial interview"></textarea></div>
+                  <p class="lcy-modal-error" id="aplStageErr"></p>
+                  <button type="submit" class="wd-btn wd-btn--primary apl-card__btn"><i class="fa-solid fa-check"></i> Save</button>
+                </form>
+                <section class="apl-card">
+                  <h5 class="apl-card__title"><i class="fa-solid fa-clock-rotate-left"></i> Activity</h5>
+                  <ul class="apl-feed" id="aplHistory"></ul>
+                </section>
+              </aside>
             </div>
           </div>
         </div>

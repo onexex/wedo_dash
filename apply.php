@@ -1,7 +1,7 @@
 <?php
 /* ==========================================================================
    apply.php  —  PUBLIC job registration page (no sign-in, no applicant login).
-   A 6-step application: Position -> Personal -> Contact & address ->
+   A 6-step application: Position -> Personal (with a live camera photo) -> Contact & address ->
    Background (IDs, education, last job) -> Family & emergency -> Resume &
    review. Collects a full 201 profile so that, when HR hires the applicant,
    includes/applicants-lib.php apl_hire() copies it into the employee tables.
@@ -30,12 +30,14 @@ header("Content-Security-Policy: default-src 'self'; script-src 'self'" . ($ts ?
 $ready = false;
 $openings = [];
 $rels = [];
+$hasPhoto = false;   // the camera photo step, once sql/2026-10-15-add-applicant-photo.sql has run
 try {
     $aplpdo = new PDO("mysql:host=$servername;dbname=$db;charset=utf8mb4", $username, $password);
     $aplpdo->setAttribute(PDO::ATTR_ERRMODE, PDO::ERRMODE_EXCEPTION);
     $ready = apl_ready($aplpdo);
     if ($ready) { $openings = apl_openings($aplpdo, true); $rels = apl_relationships($aplpdo); }
-} catch (Throwable $e) { $ready = false; }
+    $hasPhoto = $ready && apl_has_photo($aplpdo);
+} catch (Throwable $e) { $ready = $hasPhoto = false; }
 $token = apl_public_token();
 $pick  = (int) ($_GET['job'] ?? 0);
 $e = function ($s) { return htmlspecialchars((string) $s, ENT_QUOTES, 'UTF-8'); };
@@ -59,9 +61,9 @@ $famRow = function ($i) use ($e, $rels) {
     return '<fieldset class="apl-person" data-row="' . $i . '"><legend>Person <span class="apl-person__n"></span></legend>'
          . '<button type="button" class="apl-person__del" aria-label="Remove this person"><i class="fa-solid fa-xmark"></i></button>'
          . '<div class="apl-grid">'
-         . '<div class="apl-f"><label>Full name</label><input class="wd-input" name="fam[' . $i . '][name]" maxlength="150" autocomplete="off"></div>'
+         . '<div class="apl-f"><label>Full name</label><input class="wd-input" name="fam[' . $i . '][name]" maxlength="150" autocomplete="off" placeholder="First and last name"></div>'
          . '<div class="apl-f"><label>Relationship</label><select class="wd-select" name="fam[' . $i . '][relationship]">' . $opts . '</select></div>'
-         . '<div class="apl-f"><label>Contact number</label><input type="tel" class="wd-input" name="fam[' . $i . '][contact]" maxlength="30" autocomplete="off"></div>'
+         . '<div class="apl-f"><label>Mobile number</label><input type="tel" class="wd-input" name="fam[' . $i . '][contact]" maxlength="16" autocomplete="off" inputmode="numeric" placeholder="09xx xxx xxxx" data-mobile></div>'
          . '<div class="apl-f"><label>Address</label><input class="wd-input" name="fam[' . $i . '][address]" maxlength="250" autocomplete="off"></div>'
          . '</div>'
          . '<label class="apl-toggle"><input type="checkbox" name="fam[' . $i . '][emergency]" value="1"' . ($i === 0 ? ' checked' : '') . '>'
@@ -173,6 +175,32 @@ $steps = ['Position', 'Personal', 'Contact', 'Background', 'Family', 'Review'];
                 <div class="apl-step" data-step="1" hidden>
                     <h3 class="apl-step__title">Tell us about yourself</h3>
                     <p class="apl-step__sub">Use your name exactly as it appears on your government ID.</p>
+<?php if ($hasPhoto): ?>
+                    <!-- live camera photo only (no file picker): it becomes the employee photo if hired -->
+                    <div class="apl-f apl-f--wide apl-photo-f">
+                        <label>Your photo *</label>
+                        <div class="apl-cam" id="aplCam" tabindex="-1">
+                            <div class="apl-cam__stage">
+                                <video id="aplCamVideo" playsinline muted autoplay hidden></video>
+                                <canvas id="aplCamShot" hidden></canvas>
+                                <span class="apl-cam__guide" aria-hidden="true"></span>
+                                <span class="apl-cam__idle" id="aplCamIdle"><i class="fa-solid fa-user"></i></span>
+                            </div>
+                            <div class="apl-cam__side">
+                                <p class="apl-cam__msg" id="aplCamMsg" aria-live="polite">Take a photo of your face with your camera. If you are hired, it becomes your employee photo.</p>
+                                <ul class="apl-cam__tips">
+                                    <li><i class="fa-solid fa-sun"></i> Good light, plain background</li>
+                                    <li><i class="fa-solid fa-face-smile"></i> Face the camera — no cap or sunglasses</li>
+                                </ul>
+                                <div class="apl-cam__btns">
+                                    <button type="button" class="wd-btn wd-btn--primary" id="aplCamStart"><i class="fa-solid fa-camera"></i> Turn on camera</button>
+                                    <button type="button" class="wd-btn wd-btn--primary" id="aplCamSnap" hidden><i class="fa-solid fa-circle-dot"></i> Take photo</button>
+                                    <button type="button" class="wd-btn wd-btn--ghost" id="aplCamRetake" hidden><i class="fa-solid fa-rotate-left"></i> Retake</button>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+<?php endif; ?>
                     <div class="apl-grid">
                         <?php echo $field('firstName', 'First name *', 'maxlength="80" required autocomplete="given-name"');
                               echo $field('lastName', 'Last name *', 'maxlength="80" required autocomplete="family-name"');
@@ -191,7 +219,7 @@ $steps = ['Position', 'Personal', 'Contact', 'Background', 'Family', 'Review'];
                     <h3 class="apl-step__title">How can we reach you?</h3>
                     <div class="apl-grid">
                         <?php echo $field('email', 'Email *', 'maxlength="150" required autocomplete="email" placeholder="you@example.com"', 'email');
-                              echo $field('mobile', 'Mobile number *', 'maxlength="30" required autocomplete="tel" inputmode="tel" placeholder="09xx xxx xxxx"', 'tel');
+                              echo $field('mobile', 'Mobile number *', 'maxlength="16" required autocomplete="tel" inputmode="numeric" placeholder="09xx xxx xxxx" data-mobile', 'tel');
                               echo $field('homePhone', 'Home phone', 'maxlength="30" inputmode="tel"', 'tel');
                               echo $field('street', 'House no. / street / subdivision *', 'maxlength="150" required autocomplete="address-line1"', 'text', '', true);
                               echo $field('barangay', 'Barangay *', 'maxlength="100" required');
@@ -267,7 +295,7 @@ $steps = ['Position', 'Personal', 'Contact', 'Background', 'Family', 'Review'];
 
                     <div class="apl-consent">
                         <label class="apl-toggle apl-toggle--top"><input type="checkbox" name="consent" value="1" required><span class="apl-toggle__ui"></span>
-                            <span>I certify that the information above is true, and I agree that WeDo BPO Inc. may collect and process my personal
+                            <span>I certify that the information above is true<?php echo $hasPhoto ? ' and the photo is of me' : ''; ?>, and I agree that WeDo BPO Inc. may collect and process my personal
                             information for recruitment and, if I am hired, for my employment records, in line with the Data Privacy Act of 2012
                             (RA 10173). If I am not hired, my application may be deleted.</span></label>
                     </div>

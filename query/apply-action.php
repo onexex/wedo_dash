@@ -1,7 +1,7 @@
 <?php
 /* ==========================================================================
    apply-action.php  —  receives the PUBLIC job application (apply.php).
-   No sign-in. POST multipart: the form fields + resume, returns JSON.
+   No sign-in. POST multipart: the form fields + resume + camera photo, returns JSON.
    Guards (includes/applicants-lib.php apl_submit): the form's session token,
    a hidden honeypot field, a minimum fill time, per-address and overall
    hourly limits, Cloudflare Turnstile when configured, one application per
@@ -30,7 +30,7 @@ try {
 if (!apl_ready($pdo)) { apa_out(503, ['status' => 'error', 'msg' => 'We are not accepting applications online yet.']); }
 
 try {
-    $r = apl_submit($pdo, $_POST, $_FILES['resume'] ?? null, apl_client_ip());
+    $r = apl_submit($pdo, $_POST, $_FILES['resume'] ?? null, apl_client_ip(), true, $_FILES['photo'] ?? null);
 } catch (Throwable $e) {
     error_log('[wedo apply] ' . $e->getMessage());
     apa_out(500, ['status' => 'error', 'msg' => 'Something went wrong — please try again.']);
