@@ -29,8 +29,6 @@ try {
     pwc_out(500, ['status' => 'error', 'msg' => 'Database unavailable.']);
 }
 
-/** Passwords WeDo hands out (enrolment, admin reset): never accepted as one's own. */
-const PWC_DEFAULTS = ['p@zzword', 'wedoinc2023', 'password', 'password1', '12345678', 'wedo1234'];
 
 $id  = (string) $_SESSION['id'];
 $cur = (string) ($_POST['current'] ?? '');
@@ -53,7 +51,7 @@ if (!password_verify($cur, (string) $row['EmpPW'])) {
 if ($new !== (string) ($_POST['confirm'] ?? '')) { pwc_out(422, ['status' => 'error', 'msg' => 'The two new passwords are not the same.']); }
 if (strlen($new) < 8 || strlen($new) > 72) { pwc_out(422, ['status' => 'error', 'msg' => 'Use 8 to 72 characters.']); }
 if (!preg_match('/[A-Za-z]/', $new) || !preg_match('/\d/', $new)) { pwc_out(422, ['status' => 'error', 'msg' => 'Use both letters and numbers.']); }
-if (in_array(strtolower($new), PWC_DEFAULTS, true)) { pwc_out(422, ['status' => 'error', 'msg' => 'That password is too common — choose another.']); }
+if (in_array(strtolower($new), WD_DEFAULT_PASSWORDS, true)) { pwc_out(422, ['status' => 'error', 'msg' => 'That password is too common — choose another.']); }
 $un = strtolower(trim((string) $row['EmpUN']));
 if ($un !== '' && strpos(strtolower($new), $un) !== false) { pwc_out(422, ['status' => 'error', 'msg' => 'Your password must not contain your username.']); }
 if (password_verify($new, (string) $row['EmpPW'])) { pwc_out(422, ['status' => 'error', 'msg' => 'Choose a password different from the current one.']); }

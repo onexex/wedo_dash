@@ -19,6 +19,29 @@ catch(PDOException $e)
 die("ERROR: Could not connect. " . $e->getMessage());
    }
 // date_default_timezone_set("Asia/Manila");
+
+/* --------------------------------------------------------------------------
+   Brute-force protection (includes/bot-guard.php):
+     - 5 wrong passwords for a username / 20 failed sign-ins from one address
+       in 15 minutes -> "429|<minutes>" until the window passes
+     - Cloudflare Turnstile is checked on the server when its keys are set
+       (config.local.php turnstile_site / turnstile_secret) -> "428" if not passed
+     - an unknown username and a wrong password get the same answer ("1")
+       and take the same time, so accounts can't be discovered
+   -------------------------------------------------------------------------- */
+require_once __DIR__ . '/../includes/bot-guard.php';
+require_once __DIR__ . '/../includes/account-gate.php';
+$lgIp   = wd_client_ip();
+$lgUser = (string) ($_POST['uname'] ?? '');
+$lgPass = (string) ($_POST['pass'] ?? '');
+$lgWait = wd_login_wait($pdo, $lgUser, $lgIp);
+if ($lgWait > 0) { echo '429|' . (int) ceil($lgWait / 60); exit; }
+if (wd_turnstile_check($_POST['cf-turnstile-response'] ?? '', $lgIp) === 'bad') {
+    wd_login_record($pdo, $lgUser, $lgIp, false);
+    echo '428';
+    exit;
+}
+
 //captcha
 {
     // function CheckCaptcha($userResponse) {
@@ -64,7 +87,10 @@ die("ERROR: Could not connect. " . $e->getMessage());
             $count=$statement->rowCount();
             $row=$statement->fetch();
             if ($count<1){
-            	print "0";
+            	// same answer and the same work as a wrong password: usernames can't be probed
+            	wd_login_dummy_verify($lgPass);
+            	wd_login_record($pdo, $lgUser, $lgIp, false);
+            	print "1";
             	session_destroy();
             ?>
             
@@ -75,8 +101,12 @@ die("ERROR: Could not connect. " . $e->getMessage());
             
             	if (password_verify($_POST['pass'], $hash)) {
             	    $id=$row['EmpID'];
+            	    wd_login_record($pdo, $lgUser, $lgIp, true);
+            	    // a new session id at sign-in (no session fixation)
+            	    session_regenerate_id(true);
+            	    // still on a password WeDo hands out (enrolment / old reset): must set their own now
+            	    if (in_array(strtolower($lgPass), WD_DEFAULT_PASSWORDS, true)) { wd_set_must_change_password($pdo, $id, true); }
             	    // resigned / terminated (unless allowed after separation): "no longer active"
-            	    require_once __DIR__ . '/../includes/account-gate.php';
             	    if (wd_account_blocked($pdo, $id)) {
             	        echo '0101';
             	        return;
@@ -286,6 +316,7 @@ die("ERROR: Could not connect. " . $e->getMessage());
                         }
 
             	} else {
+            	    wd_login_record($pdo, $lgUser, $lgIp, false);
             	    echo '1';
             	}
             

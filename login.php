@@ -3,6 +3,9 @@
     include 'w_conn.php';
     require_once __DIR__ . '/includes/app-remember.php';
     require_once __DIR__ . '/includes/account-gate.php';
+    require_once __DIR__ . '/includes/bot-guard.php';
+    // the widget uses the configured site key (the one the server verifies against), else the original one
+    $wdTsSite = (wd_turnstile()['site'] ?? '') ?: '0x4AAAAAACayjoaxKu_lYec-';
 
     // 1. Handle Logout immediately
     if (isset($_GET['logout'])) {
@@ -255,7 +258,7 @@
                 <label class="wd-login__chk"><input type="checkbox" id="showPass" onclick="togglePass()"> Show password</label>
 
                 <div class="wd-field" style="margin-bottom:18px">
-                    <div class="cf-turnstile" data-sitekey="0x4AAAAAACayjoaxKu_lYec-"></div>
+                    <div class="cf-turnstile" data-sitekey="<?php echo htmlspecialchars($wdTsSite, ENT_QUOTES, 'UTF-8'); ?>"></div>
                 </div>
 
                 <button type="button" class="wd-btn wd-btn--primary btnsubmit" style="width:100%;justify-content:center">Sign in</button>

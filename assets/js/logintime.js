@@ -59,6 +59,11 @@ $(document).ready(function () {
         }
     });
 
+    // a Turnstile answer is single-use: get a fresh one after a failed attempt
+    function resetHumanCheck() {
+        if (window.turnstile) { try { window.turnstile.reset(); } catch (e) { /* widget not on the page */ } }
+    }
+
     function performLogin() {
         var uname = $("#uname").val();
         var pass = $("#pass").val();
@@ -83,13 +88,22 @@ $(document).ready(function () {
             success: function (data) {
                 $(".btnsubmit").text("Sign In").prop("disabled", false);
                 
-                if (data == 0) {
-                    errorMsg.text("Incorrect Username!");
+                var answer = $.trim(data);
+                if (answer === '0' || answer === '1') {
+                    // one message for both: a bot can't tell which usernames exist
+                    errorMsg.text("Incorrect username or password.");
                     errorMsg.fadeIn();
-                } else if (data == 1) {
-                    errorMsg.text("Incorrect Password!");
+                    resetHumanCheck();
+                } else if (answer.indexOf('429|') === 0) {
+                    var mins = parseInt(answer.split('|')[1], 10) || 15;
+                    errorMsg.text("Too many failed sign-ins. Please wait " + mins + " minute" + (mins === 1 ? "" : "s") + " and try again.");
                     errorMsg.fadeIn();
-                } else if ($.trim(data) === '0101') {
+                    resetHumanCheck();
+                } else if (answer === '428') {
+                    errorMsg.text('Please complete the "I am human" check, then sign in.');
+                    errorMsg.fadeIn();
+                    resetHumanCheck();
+                } else if (answer === '0101') {
                     errorMsg.text("This account is no longer active. Please contact HR.");
                     errorMsg.fadeIn();
                 } else if (data == 7) {

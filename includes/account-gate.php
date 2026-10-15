@@ -122,6 +122,9 @@ function wd_account_gate(?PDO $pdo = null): void
    sends them to change-password.php. Cleared by any password change.
    -------------------------------------------------------------------------- */
 
+/** Passwords WeDo has handed out to many people (enrolment, old resets) or that are trivially guessed. */
+const WD_DEFAULT_PASSWORDS = ['p@zzword', 'wedoinc2023', 'password', 'password1', '12345678', 'wedo1234'];
+
 /** A one-time temporary password for HR to hand over (no look-alike characters). */
 function wd_temp_password(): string
 {
