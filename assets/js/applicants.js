@@ -76,10 +76,47 @@
   }
 
   /* ------------------------------------------------------------ one application */
-  function dl(pairs) {
-    var rows = pairs.filter(function (p) { return p[1] !== null && p[1] !== undefined && String(p[1]).trim() !== ''; });
-    return rows.length ? '<dl class="lcy-facts">' + rows.map(function (p) { return '<div><dt>' + esc(p[0]) + '</dt><dd>' + esc(p[1]) + '</dd></div>'; }).join('') + '</dl>'
-      : '<p class="lcy-muted">—</p>';
+  var PIPE = ['new', 'screening', 'interview', 'exam', 'offer', 'hired'];
+
+  function filled(v) { return v !== null && v !== undefined && String(v).trim() !== ''; }
+
+  /** label/value grid: [label, value, wide?]; `copy` adds a copy button to each value (government IDs). */
+  function kv(pairs, copy) {
+    var rows = pairs.filter(function (p) { return filled(p[1]); });
+    if (!rows.length) { return '<p class="apl-none">Not provided</p>'; }
+    return '<dl class="apl-kv' + (copy ? ' apl-kv--ids' : '') + '">' + rows.map(function (p) {
+      return '<div' + (p[2] ? ' class="is-wide"' : '') + '><dt>' + esc(p[0]) + '</dt><dd>' + esc(p[1])
+        + (copy ? ' <button type="button" class="apl-copy" data-copy="' + esc(p[1]) + '" title="Copy" aria-label="Copy ' + esc(p[0]) + '"><i class="fa-regular fa-copy"></i></button>' : '')
+        + '</dd></div>';
+    }).join('') + '</dl>';
+  }
+
+  function card(icon, title, body, wide) {
+    return '<section class="apl-card' + (wide ? ' is-wide' : '') + '"><h5 class="apl-card__title"><i class="fa-solid ' + icon + '"></i> ' + esc(title) + '</h5>' + body + '</section>';
+  }
+
+  function initials(name) {
+    return String(name || '?').split(/\s+/).filter(Boolean).slice(0, 2).map(function (w) { return w.charAt(0); }).join('').toUpperCase();
+  }
+
+  function age(d) {
+    if (!d) { return ''; }
+    var b = new Date(String(d).slice(0, 10) + 'T00:00:00'), n = new Date();
+    if (isNaN(b)) { return ''; }
+    var y = n.getFullYear() - b.getFullYear();
+    if (n.getMonth() < b.getMonth() || (n.getMonth() === b.getMonth() && n.getDate() < b.getDate())) { y--; }
+    return y > 0 && y < 120 ? y + ' yrs old' : '';
+  }
+
+  function ago(s) {
+    var d = new Date(String(s || '').replace(' ', 'T'));
+    if (isNaN(d)) { return ''; }
+    var m = Math.round((Date.now() - d) / 60000);
+    if (m < 1) { return 'just now'; }
+    if (m < 60) { return m + ' min ago'; }
+    if (m < 1440) { return Math.round(m / 60) + ' h ago'; }
+    if (m < 43200) { return Math.round(m / 1440) + ' d ago'; }
+    return L.fmtDate(s);
   }
 
   function open(id) {
@@ -90,58 +127,101 @@
     });
   }
 
+  /** the pipeline stepper; a closed (rejected / withdrawn) application shows how far it got. */
+  function track(a) {
+    var closed = a.stage === 'rejected' || a.stage === 'withdrawn';
+    var reached = PIPE.indexOf(a.stage);
+    if (closed) {
+      a.events.forEach(function (e) { reached = Math.max(reached, PIPE.indexOf(e.from), PIPE.indexOf(e.to)); });
+    }
+    var steps = PIPE.map(function (k, i) {
+      var cls = i < reached || (i === reached && k === 'hired') ? 'is-done' : (i === reached ? (closed ? 'is-stop' : 'is-on') : '');
+      return '<li class="' + cls + '"><span class="apl-track__dot">' + (i + 1) + '</span><span class="apl-track__lbl">' + esc(STAGES[k] || k) + '</span></li>';
+    }).join('');
+    return '<ol class="apl-track' + (closed ? ' is-closed' : '') + '">' + steps + '</ol>'
+      + (closed ? '<div class="apl-track__end"><i class="fa-solid fa-circle-xmark"></i> ' + esc(STAGES[a.stage]) + '</div>' : '');
+  }
+
+  function rehireBox(a) {
+    if (!a.matches.length) {
+      return '<div class="apl-callout is-ok"><i class="fa-solid fa-circle-check"></i><div><b>No previous record</b>'
+        + '<span>Nobody with this name in former employees or the archive.</span></div></div>';
+    }
+    var tone = a.rehire === 'no' ? 'is-danger' : (a.rehire === 'review' ? 'is-warn' : 'is-info');
+    return '<div class="apl-callout ' + tone + '"><i class="fa-solid fa-clock-rotate-left"></i><div><b>Worked here before?</b>'
+      + '<span>' + a.matches.length + ' record' + (a.matches.length === 1 ? '' : 's') + ' with the same name — check before moving on.</span>'
+      + a.matches.map(function (m) {
+        var cls = m.rehire === 'no' ? ' is-no' : (m.rehire === 'review' ? ' is-review' : '');
+        return '<div class="apl-match' + cls + '"><div class="apl-match__head"><b>' + esc(m.name) + '</b> '
+          + (m.source === 'ams' ? '<span class="wd-pill wd-pill--info">Archive</span>' : L.statusPill(m.status))
+          + (m.strong ? ' <span class="wd-pill wd-pill--warn">Same birth date</span>' : ' <span class="lcy-muted">same name only</span>')
+          + (m.rehire ? ' ' + L.rehirePill(m.rehire) : '') + '</div>'
+          + kv([['Position', m.position], ['Employed', [m.hired ? L.fmtDate(m.hired) || m.hired : '', m.lastDay ? L.fmtDate(m.lastDay) || m.lastDay : ''].filter(Boolean).join(' – ')],
+                ['Separation', m.separation], ['Reason for leaving', m.reason, true], ['Rehire note', m.rehireNote, true], ['Derogatory records', m.derogatory, true]])
+          + '</div>';
+      }).join('') + '</div></div>';
+  }
+
   function render(a) {
     current = a;
     var p = a.profile;
-    $id('aplTitle').innerHTML = esc(a.name) + ' ' + stagePill(a.stage);
     var closed = a.stage === 'hired' || a.stage === 'rejected' || a.stage === 'withdrawn';
-    var actions = '<div class="lcy-actions" style="margin-bottom:6px">'
-      + (a.hasResume ? '<a class="wd-btn wd-btn--ghost wd-btn--sm" href="query/applicant-resume.php?id=' + a.id + '" rel="noopener"><i class="fa-solid fa-download"></i> Resume</a>' : '')
+
+    /* ---- header */
+    $id('aplAvatar').textContent = initials(a.name);
+    $id('aplTitle').innerHTML = esc(a.name) + ' ' + stagePill(a.stage) + rehireBadge(a.rehire);
+    $id('aplSub').innerHTML = 'Applied for <b>' + esc(a.opening || 'Any position') + '</b> · ' + esc(L.fmtDateTime(a.appliedAt))
+      + (p.Source ? ' · via ' + esc(p.Source) : '');
+    var city = [p.City, p.Province].filter(Boolean).join(', ');
+    $id('aplContact').innerHTML = (a.email ? '<a href="mailto:' + esc(a.email) + '"><i class="fa-regular fa-envelope"></i> ' + esc(a.email) + '</a>' : '')
+      + (a.mobile ? '<a href="tel:' + esc(a.mobile) + '"><i class="fa-solid fa-phone"></i> ' + esc(a.mobile) + '</a>' : '')
+      + (city ? '<span><i class="fa-solid fa-location-dot"></i> ' + esc(city) + '</span>' : '');
+
+    $id('aplActions').innerHTML = (a.hasResume ? '<a class="wd-btn wd-btn--ghost wd-btn--sm" href="query/applicant-resume.php?id=' + a.id + '" rel="noopener"><i class="fa-solid fa-file-arrow-down"></i> Resume</a>' : '')
       + (BOOT.canHire && !closed ? '<button type="button" class="wd-btn wd-btn--success wd-btn--sm" id="aplHireBtn"><i class="fa-solid fa-user-plus"></i> Hire</button>' : '')
-      + (a.stage === 'rejected' || a.stage === 'withdrawn' ? '<button type="button" class="wd-btn wd-btn--danger wd-btn--sm" id="aplDeleteBtn"><i class="fa-solid fa-trash"></i> Delete application</button>' : '')
-      + (a.empId ? '<span class="wd-pill wd-pill--ok">Employee ' + esc(a.empId) + '</span>'
-          + (BOOT.canLife ? ' <a class="wd-btn wd-btn--ghost wd-btn--sm" href="separation?emp=' + encodeURIComponent(a.empId) + '">Lifecycle</a>' : '') : '')
-      + '</div>';
-    if (BOOT.canHire === false && !closed) {
-      actions += '<p class="lcy-muted">Hiring creates a WeDo account, so it also needs the "Enroll Employee" right.</p>';
-    }
+      + (a.stage === 'rejected' || a.stage === 'withdrawn' ? '<button type="button" class="wd-btn wd-btn--danger wd-btn--sm" id="aplDeleteBtn"><i class="fa-solid fa-trash"></i> Delete</button>' : '')
+      + (a.empId ? '<span class="wd-pill wd-pill--ok"><i class="fa-solid fa-id-badge"></i> Employee ' + esc(a.empId) + '</span>'
+          + (BOOT.canLife ? '<a class="wd-btn wd-btn--ghost wd-btn--sm" href="separation?emp=' + encodeURIComponent(a.empId) + '">Lifecycle</a>' : '') : '');
+    $id('aplTrack').innerHTML = track(a);
 
-    var matches = a.matches.length ? a.matches.map(function (m) {
-      var cls = m.rehire === 'no' ? ' is-no' : (m.rehire === 'review' ? ' is-review' : '');
-      return '<div class="apl-match' + cls + '"><b>' + esc(m.name) + '</b> '
-        + (m.source === 'ams' ? '<span class="wd-pill wd-pill--info">Archive</span>' : L.statusPill(m.status))
-        + (m.strong ? ' <span class="wd-pill wd-pill--warn">Same birth date</span>' : ' <span class="lcy-muted">(same name)</span>')
-        + (m.rehire ? ' ' + L.rehirePill(m.rehire) : '')
-        + dl([['Position', m.position], ['Employed', [m.hired ? L.fmtDate(m.hired) || m.hired : '', m.lastDay ? L.fmtDate(m.lastDay) || m.lastDay : ''].filter(Boolean).join(' – ')],
-              ['Separation', m.separation], ['Reason for leaving', m.reason], ['Rehire note', m.rehireNote], ['Derogatory records', m.derogatory]])
-        + '</div>';
-    }).join('') : '<p class="lcy-muted">No former employee or archive record with this name.</p>';
-
+    /* ---- body */
     var edu = a.education.filter(function (e) { return e.School; });
-    var fam = a.family;
-    $id('aplBody').innerHTML = actions + '<div class="apl-dl">'
-      + '<h5>Application</h5>' + dl([['Position', a.opening || 'Any position'], ['Registered', L.fmtDateTime(a.appliedAt)], ['Heard about us', p.Source],
-                                      ['Data Privacy consent', L.fmtDateTime(p.ConsentAt)]])
-      + '<h5>Worked here before?</h5>' + matches
-      + '<h5>Personal</h5>' + dl([['Birth date', L.fmtDate(a.birthDate)], ['Gender', p.Gender], ['Civil status', p.CivilStatus],
-                                   ['Citizenship', p.Citizenship], ['Religion', p.Religion]])
-      + '<h5>Contact &amp; address</h5>' + dl([['Email', a.email], ['Mobile', a.mobile], ['Home phone', p.HomePhone],
-          ['Address', [p.Street, p.Barangay, p.City, p.Province, p.Zip, p.Country].filter(Boolean).join(', ')]])
-      + '<h5>Government IDs</h5>' + dl([['SSS', p.SSS], ['TIN', p.TIN], ['PhilHealth', p.PhilHealth], ['Pag-IBIG', p.PagIbig], ['UMID', p.UMID],
-          ['Passport', [p.PassportNo, p.PassportExpiry ? 'exp. ' + L.fmtDate(p.PassportExpiry) : '', p.PassportIssuer].filter(Boolean).join(' · ')]])
-      + '<h5>Education</h5>' + (edu.length ? dl(edu.map(function (e) {
-          return [e.Program, e.School + ([e.YearStarted, e.YearEnded].filter(Boolean).length ? ' (' + [e.YearStarted, e.YearEnded].filter(Boolean).join('–') + ')' : '')];
-        })) : '<p class="lcy-muted">—</p>')
-      + '<h5>Most recent job</h5>' + dl([['Company', p.PrevCompany], ['Position', p.PrevPosition], ['Department', p.PrevDept], ['Start', L.fmtDate(p.PrevStart)]])
-      + '<h5>Family &amp; emergency contacts</h5>' + (fam.length ? '<table class="wd-table lcy-table"><tbody>' + fam.map(function (f) {
-          return '<tr><td><b>' + esc(f.Name) + '</b>' + (+f.Emergency ? ' <span class="wd-pill wd-pill--warn">Emergency</span>' : '') + '</td><td>' + esc(f.Relationship)
-            + '</td><td>' + esc(f.Contact || '') + '</td><td>' + esc(f.Address || '') + '</td></tr>';
-        }).join('') + '</tbody></table>' : '<p class="lcy-muted">—</p>')
-      + '<h5>History</h5><ul class="lcy-timeline" style="padding-left:0">' + a.events.map(function (e) {
-          return '<li><div class="t-date">' + esc(L.fmtDateTime(e.at)) + '</div><div class="t-what">'
-            + esc(e.from && e.from !== e.to ? (STAGES[e.from] || e.from) + ' → ' + e.toLabel : (e.from ? 'Note' : e.toLabel)) + '</div>'
-            + (e.notes ? '<div class="t-note">' + esc(e.notes) + '</div>' : '') + '<div class="t-note lcy-muted">' + esc(e.by) + '</div></li>';
-        }).join('') + '</ul></div>';
+    var eduHtml = edu.length ? '<ul class="apl-edu">' + edu.map(function (e) {
+      var yrs = [e.YearStarted, e.YearEnded].filter(Boolean).join(' – ');
+      return '<li><span class="apl-edu__lvl">' + esc(e.Program) + '</span><b>' + esc(e.School) + '</b>' + (yrs ? '<small>' + esc(yrs) + '</small>' : '') + '</li>';
+    }).join('') + '</ul>' : '<p class="apl-none">Not provided</p>';
+
+    var famHtml = a.family.length ? '<div class="apl-people">' + a.family.map(function (f) {
+      return '<div class="apl-person-card' + (+f.Emergency ? ' is-emergency' : '') + '"><span class="apl-person-card__av">' + esc(initials(f.Name)) + '</span>'
+        + '<div class="apl-person-card__body"><b>' + esc(f.Name) + '</b>'
+        + '<span class="apl-person-card__rel">' + esc(f.Relationship || '') + (+f.Emergency ? ' <span class="wd-pill wd-pill--warn">Emergency contact</span>' : '') + '</span>'
+        + (f.Contact ? '<a href="tel:' + esc(f.Contact) + '"><i class="fa-solid fa-phone"></i> ' + esc(f.Contact) + '</a>' : '')
+        + (f.Address ? '<span><i class="fa-solid fa-location-dot"></i> ' + esc(f.Address) + '</span>' : '') + '</div></div>';
+    }).join('') + '</div>' : '<p class="apl-none">Not provided</p>';
+
+    var hint = BOOT.canHire === false && !closed
+      ? '<div class="apl-callout is-info"><i class="fa-solid fa-circle-info"></i><div><span>Hiring creates a WeDo account, so it also needs the "Enroll Employee" right.</span></div></div>' : '';
+
+    $id('aplBody').innerHTML = hint + rehireBox(a) + '<div class="apl-cards">'
+      + card('fa-user', 'Personal', kv([['Birth date', [L.fmtDate(a.birthDate), age(a.birthDate)].filter(Boolean).join(' · ')], ['Gender', p.Gender],
+          ['Civil status', p.CivilStatus], ['Citizenship', p.Citizenship], ['Religion', p.Religion]]))
+      + card('fa-address-book', 'Contact & address', kv([['Email', a.email, true], ['Mobile', a.mobile], ['Home phone', p.HomePhone],
+          ['Address', [p.Street, p.Barangay, p.City, p.Province, p.Zip, p.Country].filter(Boolean).join(', '), true]]))
+      + card('fa-id-card', 'Government IDs', kv([['SSS', p.SSS], ['TIN', p.TIN], ['PhilHealth', p.PhilHealth], ['Pag-IBIG', p.PagIbig], ['UMID', p.UMID],
+          ['Passport', p.PassportNo]], true)
+          + (p.PassportNo && (p.PassportExpiry || p.PassportIssuer) ? '<p class="apl-foot-note">Passport ' + esc([p.PassportExpiry ? 'expires ' + L.fmtDate(p.PassportExpiry) : '', p.PassportIssuer ? 'issued by ' + p.PassportIssuer : ''].filter(Boolean).join(', ')) + '</p>' : ''))
+      + card('fa-briefcase', 'Most recent job', kv([['Company', p.PrevCompany], ['Position', p.PrevPosition], ['Department', p.PrevDept], ['Started', L.fmtDate(p.PrevStart)]]))
+      + card('fa-graduation-cap', 'Education', eduHtml, true)
+      + card('fa-people-roof', 'Family & emergency contacts', famHtml, true)
+      + '</div>'
+      + '<p class="apl-consent-note"><i class="fa-solid fa-shield-halved"></i> Data Privacy consent given ' + esc(L.fmtDateTime(p.ConsentAt) || '—') + '</p>';
+
+    $id('aplHistory').innerHTML = a.events.length ? a.events.slice().reverse().map(function (e) {
+      var what = e.from && e.from !== e.to ? (STAGES[e.from] || e.from) + ' → ' + e.toLabel : (e.from ? 'Note' : e.toLabel);
+      return '<li class="apl-feed__item apl-feed--' + esc(TONE[e.to] || 'info') + '"><div class="apl-feed__what">' + esc(what) + '</div>'
+        + (e.notes ? '<div class="apl-feed__note">' + esc(e.notes) + '</div>' : '')
+        + '<div class="apl-feed__meta" title="' + esc(L.fmtDateTime(e.at)) + '">' + esc(e.by) + ' · ' + esc(ago(e.at)) + '</div></li>';
+    }).join('') : '<li class="apl-none">No activity yet.</li>';
 
     var sel = $id('aplStage');
     sel.innerHTML = Object.keys(STAGES).filter(function (k) { return k !== 'hired' || a.stage === 'hired'; }).map(function (k) {
@@ -165,6 +245,15 @@
       });
     }
   }
+
+  $id('aplBody').addEventListener('click', function (ev) {
+    var b = ev.target.closest('[data-copy]');
+    if (!b || !navigator.clipboard) { return; }
+    navigator.clipboard.writeText(b.getAttribute('data-copy')).then(function () {
+      b.innerHTML = '<i class="fa-solid fa-check"></i>';
+      setTimeout(function () { b.innerHTML = '<i class="fa-regular fa-copy"></i>'; }, 1400);
+    });
+  });
 
   $id('aplStageForm').addEventListener('submit', function (ev) {
     ev.preventDefault();
