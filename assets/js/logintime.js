@@ -64,10 +64,38 @@ $(document).ready(function () {
         if (window.turnstile) { try { window.turnstile.reset(); } catch (e) { /* widget not on the page */ } }
     }
 
+    /* Locked by the server (too many failed sign-ins): the Sign in button stays off with a
+       countdown while that username is in the box. The server refuses every request anyway
+       (no password is checked while locked) — this just stops pointless clicking. Typing a
+       different username lets the server decide again. */
+    var lock = null;   // { user, until (ms), timer }
+    function lockedNow() {
+        return lock && Date.now() < lock.until && $.trim($("#uname").val()).toLowerCase() === lock.user;
+    }
+    function paintLock() {
+        var btn = $(".btnsubmit"), errorMsg = $("#error-msg");
+        if (!lockedNow()) {
+            if (lock && Date.now() >= lock.until) { clearInterval(lock.timer); lock = null; errorMsg.fadeOut(); }
+            btn.prop("disabled", false).text("Sign In");
+            return;
+        }
+        var left = Math.ceil((lock.until - Date.now()) / 1000), m = Math.floor(left / 60), s = left % 60;
+        btn.prop("disabled", true).text("Try again in " + m + ":" + (s < 10 ? "0" : "") + s);
+        errorMsg.text("Too many failed sign-ins for this account. Please wait, then try again.").show();
+    }
+    function startLock(seconds) {
+        if (lock) { clearInterval(lock.timer); }
+        lock = { user: $.trim($("#uname").val()).toLowerCase(), until: Date.now() + seconds * 1000 };
+        lock.timer = setInterval(paintLock, 1000);
+        paintLock();
+    }
+    $("#uname").on("input", function () { if (lock) { paintLock(); } });
+
     function performLogin() {
         var uname = $("#uname").val();
         var pass = $("#pass").val();
         var errorMsg = $("#error-msg");
+        if (lockedNow()) { paintLock(); return false; }
 
         if (uname == "" || pass == "") {
             errorMsg.text("Please enter both username and password.");
@@ -95,10 +123,10 @@ $(document).ready(function () {
                     errorMsg.fadeIn();
                     resetHumanCheck();
                 } else if (answer.indexOf('429|') === 0) {
-                    var mins = parseInt(answer.split('|')[1], 10) || 15;
-                    errorMsg.text("Too many failed sign-ins. Please wait " + mins + " minute" + (mins === 1 ? "" : "s") + " and try again.");
-                    errorMsg.fadeIn();
+                    var parts = answer.split('|');
+                    var secs = parseInt(parts[2], 10) || (parseInt(parts[1], 10) || 15) * 60;
                     resetHumanCheck();
+                    startLock(secs);
                 } else if (answer === '428') {
                     errorMsg.text('Please complete the "I am human" check, then sign in.');
                     errorMsg.fadeIn();
