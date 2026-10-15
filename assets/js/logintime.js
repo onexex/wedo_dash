@@ -68,9 +68,10 @@ $(document).ready(function () {
        countdown while that username is in the box. The server refuses every request anyway
        (no password is checked while locked) — this just stops pointless clicking. Typing a
        different username lets the server decide again. */
-    var lock = null;   // { user, until (ms), timer }
+    var lock = null;   // { user, scope: 'user' (this account) | 'ip' (this network), until (ms), timer }
     function lockedNow() {
-        return lock && Date.now() < lock.until && $.trim($("#uname").val()).toLowerCase() === lock.user;
+        if (!lock || Date.now() >= lock.until) { return false; }
+        return lock.scope === 'ip' || $.trim($("#uname").val()).toLowerCase() === lock.user;
     }
     function paintLock() {
         var btn = $(".btnsubmit"), errorMsg = $("#error-msg");
@@ -81,11 +82,14 @@ $(document).ready(function () {
         }
         var left = Math.ceil((lock.until - Date.now()) / 1000), m = Math.floor(left / 60), s = left % 60;
         btn.prop("disabled", true).text("Try again in " + m + ":" + (s < 10 ? "0" : "") + s);
-        errorMsg.text("Too many failed sign-ins for this account. Please wait, then try again.").show();
+        errorMsg.text(lock.scope === 'ip'
+            ? "Too many failed sign-ins from this network. Please wait, then try again."
+            : "Too many failed sign-ins for this account. Please wait, then try again.").show();
     }
-    function startLock(seconds) {
+    function startLock(seconds, scope) {
         if (lock) { clearInterval(lock.timer); }
-        lock = { user: $.trim($("#uname").val()).toLowerCase(), until: Date.now() + seconds * 1000 };
+        lock = { user: $.trim($("#uname").val()).toLowerCase(), scope: scope === 'ip' ? 'ip' : 'user',
+                 until: Date.now() + seconds * 1000 };
         lock.timer = setInterval(paintLock, 1000);
         paintLock();
     }
@@ -126,7 +130,7 @@ $(document).ready(function () {
                     var parts = answer.split('|');
                     var secs = parseInt(parts[2], 10) || (parseInt(parts[1], 10) || 15) * 60;
                     resetHumanCheck();
-                    startLock(secs);
+                    startLock(secs, parts[3]);
                 } else if (answer === '428') {
                     errorMsg.text('Please complete the "I am human" check, then sign in.');
                     errorMsg.fadeIn();

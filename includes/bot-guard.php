@@ -21,7 +21,7 @@ const WD_CF_RANGES = ['173.245.48.0/20', '103.21.244.0/22', '103.22.200.0/22', '
 
 /* Sign-in throttling: wrong passwords per username, and failed sign-ins per address. */
 const WD_LOGIN_USER_MAX = 5;      // wrong passwords for one username …
-const WD_LOGIN_IP_MAX   = 20;     // … or failed sign-ins from one address …
+const WD_LOGIN_IP_MAX   = 50;     // … or failed sign-ins from one address (generous: a whole office shares one address) …
 const WD_LOGIN_WINDOW   = 900;    // … within 15 minutes = locked for the rest of those 15 minutes
 
 function wd_ip_in($ip, $cidr): bool
@@ -97,10 +97,20 @@ function wd_login_ready(PDO $pdo): bool
  */
 function wd_login_wait(PDO $pdo, string $username, string $ip): int
 {
-    if (!wd_login_ready($pdo)) { return 0; }
+    return wd_login_lock($pdo, $username, $ip)['wait'];
+}
+
+/**
+ * The lock in force: ['wait' => seconds, 'scope' => 'user' (this account) |
+ * 'ip' (this address, any account) | ''] — the longer one when both apply.
+ */
+function wd_login_lock(PDO $pdo, string $username, string $ip): array
+{
+    if (!wd_login_ready($pdo)) { return ['wait' => 0, 'scope' => '']; }
     $user = strtolower(trim($username));
     $since = date('Y-m-d H:i:s', time() - WD_LOGIN_WINDOW);
     $wait = 0;
+    $scope = '';
 
     $st = $pdo->prepare("SELECT CreatedAt FROM login_attempts WHERE Username = :u AND Success = 0 AND CreatedAt > :s
                          AND CreatedAt > COALESCE((SELECT MAX(CreatedAt) FROM login_attempts WHERE Username = :u2 AND Success = 1), '1970-01-01')
@@ -108,7 +118,8 @@ function wd_login_wait(PDO $pdo, string $username, string $ip): int
     $st->execute([':u' => $user, ':u2' => $user, ':s' => $since]);
     $rows = $st->fetchAll(PDO::FETCH_COLUMN);
     if (count($rows) >= WD_LOGIN_USER_MAX) {   // locked until the oldest of the last N failures is 15 minutes old
-        $wait = max($wait, strtotime(end($rows)) + WD_LOGIN_WINDOW - time());
+        $wait = strtotime(end($rows)) + WD_LOGIN_WINDOW - time();
+        $scope = 'user';
     }
 
     $st = $pdo->prepare("SELECT CreatedAt FROM login_attempts WHERE IP = :ip AND Success = 0 AND CreatedAt > :s
@@ -116,9 +127,10 @@ function wd_login_wait(PDO $pdo, string $username, string $ip): int
     $st->execute([':ip' => $ip, ':s' => $since]);
     $rows = $st->fetchAll(PDO::FETCH_COLUMN);
     if (count($rows) >= WD_LOGIN_IP_MAX) {
-        $wait = max($wait, strtotime(end($rows)) + WD_LOGIN_WINDOW - time());
+        $ipWait = strtotime(end($rows)) + WD_LOGIN_WINDOW - time();
+        if ($ipWait > $wait) { $wait = $ipWait; $scope = 'ip'; }
     }
-    return max(0, $wait);
+    return $wait > 0 ? ['wait' => $wait, 'scope' => $scope] : ['wait' => 0, 'scope' => ''];
 }
 
 /**

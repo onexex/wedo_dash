@@ -22,9 +22,9 @@ die("ERROR: Could not connect. " . $e->getMessage());
 
 /* --------------------------------------------------------------------------
    Brute-force protection (includes/bot-guard.php):
-     - 5 wrong passwords for a username / 20 failed sign-ins from one address
-       in 15 minutes -> "429|<minutes>|<seconds>" until the window passes (the
-       page turns the Sign in button off with a countdown)
+     - 5 wrong passwords for a username / 50 failed sign-ins from one address
+       in 15 minutes -> "429|<minutes>|<seconds>|<user or ip>" until the window
+       passes (the page turns the Sign in button off with a countdown)
      - Cloudflare Turnstile is checked on the server when its keys are set
        (config.local.php turnstile_site / turnstile_secret) -> "428" if not passed
      - an unknown username and a wrong password get the same answer ("1")
@@ -35,9 +35,13 @@ require_once __DIR__ . '/../includes/account-gate.php';
 $lgIp   = wd_client_ip();
 $lgUser = (string) ($_POST['uname'] ?? '');
 $lgPass = (string) ($_POST['pass'] ?? '');
-$lgWait = wd_login_wait($pdo, $lgUser, $lgIp);
-// locked: refused before any password is checked (nothing to guess), "429|<minutes>|<seconds>"
-if ($lgWait > 0) { echo '429|' . (int) ceil($lgWait / 60) . '|' . (int) $lgWait; exit; }
+$lgLock = wd_login_lock($pdo, $lgUser, $lgIp);
+// locked: refused before any password is checked (nothing to guess),
+// "429|<minutes>|<seconds>|user" (this account) or "…|ip" (this network, any account)
+if ($lgLock['wait'] > 0) {
+    echo '429|' . (int) ceil($lgLock['wait'] / 60) . '|' . (int) $lgLock['wait'] . '|' . $lgLock['scope'];
+    exit;
+}
 if (wd_turnstile_check($_POST['cf-turnstile-response'] ?? '', $lgIp) === 'bad') {
     wd_login_record($pdo, $lgUser, $lgIp, false);
     echo '428';
