@@ -12,6 +12,7 @@ use Wedo\Tests\Support\AppTestCase;
  *   query/applicants-action.php     HR reads/writes (gated + token)
  *   query/applicant-resume.php      resume download (gated)
  *   query/applicant-photo.php       camera photo (gated)
+ *   includes/applicants-mail.php    emails to the applicant (written to WEDO_MAIL_LOG, never sent)
  *   apply.php, applicants.php       the screens
  */
 final class ApplicantsTest extends AppTestCase
@@ -24,6 +25,7 @@ final class ApplicantsTest extends AppTestCase
     {
         parent::setUpBeforeClass();
         require_once dirname(__DIR__) . '/includes/applicants-lib.php';
+        require_once dirname(__DIR__) . '/includes/applicants-mail.php';
     }
 
     protected function setUp(): void
@@ -46,6 +48,9 @@ final class ApplicantsTest extends AppTestCase
             }
         }
         foreach ($this->files as $f) { @unlink($f); }
+        putenv('BREVO_API_KEY');
+        putenv('MAIL_FROM');
+        @unlink($GLOBALS['WEDO_MAIL_LOG']);
         $_SESSION = [];
         parent::tearDown();
     }
@@ -99,6 +104,31 @@ final class ApplicantsTest extends AppTestCase
     }
 
     private function hr(): array { return $this->asAdmin() + ['apl_csrf' => self::TOKEN]; }
+
+    /** Brevo "set up" with a fake key; messages land in WEDO_MAIL_LOG. */
+    private function mailOn(bool $on = true): void
+    {
+        @unlink($GLOBALS['WEDO_MAIL_LOG']);
+        putenv('BREVO_API_KEY=test-key');
+        putenv('MAIL_FROM=' . ($on ? 'hr@example.com' : 'not-an-email'));
+    }
+
+    /** @return array<int, array> the emails "sent" so far */
+    private function sent(): array
+    {
+        $f = $GLOBALS['WEDO_MAIL_LOG'];
+        return is_file($f) ? array_map(fn ($l) => json_decode($l, true), file($f, FILE_IGNORE_NEW_LINES | FILE_SKIP_EMPTY_LINES)) : [];
+    }
+
+    /** Walk an application forward through the stages, in order, up to $to. */
+    private function advance(int $id, string $to): void
+    {
+        $now = $this->row("SELECT Stage FROM applicants WHERE id = ?", [$id])['Stage'];
+        foreach (array_slice(APL_PIPELINE, array_search($now, APL_PIPELINE, true) + 1) as $s) {
+            $this->assertSame(200, $this->act('stage', ['id' => $id, 'stage' => $s, 'notes' => ''])['status'], $s);
+            if ($s === $to) { return; }
+        }
+    }
 
     private function act(string $action, array $post, ?array $session = null): array
     {
@@ -341,10 +371,89 @@ final class ApplicantsTest extends AppTestCase
         $this->assertTrue($d['matches'][0]['strong']);
         $this->assertSame('Mother', $d['family'][0]['Relationship']);
 
+        $this->advance($id, 'screening');
         $this->assertSame(200, $this->act('stage', ['id' => $id, 'stage' => 'interview', 'notes' => 'Initial call OK'])['status']);
         $this->assertSame(422, $this->act('stage', ['id' => $id, 'stage' => 'hired'])['status'], 'hired only through Hire');
         $this->assertSame('interview', $this->row("SELECT Stage FROM applicants WHERE id = ?", [$id])['Stage']);
         $this->assertSame(422, $this->act('delete', ['id' => $id])['status'], 'active applications are kept');
+    }
+
+    public function testStagesGoInOrder(): void
+    {
+        $id = $this->submit()['id'];
+        $skip = $this->act('stage', ['id' => $id, 'stage' => 'interview', 'notes' => '']);
+        $this->assertSame(422, $skip['status'], 'no skipping Screening');
+        $this->assertStringContainsString('Screening', $skip['json']['msg']);
+        $this->assertSame(422, $this->act('stage', ['id' => $id, 'stage' => 'offer', 'notes' => ''])['status'], 'no jumping to the offer');
+        $this->assertSame(['new', 'screening', 'rejected', 'withdrawn'], $this->act('detail', ['id' => $id])['json']['applicant']['allowedStages']);
+
+        $this->advance($id, 'exam');
+        $this->assertSame(200, $this->act('stage', ['id' => $id, 'stage' => 'screening', 'notes' => 'Wrong stage'])['status'], 'back is fine');
+        $this->advance($id, 'interview');
+        $this->assertSame(200, $this->act('stage', ['id' => $id, 'stage' => 'rejected', 'notes' => 'Not a fit'])['status'], 'not selected at any point');
+
+        // reopened where it was (Interview) or earlier, not further
+        $this->assertSame(['new', 'screening', 'interview', 'rejected', 'withdrawn'], $this->act('detail', ['id' => $id])['json']['applicant']['allowedStages']);
+        $far = $this->act('stage', ['id' => $id, 'stage' => 'exam', 'notes' => '']);
+        $this->assertSame(422, $far['status']);
+        $this->assertStringContainsString('Interview', $far['json']['msg']);
+        $this->assertSame(200, $this->act('stage', ['id' => $id, 'stage' => 'interview', 'notes' => 'Second look'])['status']);
+        $this->assertSame('interview', $this->row("SELECT Stage FROM applicants WHERE id = ?", [$id])['Stage']);
+    }
+
+    public function testTheApplicantIsEmailedAtTheRightMoments(): void
+    {
+        $this->mailOn();
+        $id = $this->submit()['id'];
+        $this->assertTrue(apl_mail_after_submit(self::db(), $id, 'APL-000777'));
+        $got = $this->sent();
+        $this->assertCount(1, $got);
+        $this->assertSame('maria@example.com', $got[0]['to'][0]['email']);
+        $this->assertStringContainsString('APL-000777', $got[0]['subject']);
+
+        // ticking "email" on a stage that doesn't send one does nothing
+        $res = $this->act('stage', ['id' => $id, 'stage' => 'screening', 'notes' => '', 'email' => '1', 'emailMessage' => 'x']);
+        $this->assertNull($res['json']['mailed']);
+        $this->assertCount(1, $this->sent());
+
+        $this->advance($id, 'exam');
+        $res = $this->act('stage', ['id' => $id, 'stage' => 'offer', 'notes' => 'Offer approved by the manager',
+                                    'email' => '1', 'emailMessage' => "Start Monday 8 AM\nBring 2 IDs <b>"]);
+        $this->assertTrue($res['json']['mailed'], $res['body']);
+        $offer = $this->sent()[1];
+        $this->assertStringContainsString('Job offer', $offer['subject']);
+        $this->assertStringContainsString('Start Monday 8 AM<br>', $offer['htmlContent']);
+        $this->assertStringContainsString('&lt;b&gt;', $offer['htmlContent'], 'HR text is escaped');
+        $this->assertStringNotContainsString('approved by the manager', $offer['htmlContent'], 'the internal note is never emailed');
+        $notes = array_column($res['json']['applicant']['events'], 'notes');
+        $this->assertStringContainsString('Applicant emailed (Job offer)', implode(' | ', $notes), 'shows in Activity');
+
+        $hire = $this->act('hire', ['id' => $id, 'welcome' => '1'] + $this->hireData());
+        $this->assertSame(200, $hire['status'], $hire['body']);
+        $this->assertTrue($hire['json']['mailed']);
+        $welcome = $this->sent()[2];
+        $this->assertStringContainsString($hire['json']['username'], $welcome['htmlContent']);
+        $this->assertStringContainsString($hire['json']['empId'], $welcome['htmlContent']);
+        $this->assertStringNotContainsString($hire['json']['password'], json_encode($welcome), 'the password is never emailed');
+    }
+
+    public function testNotSelectedEmailAndNoEmailWhenNotSetUp(): void
+    {
+        $this->mailOn(false);   // no valid sender: email is off
+        $id = $this->submit()['id'];
+        $this->assertFalse(apl_mail_after_submit(self::db(), $id, 'APL-1'));
+        $res = $this->act('stage', ['id' => $id, 'stage' => 'rejected', 'notes' => '', 'email' => '1']);
+        $this->assertSame(200, $res['status']);
+        $this->assertNull($res['json']['mailed']);
+        $this->assertCount(0, $this->sent());
+        $this->assertStringNotContainsString('"canMail":true', $this->request('applicants.php', [], [], $this->asAdmin())['body']);
+
+        $this->mailOn();
+        $this->assertStringContainsString('"canMail":true', $this->request('applicants.php', [], [], $this->asAdmin())['body']);
+        $this->act('stage', ['id' => $id, 'stage' => 'new', 'notes' => 'Reopened']);
+        $res = $this->act('stage', ['id' => $id, 'stage' => 'rejected', 'notes' => '', 'email' => '1', 'emailMessage' => '']);
+        $this->assertTrue($res['json']['mailed']);
+        $this->assertStringContainsString('not to move forward', $this->sent()[0]['htmlContent']);
     }
 
     public function testDeletingAClosedApplicationRemovesItsData(): void
@@ -368,7 +477,7 @@ final class ApplicantsTest extends AppTestCase
     public function testHireCopiesTheRegistrationIntoTheEmployeeTables(): void
     {
         $id = $this->submit()['id'];
-        $this->act('stage', ['id' => $id, 'stage' => 'offer', 'notes' => 'Offer accepted']);
+        $this->advance($id, 'offer');
 
         $res = $this->act('hire', ['id' => $id] + $this->hireData());
         $this->assertSame(200, $res['status'], $res['body']);
@@ -412,9 +521,9 @@ final class ApplicantsTest extends AppTestCase
         $early = $this->act('hire', ['id' => $id] + $this->hireData());
         $this->assertSame(422, $early['status'], 'no hiring before the job offer');
         $this->assertStringContainsString('Job offer', $early['json']['msg']);
-        $this->act('stage', ['id' => $id, 'stage' => 'interview', 'notes' => '']);
+        $this->advance($id, 'interview');
         $this->assertSame(422, $this->act('hire', ['id' => $id] + $this->hireData())['status'], 'still not at the job offer');
-        $this->act('stage', ['id' => $id, 'stage' => 'offer', 'notes' => '']);
+        $this->advance($id, 'offer');
 
         $this->assertSame(422, $this->act('hire', ['id' => $id] + $this->hireData(['position' => '11']))['status'], 'position of another department');
         $this->assertSame(422, $this->act('hire', ['id' => $id] + $this->hireData(['basic' => 'lots']))['status']);

@@ -2,6 +2,7 @@
 /* ==========================================================================
    apply-action.php  —  receives the PUBLIC job application (apply.php).
    No sign-in. POST multipart: the form fields + resume + camera photo, returns JSON.
+   Emails the applicant a confirmation when Brevo is set up (includes/applicants-mail.php).
    Guards (includes/applicants-lib.php apl_submit): the form's session token,
    a hidden honeypot field, a minimum fill time, per-address and overall
    hourly limits, Cloudflare Turnstile when configured, one application per
@@ -45,5 +46,12 @@ if ($r['id'] > 0) {
 }
 // a reference to quote when calling HR; the honeypot gets a plausible fake so a bot can't tell
 $ref = 'APL-' . sprintf('%06d', $r['id'] > 0 ? $r['id'] : random_int(1000, 999999));
-apa_out(200, ['status' => 'ok', 'ref' => $ref,
+$mailed = false;
+if ($r['id'] > 0) {
+    try {   // "we received your application" — a failed email never blocks the application
+        require_once __DIR__ . '/../includes/applicants-mail.php';
+        $mailed = apl_mail_after_submit($pdo, $r['id'], $ref);
+    } catch (Throwable $e) { error_log('[wedo apply] mail: ' . $e->getMessage()); }
+}
+apa_out(200, ['status' => 'ok', 'ref' => $ref, 'mailed' => $mailed,
               'msg' => 'Thank you! Your application was received. We will contact you by email or phone.']);
