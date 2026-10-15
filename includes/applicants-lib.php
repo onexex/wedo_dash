@@ -13,8 +13,11 @@
        employee tables — employees, empdetails, empdetails2, empprofiles,
        empeducationalbackground, fdetails, accessrights — as a Trainee, with
        a generated EmpID, username and one-time temporary password.
-   Resumes: uploads/applicants/ (deny-all .htaccess), served only by
-   query/applicant-resume.php. Tables: sql/2026-10-14-add-applicants.sql.
+   Resumes and photos: uploads/applicants/ (deny-all .htaccess), served only
+   by query/applicant-resume.php / query/applicant-photo.php. The photo is
+   taken live with the camera (sql/2026-10-15-add-applicant-photo.sql) and
+   becomes the profile picture on hire.
+   Tables: sql/2026-10-14-add-applicants.sql.
    ========================================================================== */
 date_default_timezone_set("Asia/Manila");
 require_once __DIR__ . '/lifecycle-lib.php';
@@ -26,6 +29,8 @@ const APL_CLOSED       = ['hired', 'rejected', 'withdrawn'];
 const APL_TRAINEE      = 3;               // empstatus.EmpStatID a new hire starts as
 const APL_MAX_RESUME   = 5 * 1024 * 1024;
 const APL_RESUME_TYPES = ['pdf', 'doc', 'docx'];
+const APL_MAX_PHOTO    = 3 * 1024 * 1024;
+const APL_PHOTO_PX     = 600;             // the photo is stored as a 600 x 600 JPEG
 const APL_PER_IP_HOUR  = 3;               // applications from one address per hour
 const APL_PER_HOUR_ALL = 60;              // all applications per hour (a flood from many addresses)
 const APL_MIN_SECONDS  = 20;              // nobody fills the six steps faster than this
@@ -173,6 +178,66 @@ function apl_resume_path($key, ?string $dir = null) {
     if (!is_string($key) || !preg_match('#^\d{4}/\d{2}/[a-f0-9]{32}\.(pdf|doc|docx)$#', $key)) { return null; }
     $path = apl_dir($dir) . '/' . $key;
     return is_file($path) ? $path : null;
+}
+
+/** Is applicants.PhotoKey there (sql/2026-10-15-add-applicant-photo.sql)? Until then nothing asks for a photo. */
+function apl_has_photo(PDO $pdo) {
+    static $has = null;
+    if ($has === null) {
+        try { $pdo->query("SELECT PhotoKey FROM applicants LIMIT 1"); $has = true; } catch (Throwable $e) { $has = false; }
+    }
+    return $has;
+}
+
+/**
+ * Check and store the applicant's camera photo ($_FILES entry): it must be a
+ * real JPEG or PNG; it is re-drawn as a 600 x 600 JPEG (centre square), so
+ * nothing of the uploaded file itself is kept — no metadata, no hidden payload.
+ * $uploaded = false only for tests.
+ * @return array{ok:bool, key?:string, msg?:string}
+ */
+function apl_store_photo(array $f, $uploaded = true, ?string $dir = null) {
+    $retake = ['ok' => false, 'msg' => 'Your photo couldn’t be read — please take it again.'];
+    $err = (int) ($f['error'] ?? UPLOAD_ERR_NO_FILE);
+    if ($err === UPLOAD_ERR_NO_FILE) { return ['ok' => false, 'msg' => 'Take your photo with the camera.']; }
+    if ($err !== UPLOAD_ERR_OK || empty($f['tmp_name']) || ($uploaded && !is_uploaded_file($f['tmp_name']))) { return $retake; }
+    $size = (int) @filesize($f['tmp_name']);
+    if ($size <= 0 || $size > APL_MAX_PHOTO) { return $retake; }
+    $info = @getimagesize($f['tmp_name']);
+    if (!$info || !in_array($info[2], [IMAGETYPE_JPEG, IMAGETYPE_PNG], true)) { return $retake; }
+    if (min($info[0], $info[1]) < 200 || max($info[0], $info[1]) > 4000) { return $retake; }
+    $src = @imagecreatefromstring((string) file_get_contents($f['tmp_name']));
+    if (!$src) { return $retake; }
+    $w = imagesx($src);
+    $h = imagesy($src);
+    $side = min($w, $h);
+    $out = imagecreatetruecolor(APL_PHOTO_PX, APL_PHOTO_PX);
+    imagefill($out, 0, 0, imagecolorallocate($out, 255, 255, 255));
+    imagecopyresampled($out, $src, 0, 0, intdiv($w - $side, 2), intdiv($h - $side, 2), APL_PHOTO_PX, APL_PHOTO_PX, $side, $side);
+    unset($src);
+    $key  = date('Y/m') . '/' . bin2hex(random_bytes(16)) . '.jpg';
+    $path = apl_dir($dir) . '/' . $key;
+    if (!is_dir(dirname($path))) { @mkdir(dirname($path), 0775, true); }
+    $ok = @imagejpeg($out, $path, 88);
+    unset($out);
+    return $ok ? ['ok' => true, 'key' => $key] : ['ok' => false, 'msg' => 'Your photo could not be saved — please try again.'];
+}
+
+/** Full path of a stored photo, or null when the key isn't one of ours / the file is gone. */
+function apl_photo_path($key, ?string $dir = null) {
+    if (!is_string($key) || !preg_match('#^\d{4}/\d{2}/[a-f0-9]{32}\.jpg$#', $key)) { return null; }
+    $path = apl_dir($dir) . '/' . $key;
+    return is_file($path) ? $path : null;
+}
+
+/** The new employee's profile picture: the applicant's photo copied to assets/images/profiles/<EmpID>.jpg (EmpPPath). */
+function apl_photo_to_profile($key, $empId, ?string $profiles = null) {
+    $src = apl_photo_path($key);
+    $empId = preg_replace('/[^A-Za-z0-9._-]/', '', (string) $empId);
+    if (!$src || $empId === '') { return false; }
+    $profiles = $profiles ?? dirname(__DIR__) . '/assets/images/profiles';
+    if (!is_dir($profiles)) { @mkdir($profiles, 0775, true); }
+    return @copy($src, $profiles . '/' . $empId . '.jpg');
 }
 
 /* ------------------------------------------------------------------ public registration */
@@ -333,10 +398,11 @@ function apl_validate(PDO $pdo, array $p) {
 }
 
 /**
- * Save a public registration. $p = posted fields, $file = the resume.
+ * Save a public registration. $p = posted fields, $file = the resume, $photo = the
+ * camera photo (required once applicants.PhotoKey exists).
  * @return array{ok:bool, msg?:string, id?:int, code?:int}
  */
-function apl_submit(PDO $pdo, array $p, ?array $file, $ip, $uploaded = true) {
+function apl_submit(PDO $pdo, array $p, ?array $file, $ip, $uploaded = true, ?array $photo = null) {
     $tok = (string) ($p['token'] ?? '');
     if ($tok === '' || empty($_SESSION['apl_pub']) || !hash_equals($_SESSION['apl_pub'], $tok)) {
         return ['ok' => false, 'msg' => 'This form has expired — reload the page and try again.', 'code' => 419];
@@ -398,10 +464,19 @@ function apl_submit(PDO $pdo, array $p, ?array $file, $ip, $uploaded = true) {
 
     $resume = apl_store_resume($file ?? ['error' => UPLOAD_ERR_NO_FILE], $uploaded);
     if (!$resume['ok']) { return ['ok' => false, 'msg' => $resume['msg']]; }
+    $pic = null;
+    if (apl_has_photo($pdo)) {
+        $pic = apl_store_photo($photo ?? ['error' => UPLOAD_ERR_NO_FILE], $uploaded);
+        if (!$pic['ok']) {
+            @unlink((string) apl_resume_path($resume['key']));
+            return ['ok' => false, 'msg' => $pic['msg']];
+        }
+    }
 
     $row = $v['row'] + ['OpeningID' => $opening ?: null, 'ResumeKey' => $resume['key'], 'ResumeName' => mb_substr($resume['name'], 0, 120),
                         'IP' => $ip];
     if ($hash && apl_has_resume_hash($pdo)) { $row['ResumeHash'] = $hash; }
+    if ($pic) { $row['PhotoKey'] = $pic['key']; }
     $cols = array_keys($row);
     $pdo->beginTransaction();
     try {
@@ -423,8 +498,9 @@ function apl_submit(PDO $pdo, array $p, ?array $file, $ip, $uploaded = true) {
         $pdo->commit();
     } catch (Throwable $e) {
         $pdo->rollBack();
-        $path = apl_resume_path($resume['key']);
-        if ($path) { @unlink($path); }
+        foreach ([apl_resume_path($resume['key']), $pic ? apl_photo_path($pic['key']) : null] as $path) {
+            if ($path) { @unlink($path); }
+        }
         throw $e;
     }
     unset($_SESSION['apl_pub']);   // one application per form load
@@ -454,6 +530,7 @@ function apl_out(array $r) {
         'openingId' => $r['OpeningID'] === null ? null : (int) $r['OpeningID'], 'opening' => (string) ($r['OpeningTitle'] ?? ''),
         'stage' => $r['Stage'], 'stageLabel' => APL_STAGES[$r['Stage']] ?? $r['Stage'], 'stageAt' => $r['StageAt'],
         'appliedAt' => $r['CreatedAt'], 'empId' => $r['EmpID'], 'hiredAt' => $r['HiredAt'],
+        'hasPhoto' => !empty($r['PhotoKey']),
     ];
 }
 
@@ -634,7 +711,7 @@ function apl_set_stage(PDO $pdo, $id, $stage, $notes, $actor) {
 }
 
 /**
- * Delete a closed application (Not selected / Withdrawn) with its resume,
+ * Delete a closed application (Not selected / Withdrawn) with its resume, photo,
  * education and family rows — personal data is kept no longer than needed.
  * Hired applications stay: they link to the employee's account.
  */
@@ -655,8 +732,9 @@ function apl_delete(PDO $pdo, $id, $actor) {
         $pdo->rollBack();
         throw $e;
     }
-    $path = apl_resume_path($r['ResumeKey']);
-    if ($path) { @unlink($path); }
+    foreach ([apl_resume_path($r['ResumeKey']), apl_photo_path($r['PhotoKey'] ?? null)] as $path) {
+        if ($path) { @unlink($path); }
+    }
     lcy_audit($pdo, 'Applicant #' . (int) $id . ' deleted (' . apl_name($r) . ')');
     return ['ok' => true];
 }
@@ -797,6 +875,7 @@ function apl_hire(PDO $pdo, $id, array $d, $actor) {
         throw $e;
     }
     wd_set_must_change_password($pdo, $empId, true);   // the temporary password works once: they must set their own
+    apl_photo_to_profile($r['PhotoKey'] ?? null, $empId);   // their camera photo becomes the profile picture (EmpPPath)
     lcy_audit($pdo, 'Hired applicant #' . (int) $id . ' as ' . $empId . ' (' . apl_name($r) . ')');
     return ['ok' => true, 'empId' => $empId, 'username' => $username, 'password' => $password];
 }

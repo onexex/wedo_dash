@@ -2,8 +2,9 @@
    apply.js  —  the public application wizard (apply.php).
    Six steps shown one at a time with a progress bar; each step is checked
    before moving on (errors appear under the field); job cards pick the
-   position; family rows can be added/removed; the resume can be dropped on
-   the drop zone; the last step shows a review of everything typed. Posts the
+   position; the photo is taken live with the camera (no file picker); family
+   rows can be added/removed; the resume can be dropped on the drop zone; the
+   last step shows a review of everything typed. Posts the
    whole form (multipart) to query/apply-action.php, which re-checks it all.
    Applicant text is only ever written with textContent (never as HTML).
    ========================================================================== */
@@ -68,6 +69,7 @@
     0: function () { return []; },
     1: function () {
       var bad = required(1), b = form.elements.birthDate;
+      if (cam && !photo) { bad.unshift([cam, 'Take your photo with the camera.']); }
       ['firstName', 'middleName', 'lastName'].forEach(function (k) {
         var el = form.elements[k];
         if (el.value.trim() && !/^\p{L}[\p{L}\p{M} .'\-]*$/u.test(el.value.trim())) { bad.push([el, 'Letters only.']); }
@@ -170,6 +172,7 @@
   /* ------------------------------------------------------------ navigation */
   function go(n, quiet) {
     n = Math.max(0, Math.min(steps.length - 1, n));
+    if (n !== 1) { camOff(); }
     cur = n;
     reached = Math.max(reached, n);
     steps.forEach(function (s, i) { s.hidden = i !== n; s.classList.toggle('is-on', i === n); });
@@ -276,6 +279,87 @@
   });
   $('aplFileDel').addEventListener('click', function (ev) { ev.preventDefault(); ev.stopPropagation(); file.value = ''; showFile(); });
 
+  /* ------------------------------------------------------------ camera photo (live capture only) */
+  var cam = $('aplCam'), photo = null, stream = null;
+  var video = $('aplCamVideo'), shot = $('aplCamShot');
+  function camMsg(text, bad) {
+    var m = $('aplCamMsg');
+    m.textContent = text;
+    m.classList.toggle('is-bad', !!bad);
+  }
+  function camState(st) {   // 'idle' | 'starting' | 'live' | 'shot'
+    $('aplCamIdle').hidden = st === 'live' || st === 'shot';
+    video.hidden = st !== 'live';
+    shot.hidden = st !== 'shot';
+    $('aplCamStart').hidden = st === 'live' || st === 'shot';
+    $('aplCamStart').disabled = st === 'starting';
+    $('aplCamSnap').hidden = st !== 'live';
+    $('aplCamRetake').hidden = st !== 'shot';
+    cam.classList.toggle('is-live', st === 'live');
+    cam.classList.toggle('has-photo', st === 'shot');
+  }
+  function stopStream() {
+    if (stream) { stream.getTracks().forEach(function (t) { t.stop(); }); stream = null; }
+    if (video) { video.srcObject = null; }
+  }
+  /** turn the camera off (leaving the step, tab hidden); a taken photo stays */
+  function camOff() {
+    if (!cam || !stream) { return; }
+    stopStream();
+    camState(photo ? 'shot' : 'idle');
+    if (!photo) { camMsg('Camera turned off. Tap "Turn on camera" when you are ready.'); }
+  }
+  var CAM_ERR = {
+    NotAllowedError: 'Camera access is blocked. Allow the camera for this site (the camera icon in the address bar, or your browser settings), then tap "Turn on camera" again.',
+    SecurityError: 'Camera access is blocked. Allow the camera for this site, then tap "Turn on camera" again.',
+    NotFoundError: 'No camera was found on this device. Please open this page on your phone to take your photo.',
+    OverconstrainedError: 'No camera was found on this device. Please open this page on your phone to take your photo.',
+    NotReadableError: 'Your camera is being used by another app. Close that app, then try again.'
+  };
+  function camOn() {
+    clearErr(cam);
+    if (!window.isSecureContext || !navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
+      camMsg('This browser can\'t open the camera. Please open this page on your phone, in Chrome or Safari.', true);
+      return;
+    }
+    camState('starting');
+    camMsg('Allow the camera when your browser asks…');
+    navigator.mediaDevices.getUserMedia({ video: { facingMode: 'user', width: { ideal: 1280 }, height: { ideal: 960 } }, audio: false })
+      .then(function (s) {
+        stream = s;
+        video.srcObject = s;
+        return video.play();
+      })
+      .then(function () {
+        camState('live');
+        camMsg('Put your face inside the circle, then tap "Take photo".');
+      })
+      .catch(function (e) {
+        stopStream();
+        camState(photo ? 'shot' : 'idle');
+        camMsg(CAM_ERR[e && e.name] || 'The camera could not start — please try again.', true);
+      });
+  }
+  function camSnap() {
+    var vw = video.videoWidth, vh = video.videoHeight, side = Math.min(vw, vh);
+    if (!side) { return; }
+    if (side < 240) { camMsg('Your camera picture is too small — try another device.', true); return; }
+    var size = Math.min(side, 720);
+    shot.width = shot.height = size;
+    shot.getContext('2d').drawImage(video, (vw - side) / 2, (vh - side) / 2, side, side, 0, 0, size, size);   // centre square
+    stopStream();
+    camState('shot');
+    camMsg('Is your face clear and centred? If not, tap "Retake".');
+    shot.toBlob(function (b) { photo = b; dirty = true; }, 'image/jpeg', 0.9);
+  }
+  if (cam) {
+    camState('idle');
+    $('aplCamStart').addEventListener('click', camOn);
+    $('aplCamSnap').addEventListener('click', camSnap);
+    $('aplCamRetake').addEventListener('click', function () { photo = null; camOn(); });
+    document.addEventListener('visibilitychange', function () { if (document.hidden) { camOff(); } });
+  }
+
   /* ------------------------------------------------------------ review */
   function review() {
     var box = $('aplReview');
@@ -312,6 +396,13 @@
       head.appendChild(h);
       head.appendChild(edit);
       card.appendChild(head);
+      if (sec[0] === 1 && photo) {
+        var img = document.createElement('img');
+        img.className = 'apl-review__photo';
+        img.alt = 'Your photo';
+        img.src = shot.toDataURL('image/jpeg', 0.8);
+        card.appendChild(img);
+      }
       sec[2].filter(Boolean).forEach(function (line) { var p = document.createElement('p'); p.textContent = line; card.appendChild(p); });
       box.appendChild(card);
     });
@@ -335,7 +426,9 @@
     var send = $('aplSend');
     send.disabled = true;
     send.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> Sending…';
-    fetch('query/apply-action.php', { method: 'POST', body: new FormData(form), credentials: 'same-origin' })
+    var fd = new FormData(form);
+    if (photo) { fd.append('photo', photo, 'photo.jpg'); }
+    fetch('query/apply-action.php', { method: 'POST', body: fd, credentials: 'same-origin' })
       .then(function (r) { return r.json(); })
       .catch(function () { return { status: 'error', msg: 'Could not reach the server — check your connection and try again.' }; })
       .then(function (res) {

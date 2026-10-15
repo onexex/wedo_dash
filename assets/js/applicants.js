@@ -62,8 +62,9 @@
       if (!res.applicants.length) { box.innerHTML = '<div class="lcy-empty">No applications here.</div>'; return; }
       box.innerHTML = '<div class="wd-tablewrap" style="max-height:60vh"><table class="wd-table lcy-table"><thead><tr><th>Applicant</th><th>Position</th><th>City</th><th>Registered</th><th>Stage</th></tr></thead><tbody>'
         + res.applicants.map(function (a) {
-          return '<tr class="apl-row" data-id="' + a.id + '" tabindex="0"><td><b>' + esc(a.name) + '</b>' + rehireBadge(a.rehire)
-            + '<br><span class="lcy-muted">' + esc(a.email) + ' · ' + esc(a.mobile) + '</span></td>'
+          return '<tr class="apl-row" data-id="' + a.id + '" tabindex="0"><td><div class="apl-who"><span class="apl-av">' + face(a) + '</span><div>'
+            + '<b>' + esc(a.name) + '</b>' + rehireBadge(a.rehire)
+            + '<br><span class="lcy-muted">' + esc(a.email) + ' · ' + esc(a.mobile) + '</span></div></div></td>'
             + '<td>' + esc(a.opening || 'Any position') + '</td><td>' + esc(a.city) + '</td>'
             + '<td>' + esc(L.fmtDate(a.appliedAt)) + '</td><td>' + stagePill(a.stage) + '</td></tr>';
         }).join('') + '</tbody></table></div>';
@@ -97,6 +98,12 @@
 
   function initials(name) {
     return String(name || '?').split(/\s+/).filter(Boolean).slice(0, 2).map(function (w) { return w.charAt(0); }).join('').toUpperCase();
+  }
+
+  /** the applicant's camera photo (query/applicant-photo.php), or their initials */
+  function photoUrl(a) { return 'query/applicant-photo.php?id=' + encodeURIComponent(a.id); }
+  function face(a) {
+    return a.hasPhoto ? '<img src="' + photoUrl(a) + '" alt="" loading="lazy">' : esc(initials(a.name));
   }
 
   function age(d) {
@@ -168,7 +175,9 @@
     var closed = a.stage === 'hired' || a.stage === 'rejected' || a.stage === 'withdrawn';
 
     /* ---- header */
-    $id('aplAvatar').textContent = initials(a.name);
+    var av = $id('aplAvatar');
+    av.innerHTML = a.hasPhoto ? '<a href="' + photoUrl(a) + '" target="_blank" rel="noopener" title="Open the photo">' + face(a) + '</a>' : face(a);
+    av.classList.toggle('has-photo', !!a.hasPhoto);
     $id('aplTitle').innerHTML = esc(a.name) + ' ' + stagePill(a.stage) + rehireBadge(a.rehire);
     $id('aplSub').innerHTML = 'Applied for <b>' + esc(a.opening || 'Any position') + '</b> · ' + esc(L.fmtDateTime(a.appliedAt))
       + (p.Source ? ' · via ' + esc(p.Source) : '');

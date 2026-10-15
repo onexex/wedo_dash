@@ -165,12 +165,43 @@ body.apl-public { background: #f4f6fb; min-height: 100vh; color: var(--text); }
 .apl-drop.has-file .apl-drop__file { display: flex; }
 .apl-drop.has-file input { pointer-events: none; }
 
+/* live camera photo */
+.apl-photo-f { margin-bottom: 18px; }
+.apl-cam { display: flex; gap: 20px; align-items: center; border: 1.5px dashed var(--border-2); border-radius: 16px; padding: 16px;
+  background: #fbfcfe; outline: none; transition: .15s; }
+.apl-cam.is-live { border-style: solid; border-color: var(--brand); background: var(--brand-tint); }
+.apl-cam.has-photo { border-style: solid; border-color: var(--ok-text); background: var(--ok-bg); }
+.apl-cam.is-invalid { border-color: var(--danger-text); background: #fff8f7; }
+.apl-cam__stage { position: relative; flex: none; width: 200px; height: 200px; border-radius: 18px; overflow: hidden;
+  background: linear-gradient(160deg, #e9edf4, #dfe4ee); }
+.apl-cam__stage video, .apl-cam__stage canvas { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; }
+.apl-cam__stage video { transform: scaleX(-1); }   /* a mirror while framing; the saved photo is not flipped */
+.apl-cam__guide { position: absolute; left: 50%; top: 47%; width: 58%; height: 72%; transform: translate(-50%, -50%);
+  border: 2px dashed rgba(255, 255, 255, .85); border-radius: 50%; box-shadow: 0 0 0 999px rgba(9, 21, 46, .28); display: none; pointer-events: none; }
+.apl-cam.is-live .apl-cam__guide { display: block; }
+.apl-cam__idle { position: absolute; inset: 0; display: grid; place-items: center; color: #b6bfcd; font-size: 72px; }
+.apl-cam__side { flex: 1; min-width: 0; }
+.apl-cam__msg { margin: 0 0 8px; font-size: 14px; color: var(--text); line-height: 1.5; }
+.apl-cam__msg.is-bad { color: var(--danger-text); font-weight: 600; }
+.apl-cam__tips { list-style: none; padding: 0; margin: 0 0 14px; display: flex; flex-direction: column; gap: 4px; font-size: 12.5px; color: var(--text-2); }
+.apl-cam__tips i { width: 16px; color: var(--brand); }
+.apl-cam__btns { display: flex; flex-wrap: wrap; gap: 8px; }
+.apl-cam__btns .wd-btn { border-radius: 999px; }
+@media (max-width: 640px) {
+  .apl-cam { flex-direction: column; align-items: stretch; text-align: center; }
+  .apl-cam__stage { width: min(100%, 280px); height: auto; aspect-ratio: 1; margin: 0 auto; }
+  .apl-cam__tips { align-items: center; }
+  .apl-cam__btns { justify-content: center; }
+  .apl-cam__btns .wd-btn { flex: 1; justify-content: center; }
+}
+
 /* review */
 .apl-review { display: grid; grid-template-columns: repeat(auto-fill, minmax(260px, 1fr)); gap: 10px; margin-top: 12px; }
 .apl-review__card { border: 1px solid var(--border); border-radius: 14px; padding: 12px 14px; }
 .apl-review__head { display: flex; justify-content: space-between; align-items: center; margin-bottom: 6px; }
 .apl-review__head b { font-size: 12px; text-transform: uppercase; letter-spacing: .05em; color: var(--text-3); }
 .apl-review__edit { border: 0; background: none; color: var(--brand); font-weight: 600; font-size: 12.5px; cursor: pointer; padding: 0; }
+.apl-review__photo { float: right; width: 64px; height: 64px; border-radius: 14px; object-fit: cover; margin: 0 0 6px 10px; }
 .apl-review__card p { margin: 0 0 2px; font-size: 13.5px; color: var(--text); word-break: break-word; }
 
 .apl-consent { background: var(--surface-2); border-radius: 14px; padding: 14px 16px; margin: 18px 0 0; font-size: 13px; }
@@ -209,6 +240,10 @@ body.apl-public { background: #f4f6fb; min-height: 100vh; color: var(--text); }
 .apl-filters .wd-field { margin: 0; min-width: 180px; }
 .apl-chips { display: flex; gap: 6px; flex-wrap: wrap; padding: 12px 20px 0; }
 .apl-row { cursor: pointer; }
+.apl-who { display: flex; align-items: center; gap: 12px; }
+.apl-av { flex: none; width: 40px; height: 40px; border-radius: 12px; overflow: hidden; display: grid; place-items: center;
+  font-size: 13px; font-weight: 700; color: var(--info-text); background: var(--info-bg); }
+.apl-av img, .apl-pro__avatar img { width: 100%; height: 100%; object-fit: cover; display: block; }
 .apl-row.is-on td { background: var(--brand-tint); }
 .apl-share { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; font-size: 13px; }
 .apl-share code { background: var(--surface-2); padding: 4px 8px; border-radius: 6px; font-size: 12.5px; word-break: break-all; }
@@ -227,9 +262,11 @@ body.apl-public { background: #f4f6fb; min-height: 100vh; color: var(--text); }
   background: rgba(255, 255, 255, .1); color: #fff; font-size: 16px; transition: background .15s; }
 .apl-pro__close:hover { background: rgba(255, 255, 255, .22); }
 .apl-pro__id { display: flex; align-items: center; gap: 18px; min-width: 0; flex: 1 1 420px; }
-.apl-pro__avatar { flex: none; width: 68px; height: 68px; border-radius: 20px; display: grid; place-items: center;
+.apl-pro__avatar { flex: none; width: 68px; height: 68px; border-radius: 20px; display: grid; place-items: center; overflow: hidden;
   font: 700 24px/1 var(--font-head); color: #fff; letter-spacing: .02em;
   background: linear-gradient(135deg, var(--brand), #ff8a5c); box-shadow: 0 10px 26px rgba(249, 54, 39, .35); }
+.apl-pro__avatar a { display: block; width: 100%; height: 100%; }
+.apl-pro__avatar.has-photo { width: 84px; height: 84px; background: #fff; }
 .apl-pro__who { min-width: 0; }
 .apl-pro__who h4 { color: #fff; font-size: 22px; line-height: 1.25; margin: 0 40px 4px 0; display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }
 .apl-pro__who h4 .wd-pill { font-family: var(--font-body); font-size: 11.5px; }

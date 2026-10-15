@@ -366,6 +366,7 @@ CREATE TABLE `applicants` (
   `Source` varchar(80) DEFAULT NULL,
   `ResumeKey` varchar(80) DEFAULT NULL,
   `ResumeName` varchar(120) DEFAULT NULL,
+  `PhotoKey` varchar(80) DEFAULT NULL,
   `ResumeHash` char(40) DEFAULT NULL,
   `Stage` varchar(12) NOT NULL DEFAULT 'new',
   `StageAt` datetime NOT NULL DEFAULT current_timestamp(),

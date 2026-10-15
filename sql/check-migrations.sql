@@ -81,6 +81,8 @@ FROM (
   UNION ALL SELECT '2026-10-14-add-bot-protection', CONCAT_WS(' ',
          IF((SELECT COUNT(*) FROM information_schema.TABLES WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'login_attempts') = 0, 'table login_attempts', NULL),
          IF((SELECT COUNT(*) FROM information_schema.COLUMNS WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'applicants' AND COLUMN_NAME = 'ResumeHash') = 0, 'applicants.ResumeHash', NULL))
+  UNION ALL SELECT '2026-10-15-add-applicant-photo',
+         IF((SELECT COUNT(*) FROM information_schema.COLUMNS WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'applicants' AND COLUMN_NAME = 'PhotoKey') = 0, 'applicants.PhotoKey', '')
   UNION ALL SELECT 'security fix (remember-me hash, see wedo-security-fixes)',
          IF((SELECT COUNT(*) FROM information_schema.COLUMNS WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'empdetails' AND COLUMN_NAME = 'remember_hash') = 0, 'empdetails.remember_hash', '')
 ) AS m;

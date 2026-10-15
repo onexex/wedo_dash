@@ -11,6 +11,7 @@ use Wedo\Tests\Support\AppTestCase;
  *   query/apply-action.php          public submit
  *   query/applicants-action.php     HR reads/writes (gated + token)
  *   query/applicant-resume.php      resume download (gated)
+ *   query/applicant-photo.php       camera photo (gated)
  *   apply.php, applicants.php       the screens
  */
 final class ApplicantsTest extends AppTestCase
@@ -39,9 +40,10 @@ final class ApplicantsTest extends AppTestCase
 
     protected function tearDown(): void
     {
-        foreach (self::db()->query("SELECT ResumeKey FROM applicants WHERE ResumeKey IS NOT NULL")->fetchAll(\PDO::FETCH_COLUMN) as $k) {
-            $p = apl_resume_path($k);
-            if ($p) { @unlink($p); }
+        foreach (self::db()->query("SELECT ResumeKey, PhotoKey FROM applicants")->fetchAll(\PDO::FETCH_ASSOC) as $k) {
+            foreach ([apl_resume_path($k['ResumeKey']), apl_photo_path($k['PhotoKey'])] as $p) {
+                if ($p) { @unlink($p); }
+            }
         }
         foreach ($this->files as $f) { @unlink($f); }
         $_SESSION = [];
@@ -58,6 +60,17 @@ final class ApplicantsTest extends AppTestCase
             . "\n1 0 obj << /Type /Catalog >> endobj\ntrailer << /Root 1 0 R >>\n%%EOF\n");
         $this->files[] = $tmp;
         return ['name' => 'My Resume.pdf', 'tmp_name' => $tmp, 'size' => filesize($tmp), 'error' => UPLOAD_ERR_OK];
+    }
+
+    /** A camera-like photo (a real JPEG, 640 x 480). */
+    private function jpeg(int $w = 640, int $h = 480): array
+    {
+        $img = imagecreatetruecolor($w, $h);
+        imagefilledrectangle($img, 0, 0, $w, $h, imagecolorallocate($img, 200, 160, 120));
+        $tmp = tempnam(sys_get_temp_dir(), 'apl');
+        imagejpeg($img, $tmp, 90);
+        $this->files[] = $tmp;
+        return ['name' => 'photo.jpg', 'tmp_name' => $tmp, 'size' => filesize($tmp), 'error' => UPLOAD_ERR_OK];
     }
 
     private function form(array $over = []): array
@@ -78,11 +91,11 @@ final class ApplicantsTest extends AppTestCase
         ], $over);
     }
 
-    private function submit(array $over = [], ?array $file = null, string $ip = '203.0.113.5'): array
+    private function submit(array $over = [], ?array $file = null, string $ip = '203.0.113.5', ?array $photo = null): array
     {
         $_SESSION['apl_pub'] = self::PUB;
         $_SESSION['apl_pub_at'] = time() - 60;
-        return apl_submit(self::db(), $this->form($over), $file ?? $this->pdf(), $ip, false);
+        return apl_submit(self::db(), $this->form($over), $file ?? $this->pdf(), $ip, false, $photo ?? $this->jpeg());
     }
 
     private function hr(): array { return $this->asAdmin() + ['apl_csrf' => self::TOKEN]; }
@@ -227,6 +240,37 @@ final class ApplicantsTest extends AppTestCase
         $this->assertFileExists(dirname(__DIR__) . '/uploads/applicants/.htaccess', 'no web access to the folder');
     }
 
+    public function testThePhotoIsRequiredAndRedrawn(): void
+    {
+        $files = function () { return count(glob(dirname(__DIR__) . '/uploads/applicants/*/*/*') ?: []); };
+        $before = $files();
+        $none = $this->submit([], null, '203.0.113.5', ['error' => UPLOAD_ERR_NO_FILE]);
+        $this->assertStringContainsString('photo', $none['msg']);
+        $tmp = tempnam(sys_get_temp_dir(), 'apl');
+        file_put_contents($tmp, "<html><body>not a picture</body></html>");
+        $this->files[] = $tmp;
+        $fake = $this->submit([], null, '203.0.113.5', ['name' => 'photo.jpg', 'tmp_name' => $tmp, 'size' => filesize($tmp), 'error' => UPLOAD_ERR_OK]);
+        $this->assertStringContainsString('photo', $fake['msg'], 'a renamed file is refused');
+        $tiny = $this->submit([], null, '203.0.113.5', $this->jpeg(120, 90));
+        $this->assertFalse($tiny['ok'], 'too small to be a camera photo');
+        $this->assertCount(0, $this->rows("SELECT id FROM applicants"), 'nothing saved');
+        $this->assertSame($before, $files(), 'no resume or photo kept for a refused application');
+
+        $r = $this->submit();
+        $this->assertTrue($r['ok'], $r['msg'] ?? '');
+        $path = apl_photo_path($this->row("SELECT PhotoKey FROM applicants WHERE id = ?", [$r['id']])['PhotoKey']);
+        $this->assertNotNull($path, 'stored under a random name');
+        $info = getimagesize($path);
+        $this->assertSame([APL_PHOTO_PX, APL_PHOTO_PX, IMAGETYPE_JPEG], [$info[0], $info[1], $info[2]], 'centre square, re-drawn as JPEG');
+
+        $this->assertTrue($this->act('detail', ['id' => $r['id']])['json']['applicant']['hasPhoto']);
+        $this->assertSame(403, $this->request('query/applicant-photo.php', ['id' => $r['id']], [], $this->asEmployee())['status'], 'HR only');
+        $this->assertSame(401, $this->request('query/applicant-photo.php', ['id' => $r['id']])['status']);
+        $img = $this->request('query/applicant-photo.php', ['id' => $r['id']], [], $this->hr());
+        $this->assertSame(200, $img['status']);
+        $this->assertSame("\xFF\xD8", substr($img['body'], 0, 2), 'a JPEG');
+    }
+
     public function testDuplicateAndClosedOpenings(): void
     {
         self::db()->exec("INSERT INTO job_openings (id, Title, IsOpen) VALUES (1, 'Agent', 1), (2, 'Old role', 0)");
@@ -245,6 +289,8 @@ final class ApplicantsTest extends AppTestCase
         $this->assertStringNotContainsString('Hidden', $page['body'], 'closed openings are not listed');
         $this->assertStringContainsString('name="website"', $page['body'], 'honeypot present');
         $this->assertStringContainsString('name="fam[0][relationship]"', $page['body']);
+        $this->assertStringContainsString('id="aplCam"', $page['body'], 'the camera photo step');
+        $this->assertStringNotContainsString('name="photo"', $page['body'], 'live capture only: no file picker for the photo');
         $this->assertStringNotContainsString('<script>window', $page['body'], 'no inline script (strict CSP)');
         $this->assertStringNotContainsString('login.php', $page['body'], 'applicants are not pointed to the employee sign-in');
 
@@ -301,13 +347,17 @@ final class ApplicantsTest extends AppTestCase
     public function testDeletingAClosedApplicationRemovesItsData(): void
     {
         $id = $this->submit()['id'];
-        $path = apl_resume_path($this->row("SELECT ResumeKey FROM applicants WHERE id = ?", [$id])['ResumeKey']);
+        $keys = $this->row("SELECT ResumeKey, PhotoKey FROM applicants WHERE id = ?", [$id]);
+        $path = apl_resume_path($keys['ResumeKey']);
+        $photo = apl_photo_path($keys['PhotoKey']);
+        $this->assertNotNull($photo);
         $this->act('stage', ['id' => $id, 'stage' => 'rejected', 'notes' => 'Not a fit']);
         $this->assertSame(200, $this->act('delete', ['id' => $id])['status']);
         foreach (['applicants' => 'id', 'applicant_family' => 'ApplicantID', 'applicant_education' => 'ApplicantID', 'applicant_events' => 'ApplicantID'] as $t => $c) {
             $this->assertCount(0, $this->rows("SELECT * FROM $t WHERE $c = ?", [$id]), $t);
         }
         $this->assertFileDoesNotExist($path);
+        $this->assertFileDoesNotExist($photo);
     }
 
     // ------------------------------------------------------------ hiring
@@ -344,6 +394,11 @@ final class ApplicantsTest extends AppTestCase
         $this->assertSame(['hired', $empId], [$a['Stage'], $a['EmpID']]);
         $ev = $this->row("SELECT * FROM emp_lifecycle_events WHERE EmpID = ? AND EventType = 'hired'", [$empId]);
         $this->assertSame('Trainee', $ev['ToVal']);
+
+        $pic = dirname(__DIR__) . '/assets/images/profiles/' . $empId . '.jpg';
+        $this->files[] = $pic;
+        $this->assertSame('assets/images/profiles/' . $empId . '.jpg', $p['EmpPPath']);
+        $this->assertFileEquals(apl_photo_path($a['PhotoKey']), $pic, 'the camera photo becomes the profile picture');
 
         $this->assertSame(422, $this->act('hire', ['id' => $id] + $this->hireData())['status'], 'only once');
     }
