@@ -26,6 +26,7 @@ require_once __DIR__ . '/bot-guard.php';
 const APL_STAGES = ['new' => 'New', 'screening' => 'Screening', 'interview' => 'Interview', 'exam' => 'Exam / Assessment',
                     'offer' => 'Job offer', 'hired' => 'Hired', 'rejected' => 'Not selected', 'withdrawn' => 'Withdrawn'];
 const APL_CLOSED       = ['hired', 'rejected', 'withdrawn'];
+const APL_HIRE_STAGE   = 'offer';         // Hire unlocks only once the application reaches Job offer
 const APL_TRAINEE      = 3;               // empstatus.EmpStatID a new hire starts as
 const APL_MAX_RESUME   = 5 * 1024 * 1024;
 const APL_RESUME_TYPES = ['pdf', 'doc', 'docx'];
@@ -784,6 +785,9 @@ function apl_hire(PDO $pdo, $id, array $d, $actor) {
     if ($r['Stage'] === 'hired' || $r['EmpID'] !== null) { return ['ok' => false, 'msg' => 'This applicant was already hired.']; }
     if (in_array($r['Stage'], ['rejected', 'withdrawn'], true)) {
         return ['ok' => false, 'msg' => 'Move the application back to an active stage before hiring.'];
+    }
+    if ($r['Stage'] !== APL_HIRE_STAGE) {   // hiring comes after the process, not instead of it
+        return ['ok' => false, 'msg' => 'Move the application to "' . APL_STAGES[APL_HIRE_STAGE] . '" first — hiring comes after the job offer.'];
     }
 
     $one = function ($sql, $args) use ($pdo) { $st = $pdo->prepare($sql); $st->execute($args); return $st->fetch(PDO::FETCH_ASSOC); };

@@ -187,7 +187,10 @@
       + (city ? '<span><i class="fa-solid fa-location-dot"></i> ' + esc(city) + '</span>' : '');
 
     $id('aplActions').innerHTML = (a.hasResume ? '<a class="wd-btn wd-btn--ghost wd-btn--sm" href="query/applicant-resume.php?id=' + a.id + '" rel="noopener"><i class="fa-solid fa-file-arrow-down"></i> Resume</a>' : '')
-      + (BOOT.canHire && !closed ? '<button type="button" class="wd-btn wd-btn--success wd-btn--sm" id="aplHireBtn"><i class="fa-solid fa-user-plus"></i> Hire</button>' : '')
+      + (BOOT.canHire && !closed ? (a.stage === BOOT.hireStage
+          ? '<button type="button" class="wd-btn wd-btn--success wd-btn--sm" id="aplHireBtn"><i class="fa-solid fa-user-plus"></i> Hire</button>'
+          : '<button type="button" class="wd-btn wd-btn--sm apl-pro__locked" disabled title="Hire unlocks at the ' + esc(STAGES[BOOT.hireStage]) + ' stage">'
+            + '<i class="fa-solid fa-lock"></i> Hire at ' + esc(STAGES[BOOT.hireStage]) + '</button>') : '')
       + (a.stage === 'rejected' || a.stage === 'withdrawn' ? '<button type="button" class="wd-btn wd-btn--danger wd-btn--sm" id="aplDeleteBtn"><i class="fa-solid fa-trash"></i> Delete</button>' : '')
       + (a.empId ? '<span class="wd-pill wd-pill--ok"><i class="fa-solid fa-id-badge"></i> Employee ' + esc(a.empId) + '</span>'
           + (BOOT.canLife ? '<a class="wd-btn wd-btn--ghost wd-btn--sm" href="separation?emp=' + encodeURIComponent(a.empId) + '">Lifecycle</a>' : '') : '');

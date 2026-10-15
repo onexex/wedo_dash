@@ -409,6 +409,13 @@ final class ApplicantsTest extends AppTestCase
     public function testHireIsValidatedAndNeedsTheEnrollRight(): void
     {
         $id = $this->submit()['id'];
+        $early = $this->act('hire', ['id' => $id] + $this->hireData());
+        $this->assertSame(422, $early['status'], 'no hiring before the job offer');
+        $this->assertStringContainsString('Job offer', $early['json']['msg']);
+        $this->act('stage', ['id' => $id, 'stage' => 'interview', 'notes' => '']);
+        $this->assertSame(422, $this->act('hire', ['id' => $id] + $this->hireData())['status'], 'still not at the job offer');
+        $this->act('stage', ['id' => $id, 'stage' => 'offer', 'notes' => '']);
+
         $this->assertSame(422, $this->act('hire', ['id' => $id] + $this->hireData(['position' => '11']))['status'], 'position of another department');
         $this->assertSame(422, $this->act('hire', ['id' => $id] + $this->hireData(['basic' => 'lots']))['status']);
         $this->assertSame(422, $this->act('hire', ['id' => $id] + $this->hireData(['superior' => self::EMP]))['status'], 'a rank-and-file superior');
@@ -416,7 +423,7 @@ final class ApplicantsTest extends AppTestCase
 
         self::db()->exec("UPDATE accessrights SET eemployee = 1 WHERE EmpID = '" . self::ADMIN . "'");
         $this->assertSame(403, $this->act('hire', ['id' => $id] + $this->hireData())['status']);
-        $this->assertSame('new', $this->row("SELECT Stage FROM applicants WHERE id = ?", [$id])['Stage']);
+        $this->assertSame('offer', $this->row("SELECT Stage FROM applicants WHERE id = ?", [$id])['Stage']);
     }
 
     public function testNextEmployeeNumberNeverReusesOne(): void
