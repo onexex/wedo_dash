@@ -274,6 +274,8 @@
   });
 
   /* ------------------------------------------------------------ hire */
+  var MONEY = /^\d{1,8}(\.\d{1,2})?$/;
+
   function fillDepts() {
     var c = $id('aplHCompany').value;
     options($id('aplHDept'), hireOpts.departments.filter(function (d) { return String(d.company) === c; }), '—', '');
@@ -282,24 +284,77 @@
   function fillPositions() {
     var d = $id('aplHDept').value;
     options($id('aplHPos'), hireOpts.positions.filter(function (p) { return String(p.department) === d; }), '—', '');
+    fillSuperiors();
+  }
+  /** superiors in the chosen department first, then everyone else */
+  function fillSuperiors() {
+    var sel = $id('aplHSup'), keep = sel.value || 'N/A', d = $id('aplHDept').value;
+    var mine = hireOpts.superiors.filter(function (s) { return d && String(s.department) === d; });
+    var rest = hireOpts.superiors.filter(function (s) { return !(d && String(s.department) === d); });
+    var opt = function (s) { return '<option value="' + esc(s.id) + '">' + esc(s.name) + '</option>'; };
+    sel.innerHTML = '<option value="N/A">None (N/A)</option>'
+      + (mine.length ? '<optgroup label="In this department">' + mine.map(opt).join('') + '</optgroup>' : '')
+      + (rest.length ? '<optgroup label="' + (mine.length ? 'Other departments' : 'Everyone') + '">' + rest.map(opt).join('') + '</optgroup>' : '');
+    sel.value = keep;
+    if (sel.value !== keep) { sel.value = 'N/A'; }
+  }
+
+  function hireErr(el, msg) {
+    var f = el.closest('.wd-field'), e = f.querySelector('.apl-hire__ferr');
+    el.classList.add('is-invalid');
+    if (!e) { e = document.createElement('small'); e.className = 'apl-hire__ferr'; f.appendChild(e); }
+    e.textContent = msg;
+  }
+  function hireClear(el) {
+    var f = el.closest('.wd-field'), e = f && f.querySelector('.apl-hire__ferr');
+    el.classList.remove('is-invalid');
+    if (e) { e.remove(); }
+  }
+  /** the same checks the server makes, shown under each field */
+  function hireCheck() {
+    var form = $id('aplHireForm'), bad = [];
+    Array.prototype.forEach.call(form.querySelectorAll('.is-invalid'), hireClear);
+    Array.prototype.forEach.call(form.querySelectorAll('[required]'), function (el) {
+      if (!String(el.value || '').trim()) { bad.push([el, 'Required.']); }
+    });
+    ['aplHBasic', 'aplHAllow', 'aplHRate'].forEach(function (id) {
+      var el = $id(id), v = el.value.replace(/,/g, '').trim();
+      if (v && !MONEY.test(v)) { bad.push([el, 'A number, e.g. 18000 or 103.45']); }
+    });
+    bad.forEach(function (b) { hireErr(b[0], b[1]); });
+    if (bad.length) { bad[0][0].focus(); }
+    return !bad.length;
+  }
+
+  function hireMode(done) {
+    $id('aplHireForm').classList.toggle('lcy-hidden', done);
+    $id('aplHireDone').classList.toggle('lcy-hidden', !done);
+    $id('aplHireSave').classList.toggle('lcy-hidden', done);
+    $id('aplHireFootNote').classList.toggle('lcy-hidden', done);
+    var c = $id('aplHireCancel');
+    c.textContent = done ? 'Done' : 'Cancel';
+    c.className = 'wd-btn ' + (done ? 'wd-btn--primary' : 'wd-btn--ghost');
   }
 
   function openHire() {
     var go = function () {
       var f = $id('aplHireForm');
       f.reset();
+      Array.prototype.forEach.call(f.querySelectorAll('.is-invalid'), hireClear);
       $id('aplHireErr').textContent = '';
-      $id('aplHireDone').classList.add('lcy-hidden');
-      $id('aplHireSave').classList.remove('lcy-hidden');
-      $id('aplHireCancel').textContent = 'Cancel';
-      $id('aplHireTitle').textContent = 'Hire ' + current.name;
+      hireMode(false);
+      $id('aplHireAv').innerHTML = face(current);
+      $id('aplHireAv').classList.toggle('has-photo', !!current.hasPhoto);
+      $id('aplHireTitle').textContent = current.name;
+      $id('aplHireSub').textContent = 'Applied for ' + (current.opening || 'any position') + ' · ' + (STAGES[current.stage] || current.stage);
+      $id('aplHireNotePhoto').hidden = !current.hasPhoto;
       var o = hireOpts;
       options($id('aplHCompany'), o.companies, o.companies.length > 1 ? '—' : null, o.companies.length === 1 ? o.companies[0].id : '');
-      options($id('aplHSup'), [{ id: 'N/A', name: 'N/A' }].concat(o.superiors), null, 'N/A');
       options($id('aplHClass'), o.classes, null, o.trainee);
       options($id('aplHAgency'), o.agencies, '—', '');
       options($id('aplHHmo'), o.hmos, '—', '');
       $id('aplHDate').value = o.today;
+      $id('aplHSup').innerHTML = '';
       fillDepts();
       $('#aplHireModal').modal('show');
     };
@@ -311,28 +366,54 @@
     });
   }
 
+  function showHired(res) {
+    var cred = function (label, value, icon) {
+      return '<div class="apl-cred"><i class="fa-solid ' + icon + '"></i><div><small>' + label + '</small><code>' + esc(value) + '</code></div>'
+        + '<button type="button" class="apl-cred__copy" data-copy="' + esc(value) + '" aria-label="Copy ' + label + '"><i class="fa-regular fa-copy"></i></button></div>';
+    };
+    $id('aplHireDone').innerHTML = '<div class="apl-hire__badge"><i class="fa-solid fa-check"></i></div>'
+      + '<h4>' + esc(current.name) + ' is now an employee</h4>'
+      + '<p class="apl-hire__id">Employee no. <b>' + esc(res.empId) + '</b></p>'
+      + '<div class="apl-creds">' + cred('Username', res.username, 'fa-user') + cred('Temporary password', res.password, 'fa-key') + '</div>'
+      + '<button type="button" class="wd-btn wd-btn--ghost wd-btn--sm apl-cred__both" data-copy="' + esc('Username: ' + res.username + '\nTemporary password: ' + res.password) + '">'
+      + '<i class="fa-regular fa-copy"></i> Copy both</button>'
+      + '<p class="apl-hire__warn"><i class="fa-solid fa-triangle-exclamation"></i> Give these to the new hire privately. The password is shown <b>only now</b> — it is not stored anywhere in readable form, and they must set their own at first sign-in.</p>';
+    hireMode(true);
+  }
+
   $id('aplHCompany').addEventListener('change', fillDepts);
   $id('aplHDept').addEventListener('change', fillPositions);
+  $id('aplHireForm').addEventListener('input', function (ev) { hireClear(ev.target); $id('aplHireErr').textContent = ''; });
+  $id('aplHireForm').addEventListener('change', function (ev) { hireClear(ev.target); });
   $id('aplHireSave').addEventListener('click', function () {
+    if (!hireCheck()) { $id('aplHireErr').textContent = 'Please fill in the highlighted fields.'; return; }
     var btn = this, d = L.formData($id('aplHireForm'));
     d.id = current.id;
+    ['basic', 'allowance', 'hourly'].forEach(function (k) { d[k] = String(d[k] || '').replace(/,/g, '').trim(); });
     btn.disabled = true;
+    btn.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> Creating…';
     post('hire', d).then(function (res) {
       btn.disabled = false;
+      btn.innerHTML = '<i class="fa-solid fa-user-plus"></i> Create employee';
       if (res.status !== 'ok') { $id('aplHireErr').textContent = res.msg; return; }
       $id('aplHireErr').textContent = '';
-      $id('aplHireSave').classList.add('lcy-hidden');
-      $id('aplHireCancel').textContent = 'Done';
-      var box = $id('aplHireDone');
-      box.innerHTML = '<b>' + esc(current.name) + ' is now employee ' + esc(res.empId) + '.</b><br>'
-        + 'Username: <code>' + esc(res.username) + '</code><br>Temporary password: <code>' + esc(res.password) + '</code><br>'
-        + '<span>Give these to the new hire privately and ask them to change the password after signing in. '
-        + 'The password is shown only now — it is not stored anywhere in readable form.</span>';
-      box.classList.remove('lcy-hidden');
+      showHired(res);
       render(res.applicant);
       load();
     });
   });
+  $id('aplHireDone').addEventListener('click', function (ev) {
+    var b = ev.target.closest('[data-copy]');
+    if (!b || !navigator.clipboard) { return; }
+    var was = b.innerHTML;
+    navigator.clipboard.writeText(b.getAttribute('data-copy')).then(function () {
+      b.innerHTML = '<i class="fa-solid fa-check"></i>' + (b.classList.contains('apl-cred__both') ? ' Copied' : '');
+      setTimeout(function () { b.innerHTML = was; }, 1400);
+    });
+  });
+  // the Hire dialog opens over the profile: dim the profile, and keep it scrollable after Hire closes
+  $('#aplHireModal').on('shown.bs.modal', function () { $('.modal-backdrop').last().addClass('apl-hire-backdrop'); })
+    .on('hidden.bs.modal', function () { if ($('#aplModal').hasClass('in')) { $('body').addClass('modal-open'); } });
 
   /* ------------------------------------------------------------ openings */
   function renderOpenings(list) {

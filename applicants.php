@@ -125,37 +125,69 @@ $v = function ($f) { return @filemtime(__DIR__ . '/' . $f) ?: 0; };
       </div>
 
       <!-- hire: create the employee from the registration -->
-      <div class="modal fade" id="aplHireModal" tabindex="-1">
+      <div class="modal fade apl-hire" id="aplHireModal" tabindex="-1" aria-labelledby="aplHireTitle">
         <div class="modal-dialog">
           <div class="modal-content">
-            <div class="modal-header">
-              <button type="button" class="close" data-dismiss="modal" aria-label="Close">&times;</button>
-              <h4 class="modal-title" id="aplHireTitle">Hire</h4>
-            </div>
-            <form class="modal-body" id="aplHireForm" autocomplete="off">
-              <p class="lcy-muted" style="margin-top:0">Name, address, IDs, education and family come from the registration. Choose where they will work:</p>
-              <div class="apl-grid">
-                <div class="wd-field"><label for="aplHCompany">Company</label><select class="wd-select" id="aplHCompany" name="company" required></select></div>
-                <div class="wd-field"><label for="aplHDept">Department</label><select class="wd-select" id="aplHDept" name="department" required></select></div>
-                <div class="wd-field"><label for="aplHPos">Position</label><select class="wd-select" id="aplHPos" name="position" required></select></div>
-                <div class="wd-field"><label for="aplHSup">Immediate superior</label><select class="wd-select" id="aplHSup" name="superior"></select></div>
-                <div class="wd-field"><label for="aplHClass">Classification</label><select class="wd-select" id="aplHClass" name="classification"></select></div>
-                <div class="wd-field"><label for="aplHDate">Hire date</label><input type="date" class="wd-input" id="aplHDate" name="hired" required></div>
-                <div class="wd-field"><label for="aplHAgency">Agency</label><select class="wd-select" id="aplHAgency" name="agency" required></select></div>
-                <div class="wd-field"><label for="aplHHmo">HMO provider</label><select class="wd-select" id="aplHHmo" name="hmo" required></select></div>
-                <div class="wd-field"><label for="aplHHmoNo">HMO number</label><input class="wd-input" id="aplHHmoNo" name="hmoNumber" maxlength="100"></div>
-                <div class="wd-field"><label for="aplHIdNo">Employee ID (card)</label><input class="wd-input" id="aplHIdNo" name="idNumber" maxlength="100" placeholder="optional"></div>
-                <div class="wd-field"><label for="aplHBasic">Monthly basic</label><input class="wd-input" id="aplHBasic" name="basic" inputmode="decimal" required></div>
-                <div class="wd-field"><label for="aplHAllow">Allowance</label><input class="wd-input" id="aplHAllow" name="allowance" inputmode="decimal" value="0" required></div>
-                <div class="wd-field"><label for="aplHRate">Hourly rate</label><input class="wd-input" id="aplHRate" name="hourly" inputmode="decimal" required></div>
+            <header class="apl-hire__head">
+              <button type="button" class="apl-pro__close" data-dismiss="modal" aria-label="Close"><i class="fa-solid fa-xmark"></i></button>
+              <span class="apl-hire__av" id="aplHireAv" aria-hidden="true"></span>
+              <div class="apl-hire__who">
+                <span class="apl-hire__eyebrow"><i class="fa-solid fa-user-plus"></i> Hire as employee</span>
+                <h4 id="aplHireTitle">Hire</h4>
+                <p id="aplHireSub"></p>
               </div>
-              <p class="lcy-modal-error" id="aplHireErr"></p>
-              <div class="apl-secret lcy-hidden" id="aplHireDone" role="status"></div>
+            </header>
+
+            <form class="apl-hire__body" id="aplHireForm" autocomplete="off" novalidate>
+              <p class="apl-hire__note"><i class="fa-solid fa-circle-info"></i> Name, address, IDs, education, family<span id="aplHireNotePhoto"> and photo</span> come from the registration. Fill in where they will work and their pay.</p>
+
+              <section class="apl-hire__sec">
+                <h5><span>1</span> Placement</h5>
+                <div class="apl-grid">
+                  <div class="wd-field"><label for="aplHCompany">Company *</label><select class="wd-select" id="aplHCompany" name="company" required></select></div>
+                  <div class="wd-field"><label for="aplHDept">Department *</label><select class="wd-select" id="aplHDept" name="department" required></select></div>
+                  <div class="wd-field"><label for="aplHPos">Position *</label><select class="wd-select" id="aplHPos" name="position" required></select></div>
+                  <div class="wd-field"><label for="aplHSup">Immediate superior</label><select class="wd-select" id="aplHSup" name="superior"></select></div>
+                </div>
+              </section>
+
+              <section class="apl-hire__sec">
+                <h5><span>2</span> Employment</h5>
+                <div class="apl-grid">
+                  <div class="wd-field"><label for="aplHClass">Classification</label><select class="wd-select" id="aplHClass" name="classification"></select></div>
+                  <div class="wd-field"><label for="aplHDate">Hire date *</label><input type="date" class="wd-input" id="aplHDate" name="hired" required></div>
+                  <div class="wd-field"><label for="aplHAgency">Agency *</label><select class="wd-select" id="aplHAgency" name="agency" required></select></div>
+                  <div class="wd-field"><label for="aplHIdNo">Employee ID (card)</label><input class="wd-input" id="aplHIdNo" name="idNumber" maxlength="100" placeholder="Optional"></div>
+                </div>
+              </section>
+
+              <section class="apl-hire__sec">
+                <h5><span>3</span> Pay</h5>
+                <div class="apl-grid apl-grid--3">
+                  <div class="wd-field"><label for="aplHBasic">Monthly basic *</label><div class="apl-money"><span>₱</span><input class="wd-input" id="aplHBasic" name="basic" inputmode="decimal" placeholder="0.00" required></div></div>
+                  <div class="wd-field"><label for="aplHAllow">Allowance *</label><div class="apl-money"><span>₱</span><input class="wd-input" id="aplHAllow" name="allowance" inputmode="decimal" value="0" required></div></div>
+                  <div class="wd-field"><label for="aplHRate">Hourly rate *</label><div class="apl-money"><span>₱</span><input class="wd-input" id="aplHRate" name="hourly" inputmode="decimal" placeholder="0.00" required></div></div>
+                </div>
+              </section>
+
+              <section class="apl-hire__sec">
+                <h5><span>4</span> HMO</h5>
+                <div class="apl-grid">
+                  <div class="wd-field"><label for="aplHHmo">HMO provider *</label><select class="wd-select" id="aplHHmo" name="hmo" required></select></div>
+                  <div class="wd-field"><label for="aplHHmoNo">HMO number</label><input class="wd-input" id="aplHHmoNo" name="hmoNumber" maxlength="100" placeholder="Optional"></div>
+                </div>
+              </section>
+
+              <p class="lcy-modal-error" id="aplHireErr" role="alert"></p>
             </form>
-            <div class="modal-footer">
+
+            <div class="apl-hire__done lcy-hidden" id="aplHireDone" role="status"></div>
+
+            <footer class="apl-hire__foot">
+              <span class="apl-hire__foot-note" id="aplHireFootNote">Creates a WeDo account — they start as the classification above.</span>
               <button type="button" class="wd-btn wd-btn--ghost" data-dismiss="modal" id="aplHireCancel">Cancel</button>
               <button type="button" class="wd-btn wd-btn--success" id="aplHireSave"><i class="fa-solid fa-user-plus"></i> Create employee</button>
-            </div>
+            </footer>
           </div>
         </div>
       </div>

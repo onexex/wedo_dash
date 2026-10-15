@@ -247,8 +247,76 @@ body.apl-public { background: #f4f6fb; min-height: 100vh; color: var(--text); }
 .apl-row.is-on td { background: var(--brand-tint); }
 .apl-share { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; font-size: 13px; }
 .apl-share code { background: var(--surface-2); padding: 4px 8px; border-radius: 6px; font-size: 12.5px; word-break: break-all; }
-.apl-secret { background: var(--ok-bg); color: var(--ok-text); border-radius: var(--radius); padding: 14px 16px; margin-top: 12px; }
-.apl-secret code { font-size: 15px; background: #fff; padding: 3px 8px; border-radius: 6px; user-select: all; }
+/* ---- hire dialog (opens over the profile) ---- */
+.apl-hire { z-index: 1060; }
+.modal-backdrop.apl-hire-backdrop { z-index: 1055; }
+.apl-hire .modal-dialog { width: auto; max-width: 720px; margin: 28px auto; padding: 0 16px; }
+.apl-hire .modal-content { border-radius: 20px; background: var(--surface); overflow: clip; }
+.apl-hire__head { position: relative; display: flex; align-items: center; gap: 16px; padding: 22px 24px; color: #fff;
+  background: radial-gradient(500px 200px at 100% -40%, rgba(16, 185, 129, .35), transparent 60%),
+              radial-gradient(500px 220px at -10% 140%, rgba(64, 120, 255, .28), transparent 60%), var(--navy); }
+.apl-hire__av { flex: none; width: 56px; height: 56px; border-radius: 16px; overflow: hidden; display: grid; place-items: center;
+  font: 700 19px/1 var(--font-head); color: #fff; background: linear-gradient(135deg, var(--brand), #ff8a5c); }
+.apl-hire__av.has-photo { background: #fff; }
+.apl-hire__av img { width: 100%; height: 100%; object-fit: cover; display: block; }
+.apl-hire__who { min-width: 0; padding-right: 40px; }
+.apl-hire__eyebrow { display: inline-flex; gap: 6px; align-items: center; font-size: 11.5px; font-weight: 700; letter-spacing: .06em;
+  text-transform: uppercase; color: #8ef0c4; }
+.apl-hire__who h4 { color: #fff; font-size: 19px; margin: 2px 0 2px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.apl-hire__who p { margin: 0; font-size: 13px; color: rgba(255, 255, 255, .7); }
+
+.apl-hire__body { padding: 18px 24px 4px; }
+.apl-hire__note { display: flex; gap: 10px; align-items: flex-start; margin: 0 0 16px; padding: 10px 14px; border-radius: 12px;
+  background: var(--info-bg); color: var(--info-text); font-size: 13px; }
+.apl-hire__note i { margin-top: 3px; }
+.apl-hire__sec { border: 1px solid var(--border); border-radius: 16px; padding: 14px 16px 2px; margin-bottom: 12px; }
+.apl-hire__sec h5 { display: flex; align-items: center; gap: 10px; font-size: 13.5px; margin: 0 0 12px; }
+.apl-hire__sec h5 span { width: 22px; height: 22px; border-radius: 50%; display: grid; place-items: center; font-size: 11.5px;
+  background: var(--brand-tint); color: var(--brand); }
+.apl-hire .wd-field { margin-bottom: 12px; min-width: 0; }
+.apl-grid--3 { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+.apl-money { position: relative; }
+.apl-money span { position: absolute; left: 12px; top: 50%; transform: translateY(-50%); color: var(--text-3); font-weight: 600; pointer-events: none; }
+.apl-money .wd-input { padding-left: 28px; }
+.apl-hire .is-invalid { border-color: var(--danger-text) !important; background: #fff8f7; }
+.apl-hire__ferr { display: block; margin-top: 4px; color: var(--danger-text); font-size: 12px; font-weight: 600; }
+.apl-hire .lcy-modal-error:empty { display: none; }
+
+.apl-hire__foot { position: sticky; bottom: 0; display: flex; align-items: center; justify-content: flex-end; gap: 10px; padding: 14px 24px;
+  border-top: 1px solid var(--border); background: var(--surface); }
+.apl-hire__foot-note { flex: 1; color: var(--text-3); font-size: 12.5px; }
+.apl-hire__foot .wd-btn { border-radius: 999px; padding: 10px 20px; }
+
+/* after hiring: the sign-in details, shown once */
+.apl-hire__done { padding: 30px 24px 20px; text-align: center; }
+.apl-hire__badge { width: 64px; height: 64px; border-radius: 50%; margin: 0 auto 14px; display: grid; place-items: center; font-size: 26px;
+  background: var(--ok-bg); color: var(--ok-text); box-shadow: 0 0 0 10px rgba(28, 122, 68, .08); }
+.apl-hire__done h4 { font-size: 19px; margin: 0 0 4px; }
+.apl-hire__id { margin: 0 0 18px; color: var(--text-2); }
+.apl-hire__id b { color: var(--text); font-family: ui-monospace, Consolas, monospace; }
+.apl-creds { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; text-align: left; }
+.apl-cred { display: flex; align-items: center; gap: 12px; padding: 12px 12px 12px 14px; border: 1px solid var(--border); border-radius: 14px; background: var(--surface-2); }
+.apl-cred > i { color: var(--text-3); }
+.apl-cred > div { flex: 1; min-width: 0; }
+.apl-cred small { display: block; font-size: 11.5px; color: var(--text-3); font-weight: 600; }
+.apl-cred code { display: block; padding: 0; background: none; color: var(--text); font-size: 16px; font-weight: 600; letter-spacing: .03em;
+  user-select: all; overflow-wrap: anywhere; }
+.apl-cred__copy { flex: none; width: 34px; height: 34px; border-radius: 10px; border: 1px solid var(--border-2); background: var(--surface);
+  color: var(--text-2); cursor: pointer; }
+.apl-cred__copy:hover { color: var(--brand); border-color: var(--brand); }
+.apl-cred__both { margin-top: 12px; border-radius: 999px; }
+.apl-hire__warn { display: flex; gap: 10px; align-items: flex-start; text-align: left; margin: 18px 0 0; padding: 12px 14px; border-radius: 12px;
+  background: var(--warn-bg); color: var(--warn-text); font-size: 13px; }
+.apl-hire__warn i { margin-top: 3px; }
+
+@media (max-width: 640px) {
+  .apl-hire .modal-dialog { margin: 0; padding: 0; }
+  .apl-hire .modal-content { border-radius: 0; min-height: 100vh; }
+  .apl-hire__head, .apl-hire__body, .apl-hire__foot { padding-left: 16px; padding-right: 16px; }
+  .apl-grid--3, .apl-creds { grid-template-columns: minmax(0, 1fr); }
+  .apl-hire__foot-note { display: none; }
+  .apl-hire__foot .wd-btn { flex: 1; justify-content: center; }
+}
 
 /* ---- one application: profile modal ---- */
 .apl-pro .modal-dialog { width: auto; max-width: 1120px; margin: 24px auto; padding: 0 16px; }
