@@ -235,10 +235,17 @@
         + '<div class="apl-feed__meta" title="' + esc(L.fmtDateTime(e.at)) + '">' + esc(e.by) + ' · ' + esc(ago(e.at)) + '</div></li>';
     }).join('') : '<li class="apl-none">No activity yet.</li>';
 
-    var sel = $id('aplStage');
+    // stages go in order: the ones the server would refuse are shown but can't be picked
+    var sel = $id('aplStage'), ok = a.allowedStages || [];
     sel.innerHTML = Object.keys(STAGES).filter(function (k) { return k !== 'hired' || a.stage === 'hired'; }).map(function (k) {
-      return '<option value="' + k + '"' + (k === a.stage ? ' selected' : '') + '>' + esc(STAGES[k]) + '</option>';
+      var can = k === a.stage || ok.indexOf(k) >= 0;
+      return '<option value="' + k + '"' + (k === a.stage ? ' selected' : '') + (can ? '' : ' disabled') + '>'
+        + esc(STAGES[k]) + (k === a.stage ? ' (now)' : '') + '</option>';
     }).join('');
+    var nextIdx = PIPE.indexOf(a.stage) + 1;
+    $id('aplStageHint').textContent = a.stage === 'rejected' || a.stage === 'withdrawn'
+      ? 'To reopen, pick the stage it had reached or an earlier one.'
+      : (nextIdx > 0 && nextIdx < PIPE.length - 1 ? 'Stages go in order — next is ' + STAGES[PIPE[nextIdx]] + '.' : '');
     $id('aplStageForm').classList.toggle('lcy-hidden', a.stage === 'hired');
     $id('aplNotes').value = '';
     $id('aplStageErr').textContent = '';

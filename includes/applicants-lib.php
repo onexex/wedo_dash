@@ -26,6 +26,7 @@ require_once __DIR__ . '/bot-guard.php';
 const APL_STAGES = ['new' => 'New', 'screening' => 'Screening', 'interview' => 'Interview', 'exam' => 'Exam / Assessment',
                     'offer' => 'Job offer', 'hired' => 'Hired', 'rejected' => 'Not selected', 'withdrawn' => 'Withdrawn'];
 const APL_CLOSED       = ['hired', 'rejected', 'withdrawn'];
+const APL_PIPELINE     = ['new', 'screening', 'interview', 'exam', 'offer'];   // taken in this order, one step at a time
 const APL_HIRE_STAGE   = 'offer';         // Hire unlocks only once the application reaches Job offer
 const APL_TRAINEE      = 3;               // empstatus.EmpStatID a new hire starts as
 const APL_MAX_RESUME   = 5 * 1024 * 1024;
@@ -636,6 +637,7 @@ function apl_detail(PDO $pdo, $id) {
     }
     $a['matches'] = apl_rehire_check($pdo, $a);
     $a['rehire']  = apl_rehire_flag($a['matches']);
+    $a['allowedStages'] = apl_allowed_stages($a['stage'], apl_reopen_stage($pdo, $a['id'], $a['stage']));
     return $a;
 }
 
@@ -694,6 +696,32 @@ function apl_event(PDO $pdo, $id, $from, $to, $notes, $actor) {
         ->execute([':a' => (int) $id, ':f' => $from, ':t' => $to, ':n' => $notes === '' ? null : mb_substr($notes, 0, 1000), ':b' => $actor]);
 }
 
+/**
+ * The stage a closed (Not selected / Withdrawn) application had reached: it can be
+ * reopened there or earlier, never further. 'new' when the history doesn't say.
+ */
+function apl_reopen_stage(PDO $pdo, $id, $stage) {
+    if (!in_array($stage, ['rejected', 'withdrawn'], true)) { return null; }
+    $st = $pdo->prepare("SELECT FromStage FROM applicant_events WHERE ApplicantID = :a AND ToStage = :s AND FromStage <> ToStage
+                         ORDER BY CreatedAt DESC, id DESC LIMIT 1");
+    $st->execute([':a' => (int) $id, ':s' => $stage]);
+    $from = (string) $st->fetchColumn();
+    return in_array($from, APL_PIPELINE, true) ? $from : 'new';
+}
+
+/**
+ * Stages an application may move to from $stage (besides adding a note):
+ * forward one step at a time, back to any earlier stage, Not selected /
+ * Withdrawn at any point; a closed one reopens at $reopen or earlier.
+ * Hired only comes from apl_hire().
+ */
+function apl_allowed_stages($stage, $reopen = null) {
+    if ($stage === 'hired') { return []; }
+    $i = array_search($stage, APL_PIPELINE, true);
+    $upto = $i === false ? array_search($reopen ?: 'new', APL_PIPELINE, true) : min($i + 1, count(APL_PIPELINE) - 1);
+    return array_merge(array_slice(APL_PIPELINE, 0, $upto + 1), ['rejected', 'withdrawn']);
+}
+
 /** Move an application to another stage, or add a note (same stage). Hired only happens through apl_hire(). */
 function apl_set_stage(PDO $pdo, $id, $stage, $notes, $actor) {
     $a = apl_get($pdo, $id);
@@ -703,6 +731,16 @@ function apl_set_stage(PDO $pdo, $id, $stage, $notes, $actor) {
     if ($a['stage'] === 'hired') { return ['ok' => false, 'msg' => 'This applicant was already hired.']; }
     $notes = trim((string) $notes);
     if ($stage === $a['stage'] && $notes === '') { return ['ok' => false, 'msg' => 'Write a note, or choose a different stage.']; }
+    if ($stage !== $a['stage']) {
+        $reopen = apl_reopen_stage($pdo, $a['id'], $a['stage']);
+        if (!in_array($stage, apl_allowed_stages($a['stage'], $reopen), true)) {
+            if ($reopen !== null) {
+                return ['ok' => false, 'msg' => 'Reopen it at "' . APL_STAGES[$reopen] . '" (where it was) or an earlier stage.'];
+            }
+            $next = APL_PIPELINE[array_search($a['stage'], APL_PIPELINE, true) + 1];
+            return ['ok' => false, 'msg' => 'Stages go in order — the next one is "' . APL_STAGES[$next] . '".'];
+        }
+    }
     if ($stage !== $a['stage']) {
         $pdo->prepare("UPDATE applicants SET Stage = :s, StageAt = NOW() WHERE id = :id")->execute([':s' => $stage, ':id' => $a['id']]);
     }

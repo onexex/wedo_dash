@@ -384,6 +384,8 @@ body.apl-public { background: #f4f6fb; min-height: 100vh; color: var(--text); }
 .apl-card .wd-field { margin-bottom: 10px; }
 .apl-card .wd-textarea { resize: vertical; min-height: 60px; }
 .apl-card__btn { width: 100%; justify-content: center; }
+.apl-stage-hint { display: block; margin-top: 5px; color: var(--text-3); font-size: 12px; }
+.apl-stage-hint:empty { display: none; }
 .apl-card .lcy-modal-error:empty { display: none; }
 
 .apl-kv { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px 18px; margin: 0; }

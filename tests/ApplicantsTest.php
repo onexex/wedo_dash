@@ -100,6 +100,16 @@ final class ApplicantsTest extends AppTestCase
 
     private function hr(): array { return $this->asAdmin() + ['apl_csrf' => self::TOKEN]; }
 
+    /** Walk an application forward through the stages, in order, up to $to. */
+    private function advance(int $id, string $to): void
+    {
+        $now = $this->row("SELECT Stage FROM applicants WHERE id = ?", [$id])['Stage'];
+        foreach (array_slice(APL_PIPELINE, array_search($now, APL_PIPELINE, true) + 1) as $s) {
+            $this->assertSame(200, $this->act('stage', ['id' => $id, 'stage' => $s, 'notes' => ''])['status'], $s);
+            if ($s === $to) { return; }
+        }
+    }
+
     private function act(string $action, array $post, ?array $session = null): array
     {
         $res = $this->request('query/applicants-action.php', [], ['action' => $action, 'token' => self::TOKEN] + $post, $session ?? $this->hr());
@@ -341,10 +351,34 @@ final class ApplicantsTest extends AppTestCase
         $this->assertTrue($d['matches'][0]['strong']);
         $this->assertSame('Mother', $d['family'][0]['Relationship']);
 
+        $this->advance($id, 'screening');
         $this->assertSame(200, $this->act('stage', ['id' => $id, 'stage' => 'interview', 'notes' => 'Initial call OK'])['status']);
         $this->assertSame(422, $this->act('stage', ['id' => $id, 'stage' => 'hired'])['status'], 'hired only through Hire');
         $this->assertSame('interview', $this->row("SELECT Stage FROM applicants WHERE id = ?", [$id])['Stage']);
         $this->assertSame(422, $this->act('delete', ['id' => $id])['status'], 'active applications are kept');
+    }
+
+    public function testStagesGoInOrder(): void
+    {
+        $id = $this->submit()['id'];
+        $skip = $this->act('stage', ['id' => $id, 'stage' => 'interview', 'notes' => '']);
+        $this->assertSame(422, $skip['status'], 'no skipping Screening');
+        $this->assertStringContainsString('Screening', $skip['json']['msg']);
+        $this->assertSame(422, $this->act('stage', ['id' => $id, 'stage' => 'offer', 'notes' => ''])['status'], 'no jumping to the offer');
+        $this->assertSame(['new', 'screening', 'rejected', 'withdrawn'], $this->act('detail', ['id' => $id])['json']['applicant']['allowedStages']);
+
+        $this->advance($id, 'exam');
+        $this->assertSame(200, $this->act('stage', ['id' => $id, 'stage' => 'screening', 'notes' => 'Wrong stage'])['status'], 'back is fine');
+        $this->advance($id, 'interview');
+        $this->assertSame(200, $this->act('stage', ['id' => $id, 'stage' => 'rejected', 'notes' => 'Not a fit'])['status'], 'not selected at any point');
+
+        // reopened where it was (Interview) or earlier, not further
+        $this->assertSame(['new', 'screening', 'interview', 'rejected', 'withdrawn'], $this->act('detail', ['id' => $id])['json']['applicant']['allowedStages']);
+        $far = $this->act('stage', ['id' => $id, 'stage' => 'exam', 'notes' => '']);
+        $this->assertSame(422, $far['status']);
+        $this->assertStringContainsString('Interview', $far['json']['msg']);
+        $this->assertSame(200, $this->act('stage', ['id' => $id, 'stage' => 'interview', 'notes' => 'Second look'])['status']);
+        $this->assertSame('interview', $this->row("SELECT Stage FROM applicants WHERE id = ?", [$id])['Stage']);
     }
 
     public function testDeletingAClosedApplicationRemovesItsData(): void
@@ -368,7 +402,7 @@ final class ApplicantsTest extends AppTestCase
     public function testHireCopiesTheRegistrationIntoTheEmployeeTables(): void
     {
         $id = $this->submit()['id'];
-        $this->act('stage', ['id' => $id, 'stage' => 'offer', 'notes' => 'Offer accepted']);
+        $this->advance($id, 'offer');
 
         $res = $this->act('hire', ['id' => $id] + $this->hireData());
         $this->assertSame(200, $res['status'], $res['body']);
@@ -412,9 +446,9 @@ final class ApplicantsTest extends AppTestCase
         $early = $this->act('hire', ['id' => $id] + $this->hireData());
         $this->assertSame(422, $early['status'], 'no hiring before the job offer');
         $this->assertStringContainsString('Job offer', $early['json']['msg']);
-        $this->act('stage', ['id' => $id, 'stage' => 'interview', 'notes' => '']);
+        $this->advance($id, 'interview');
         $this->assertSame(422, $this->act('hire', ['id' => $id] + $this->hireData())['status'], 'still not at the job offer');
-        $this->act('stage', ['id' => $id, 'stage' => 'offer', 'notes' => '']);
+        $this->advance($id, 'offer');
 
         $this->assertSame(422, $this->act('hire', ['id' => $id] + $this->hireData(['position' => '11']))['status'], 'position of another department');
         $this->assertSame(422, $this->act('hire', ['id' => $id] + $this->hireData(['basic' => 'lots']))['status']);

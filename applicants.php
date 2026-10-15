@@ -110,7 +110,7 @@ $v = function ($f) { return @filemtime(__DIR__ . '/' . $f) ?: 0; };
               <aside class="apl-pro__side">
                 <form class="apl-card" id="aplStageForm" autocomplete="off">
                   <h5 class="apl-card__title"><i class="fa-solid fa-arrow-right-arrow-left"></i> Move to stage</h5>
-                  <div class="wd-field"><label for="aplStage">Stage</label><select class="wd-select" id="aplStage" name="stage"></select></div>
+                  <div class="wd-field"><label for="aplStage">Stage</label><select class="wd-select" id="aplStage" name="stage"></select><small class="apl-stage-hint" id="aplStageHint"></small></div>
                   <div class="wd-field"><label for="aplNotes">Note <span class="lcy-muted">(optional)</span></label><textarea class="wd-textarea" id="aplNotes" name="notes" rows="2" maxlength="1000" placeholder="e.g. Passed the initial interview"></textarea></div>
                   <p class="lcy-modal-error" id="aplStageErr"></p>
                   <button type="submit" class="wd-btn wd-btn--primary apl-card__btn"><i class="fa-solid fa-check"></i> Save</button>
