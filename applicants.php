@@ -240,26 +240,53 @@ $v = function ($f) { return @filemtime(__DIR__ . '/' . $f) ?: 0; };
       </div>
 
       <!-- job openings -->
-      <div class="modal fade" id="aplOpeningsModal" tabindex="-1">
+      <div class="modal fade apl-op" id="aplOpeningsModal" tabindex="-1">
         <div class="modal-dialog">
           <div class="modal-content">
-            <div class="modal-header">
-              <button type="button" class="close" data-dismiss="modal" aria-label="Close">&times;</button>
-              <h4 class="modal-title">Job openings</h4>
+            <div class="apl-op__head">
+              <button type="button" class="apl-pro__close" data-dismiss="modal" aria-label="Close"><i class="fa-solid fa-xmark"></i></button>
+              <span class="apl-op__icon"><i class="fa-solid fa-briefcase"></i></span>
+              <div>
+                <h4>Job openings</h4>
+                <p id="aplOpeningsSum">The positions people can pick on the Apply page.</p>
+              </div>
             </div>
-            <div class="modal-body">
-              <div id="aplOpeningsList"></div>
-              <form id="aplOpeningForm" autocomplete="off" style="margin-top:16px;border-top:1px solid var(--border);padding-top:14px">
+            <div class="apl-op__body">
+              <div class="apl-op__bar">
+                <b>Positions</b>
+                <button type="button" class="wd-btn wd-btn--ghost wd-btn--sm" id="aplOpeningNew"><i class="fa-solid fa-plus"></i> New opening</button>
+              </div>
+              <div id="aplOpeningsList" class="apl-op__list"></div>
+
+              <form id="aplOpeningForm" class="apl-op__form" autocomplete="off">
                 <input type="hidden" name="id" value="0">
-                <h4 id="aplOpeningFormTitle" style="font-size:14px;margin-bottom:10px">Add an opening</h4>
-                <div class="wd-field"><label for="aplOTitle">Job title</label><input class="wd-input" id="aplOTitle" name="title" maxlength="120" required></div>
-                <div class="wd-field"><label for="aplOLoc">Location</label><input class="wd-input" id="aplOLoc" name="location" maxlength="120" placeholder="e.g. Pasig City, on-site"></div>
-                <div class="wd-field"><label for="aplODesc">Description</label><textarea class="wd-textarea" id="aplODesc" name="description" rows="4" maxlength="2000" placeholder="What the job is, requirements, schedule"></textarea></div>
-                <label class="lcy-check"><input type="checkbox" name="open" value="1" checked> Shown on the Apply page</label>
+                <div class="apl-op__formhead">
+                  <span class="apl-op__formicon"><i class="fa-solid fa-plus" id="aplOpeningFormIcon"></i></span>
+                  <div>
+                    <h5 id="aplOpeningFormTitle">Add an opening</h5>
+                    <small id="aplOpeningFormSub">Fill this in and it appears on the Apply page right away.</small>
+                  </div>
+                </div>
+                <div class="apl-grid">
+                  <div class="wd-field"><label for="aplOTitle">Job title <span class="apl-op__req">*</span></label>
+                    <input class="wd-input" id="aplOTitle" name="title" maxlength="120" required placeholder="e.g. Bookkeeper"></div>
+                  <div class="wd-field"><label for="aplOLoc">Location</label>
+                    <div class="apl-op__ico"><i class="fa-solid fa-location-dot"></i><input class="wd-input" id="aplOLoc" name="location" maxlength="120" placeholder="e.g. Pasig City, on-site"></div></div>
+                </div>
+                <div class="wd-field">
+                  <label for="aplODesc">Description <span class="apl-op__opt">optional</span></label>
+                  <textarea class="wd-textarea" id="aplODesc" name="description" rows="4" maxlength="2000" placeholder="What the job is, requirements, schedule"></textarea>
+                  <span class="apl-op__count" id="aplODescCount">0 / 2000</span>
+                </div>
+                <label class="apl-toggle apl-op__toggle">
+                  <input type="checkbox" name="open" value="1" checked>
+                  <span class="apl-toggle__ui"></span>
+                  <span><b>Accepting applications</b><small>Shown on the Apply page. Turn off to hide it without deleting.</small></span>
+                </label>
                 <p class="lcy-modal-error" id="aplOpeningErr"></p>
-                <div class="lcy-actions">
-                  <button type="submit" class="wd-btn wd-btn--primary"><i class="fa-solid fa-check"></i> Save opening</button>
-                  <button type="button" class="wd-btn wd-btn--ghost" id="aplOpeningNew">New</button>
+                <div class="apl-op__foot">
+                  <button type="button" class="wd-btn wd-btn--ghost" id="aplOpeningCancel" hidden>Cancel edit</button>
+                  <button type="submit" class="wd-btn wd-btn--primary" id="aplOpeningSave"><i class="fa-solid fa-check"></i> <span>Add opening</span></button>
                 </div>
               </form>
             </div>

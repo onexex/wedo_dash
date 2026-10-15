@@ -499,39 +499,104 @@
     BOOT.openings = list;
     options($id('aplFOpening'), [{ id: 'any', name: 'Any position (not specified)' }].concat(list.map(function (o) { return { id: o.id, name: o.title + (o.open ? '' : ' (closed)') }; })),
             'All positions', filter.opening);
-    $id('aplOpeningsList').innerHTML = list.length ? '<table class="wd-table lcy-table"><tbody>' + list.map(function (o, i) {
-      return '<tr><td><b>' + esc(o.title) + '</b><br><span class="lcy-muted">' + esc(o.location) + '</span></td>'
-        + '<td>' + (o.open ? '<span class="wd-pill wd-pill--ok">Open</span>' : '<span class="wd-pill wd-pill--info">Closed</span>') + '</td>'
-        + '<td>' + o.applicants + ' applicant' + (o.applicants === 1 ? '' : 's') + '</td>'
-        + '<td><button type="button" class="wd-btn wd-btn--ghost wd-btn--sm" data-edit="' + i + '">Edit</button></td></tr>';
-    }).join('') + '</tbody></table>' : '<div class="lcy-empty">No openings yet — add one below.</div>';
-    Array.prototype.forEach.call($id('aplOpeningsList').querySelectorAll('[data-edit]'), function (b) {
-      b.addEventListener('click', function () { editOpening(list[+b.getAttribute('data-edit')]); });
+    var live = list.filter(function (o) { return o.open; }).length;
+    $id('aplOpeningsSum').textContent = list.length
+      ? list.length + ' position' + (list.length === 1 ? '' : 's') + ' · ' + live + ' accepting applications'
+      : 'The positions people can pick on the Apply page.';
+    $id('aplOpeningsList').innerHTML = list.length ? list.map(function (o, i) {
+      var n = o.applicants;
+      return '<div class="apl-op__item' + (o.open ? '' : ' is-closed') + (String(o.id) === String(editingId) ? ' is-editing' : '') + '">'
+        + '<span class="apl-op__badge">' + esc((o.title || '?').trim().charAt(0).toUpperCase()) + '</span>'
+        + '<div class="apl-op__main"><b>' + esc(o.title) + '</b>'
+        + '<span class="apl-op__meta">' + (o.location ? '<i class="fa-solid fa-location-dot"></i> ' + esc(o.location) : 'No location set') + '</span></div>'
+        + '<button type="button" class="apl-op__count-btn" data-view="' + i + '"' + (n ? '' : ' disabled') + ' title="' + (n ? 'Show these applicants' : 'No applicants yet') + '">'
+        +   '<i class="fa-solid fa-user-group"></i> ' + n + '<span> applicant' + (n === 1 ? '' : 's') + '</span></button>'
+        + '<label class="apl-toggle apl-op__switch" title="' + (o.open ? 'Accepting applications — click to close' : 'Closed — click to reopen') + '">'
+        +   '<input type="checkbox" data-open="' + i + '"' + (o.open ? ' checked' : '') + '><span class="apl-toggle__ui"></span>'
+        +   '<span class="apl-op__state">' + (o.open ? 'Open' : 'Closed') + '</span></label>'
+        + '<button type="button" class="apl-op__edit" data-edit="' + i + '" aria-label="Edit ' + esc(o.title) + '"><i class="fa-solid fa-pen"></i></button>'
+        + '</div>';
+    }).join('') : '<div class="apl-op__empty"><i class="fa-regular fa-folder-open"></i><b>No openings yet</b><span>Add your first position below.</span></div>';
+    var box = $id('aplOpeningsList');
+    Array.prototype.forEach.call(box.querySelectorAll('[data-edit]'), function (b) {
+      b.addEventListener('click', function () { editOpening(list[+b.getAttribute('data-edit')], true); });
+    });
+    Array.prototype.forEach.call(box.querySelectorAll('[data-view]'), function (b) {
+      b.addEventListener('click', function () {
+        filter.opening = String(list[+b.getAttribute('data-view')].id);
+        $id('aplFOpening').value = filter.opening;
+        $('#aplOpeningsModal').modal('hide');
+        load();
+      });
+    });
+    Array.prototype.forEach.call(box.querySelectorAll('[data-open]'), function (c) {
+      c.addEventListener('change', function () {   // quick open/close: same save, the rest of the opening unchanged
+        var o = list[+c.getAttribute('data-open')];
+        c.disabled = true;
+        post('save_opening', { id: o.id, title: o.title, location: o.location, description: o.description, open: c.checked ? '1' : '0' }).then(function (res) {
+          if (res.status !== 'ok') { c.checked = !c.checked; c.disabled = false; $id('aplOpeningErr').textContent = res.msg; return; }
+          renderOpenings(res.openings);
+          if (String(o.id) === String(editingId)) { $id('aplOpeningForm').elements.open.checked = c.checked; }
+        });
+      });
     });
   }
 
-  function editOpening(o) {
+  var editingId = 0;
+  function descCount() {
+    var n = $id('aplODesc').value.length;
+    $id('aplODescCount').textContent = n + ' / 2000';
+  }
+
+  function editOpening(o, focus) {
     var f = $id('aplOpeningForm');
     f.reset();
     $id('aplOpeningErr').textContent = '';
-    f.elements.id.value = o ? o.id : 0;
+    editingId = o ? o.id : 0;
+    f.elements.id.value = editingId;
     f.elements.title.value = o ? o.title : '';
     f.elements.location.value = o ? o.location : '';
     f.elements.description.value = o ? o.description : '';
     f.elements.open.checked = o ? o.open : true;
-    $id('aplOpeningFormTitle').textContent = o ? 'Edit opening' : 'Add an opening';
+    f.classList.toggle('is-editing', !!o);
+    $id('aplOpeningFormTitle').textContent = o ? 'Edit “' + o.title + '”' : 'Add an opening';
+    $id('aplOpeningFormSub').textContent = o ? 'Changes show on the Apply page as soon as you save.' : 'Fill this in and it appears on the Apply page right away.';
+    $id('aplOpeningFormIcon').className = 'fa-solid ' + (o ? 'fa-pen' : 'fa-plus');
+    $id('aplOpeningSave').querySelector('span').textContent = o ? 'Save changes' : 'Add opening';
+    $id('aplOpeningCancel').hidden = !o;
+    descCount();
+    Array.prototype.forEach.call($id('aplOpeningsList').querySelectorAll('.apl-op__item'), function (row, i) {
+      row.classList.toggle('is-editing', !!o && String((BOOT.openings[i] || {}).id) === String(editingId));
+    });
+    if (focus) {
+      f.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+      setTimeout(function () { f.elements.title.focus(); }, 250);
+    }
   }
 
   $id('aplOpeningsBtn').addEventListener('click', function () { editOpening(null); $('#aplOpeningsModal').modal('show'); });
-  $id('aplOpeningNew').addEventListener('click', function () { editOpening(null); });
+  $id('aplOpeningNew').addEventListener('click', function () { editOpening(null, true); });
+  $id('aplOpeningCancel').addEventListener('click', function () { editOpening(null); });
+  $id('aplODesc').addEventListener('input', descCount);
   $id('aplOpeningForm').addEventListener('submit', function (ev) {
     ev.preventDefault();
     var d = L.formData(ev.target);
     if (!d.open) { d.open = '0'; }
+    var btn = $id('aplOpeningSave');
+    btn.disabled = true;
     post('save_opening', d).then(function (res) {
+      btn.disabled = false;
       if (res.status !== 'ok') { $id('aplOpeningErr').textContent = res.msg; return; }
+      editingId = 0;
       renderOpenings(res.openings);
       editOpening(null);
+      var row = $id('aplOpeningsList').querySelector('[data-edit="' + res.openings.map(function (o) { return String(o.id); }).indexOf(String(res.id)) + '"]');
+      if (row) {
+        row = row.parentNode;
+        row.classList.add('is-saved');
+        row.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+        setTimeout(function () { row.classList.remove('is-saved'); }, 1600);
+      }
     });
   });
 
