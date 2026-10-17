@@ -84,7 +84,7 @@ if (session_status() === PHP_SESSION_NONE) { session_start(); }
 
     <script type="text/javascript" src="assets/js/script.js"></script>
     <script type="text/javascript" src="assets/js/script-home.js"></script>
-    <script type="text/javascript" src="assets/js/payroll.js"></script>
+    <script type="text/javascript" src="assets/js/payroll.js?v=<?php echo @filemtime('assets/js/payroll.js'); ?>"></script>
 
     <!-- include this script for payroll -->
     <script type="text/javascript">
@@ -212,6 +212,14 @@ if (session_status() === PHP_SESSION_NONE) { session_start(); }
       #reportview{ width:100%; }
       .pr-sign{display:flex;justify-content:space-between;flex-wrap:wrap;gap:24px;padding:18px 20px}
       .pr-sign h5{margin:0 0 4px;font-size:13px}
+      /* who is blocking Generate (payroll.js showPendingFilings) */
+      #result .pp-note{margin-top:8px}
+      #result .pp-group{margin-top:12px}
+      #result .pp-title{font-weight:700;margin-bottom:4px}
+      #result .pp-table{width:100%;border-collapse:collapse;font-size:13px;background:rgba(255,255,255,.55)}
+      #result .pp-table th{font-size:11px;text-transform:uppercase;letter-spacing:.04em;text-align:left;padding:6px 8px;border-bottom:1px solid currentColor}
+      #result .pp-table td{padding:6px 8px;vertical-align:top;border-bottom:1px solid rgba(0,0,0,.08)}
+      #result .pp-table small{display:block;opacity:.75}
     </style>
 
 <style>
