@@ -99,7 +99,7 @@ $(document).ready(function(){
               data:{vl : vl,dtfr : dtfr,dtto : dtto},
 
               success:function(res){
-                  alert(res);
+               if(!/^\s*1000[0-5]\s*$/.test(res)) { alert(res); }
                if(res==10004)   {
                   $("#result").addClass("alert alert-danger offset4 span4");
                   $("#result").html('<button type="button" class="close" aria-label="close">×</button><strong>WARNING!</strong>Re-generating payroll is not allowed. Selected date was already approved and released!');
@@ -110,62 +110,8 @@ $(document).ready(function(){
                   });
                   document.getElementById("btngen").disabled = false;
                 } 
-
-                else if(res==10005)   {
-                  $("#result").addClass("alert alert-danger offset4 span4");
-                  $("#result").html('<button type="button" class="close" aria-label="close">×</button><strong>WARNING!</strong> System detected pending payroll report status. ');
-                  $(".alert").show();
-                  $(".alert").css("opacity", "100%");
-                   $('.alert .close').on("click", function () {
-                      $(this).parent().slideUp(500, 0).slideUp(500);
-                  });
-                  document.getElementById("btngen").disabled = false;
-                }
-
-                  else if(res==10001)   {
-                    $("#result").addClass("alert alert-danger offset4 span4");
-                    $("#result").html('<button type="button" class="close" aria-label="close">×</button><strong>WARNING!</strong> Pending OB application/s for the period specified. Cannot continue with generation of payroll.');
-                    $(".alert").show();
-                    $(".alert").css("opacity", "100%");
-                     $('.alert .close').on("click", function () {
-                        $(this).parent().slideUp(500, 0).slideUp(500);
-                    });
-                    document.getElementById("btngen").disabled = false;
-                  } 
-                  else if(res==10000)   {
-                    $("#result").addClass("alert alert-danger offset4 span4");
-                    $("#result").html('<button type="button" class="close" aria-label="close">×</button><strong>WARNING!</strong> Pending EO application/s for the period specified. Cannot continue with generation of payroll.');
-                    $(".alert").show();
-                    
-                    $(".alert").css("opacity", "100%");
-
-                     $('.alert .close').on("click", function () {
-                        $(this).parent().slideUp(500, 0).slideUp(500);
-                    });
-                    document.getElementById("btngen").disabled = false;
-                  } 
-                  else if(res==10002)   {
-                    $("#result").addClass("alert alert-danger offset4 span4");
-                    $("#result").html('<button type="button" class="close" aria-label="close">×</button><strong>WARNING!</strong> Pending Leave application/s for the period specified. Cannot continue with generation of payroll.');
-                    $(".alert").show();
-                    
-                    $(".alert").css("opacity", "100%");
-
-                     $('.alert .close').on("click", function () {
-                        $(this).parent().slideUp(500, 0).slideUp(500);
-                    });
-                    document.getElementById("btngen").disabled = false;
-                  } 
-                  else if(res==10003)   {
-                    $("#result").addClass("alert alert-danger offset4 span4");
-                    $("#result").html('<button type="button" class="close" aria-label="close">×</button><strong>WARNING!</strong> Pending OT application/s for the period specified. Cannot continue with generation of payroll.');
-                    $(".alert").show();
-                    
-                    $(".alert").css("opacity", "100%");
-
-                     $('.alert .close').on("click", function () {
-                        $(this).parent().slideUp(500, 0).slideUp(500);
-                    });
+                  else if(/^\s*1000[0-35]\s*$/.test(res))   {
+                    showPendingFilings(parseInt(res, 10), vl, dtfr, dtto);
                     document.getElementById("btngen").disabled = false;
                   } 
                   else{                 
@@ -530,3 +476,69 @@ $(document).ready(function(){
 
 
 });
+
+// Generate was refused (10000 EO, 10001 OB, 10002 Leave, 10003 OT, 10005 unapproved
+// payroll). Query-payroll.php only returns the code, so ask payroll-pending.php who
+// is holding it up and list them in the warning.
+function showPendingFilings(code, paydate, dtfr, dtto) {
+  var esc = function (v) {
+    return String(v == null ? '' : v).replace(/[&<>"']/g, function (c) {
+      return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c];
+    });
+  };
+  var headline = {
+    10000: 'Pending EO application/s for the period specified.',
+    10001: 'Pending OB application/s for the period specified.',
+    10002: 'Pending Leave application/s for the period specified.',
+    10003: 'Pending OT application/s for the period specified.',
+    10005: 'System detected pending payroll report status.'
+  }[code];
+  var close = '<button type="button" class="close" aria-label="close">×</button>';
+  var show = function (body) {
+    $("#result").addClass("alert alert-danger offset4 span4");
+    $("#result").html(close + '<strong>WARNING!</strong> ' + esc(headline) +
+      (code == 10005 ? '' : ' Cannot continue with generation of payroll.') + body);
+    $(".alert").show();
+    $(".alert").css("opacity", "100%");
+    $('.alert .close').on("click", function () {
+      $(this).parent().slideUp(500, 0).slideUp(500);
+    });
+  };
+  show('<div class="pp-note">Checking who is pending…</div>');
+
+  $.ajax({
+    url: 'query/payroll-pending.php',
+    type: 'post',
+    dataType: 'json',
+    data: { dtfr: dtfr, dtto: dtto },
+    success: function (r) {
+      if (!r || r.status !== 'ok') { show(''); return; }
+      var html = '';
+      if (code == 10005) {
+        var dates = $.grep(r.unapproved_payroll || [], function (d) { return d != paydate; });
+        if (dates.length) {
+          html += '<div class="pp-note">Approve or remove the payroll generated for <b>' +
+            $.map(dates, esc).join(', ') + '</b> first.</div>';
+        }
+      } else if (r.total > 0) {
+        html += '<div class="pp-note">' + r.total + ' filing' + (r.total == 1 ? '' : 's') +
+          ' in this cut-off still need approval:</div>';
+        $.each(r.groups, function (_, g) {
+          if (!g.items.length) { return; }
+          html += '<div class="pp-group"><div class="pp-title">' + esc(g.label) + ' (' + g.items.length + ')</div>' +
+            '<div class="wd-tablewrap"><table class="pp-table"><thead><tr><th>Employee</th><th>Date</th>' +
+            '<th>Details</th><th>Waiting for</th></tr></thead><tbody>';
+          $.each(g.items, function (_, it) {
+            html += '<tr><td>' + esc(it.name) + '<small>' + esc(it.empid) + '</small></td>' +
+              '<td>' + esc(it.date) + '</td>' +
+              '<td>' + esc(it.detail) + (it.purpose ? '<small>' + esc(it.purpose) + '</small>' : '') + '</td>' +
+              '<td>' + esc(it.waiting) + (it.approver ? '<small>' + esc(it.approver) + '</small>' : '') + '</td></tr>';
+          });
+          html += '</tbody></table></div></div>';
+        });
+      }
+      show(html);
+    },
+    error: function () { show(''); }
+  });
+}
