@@ -55,7 +55,7 @@ final class LoginGuardTest extends AppTestCase
         $this->assertTrue($this->signedIn($this->login('jdelacruz', 'Right-pass-1')));
     }
 
-    public function testFiveWrongPasswordsLockTheUsername(): void
+    public function testTooManyWrongPasswordsLockTheUsername(): void
     {
         for ($i = 0; $i < \WD_LOGIN_USER_MAX; $i++) { $this->assertSame('1', $this->login('jdelacruz', "guess-$i")); }
         $locked = $this->login('jdelacruz', 'Right-pass-1');
@@ -71,7 +71,7 @@ final class LoginGuardTest extends AppTestCase
     public function testTheLockEndsAfterTheWindow(): void
     {
         $old = self::manila(16 * 60);
-        for ($i = 0; $i < 5; $i++) {
+        for ($i = 0; $i < \WD_LOGIN_USER_MAX; $i++) {
             self::db()->prepare("INSERT INTO login_attempts (Username, IP, Success, CreatedAt) VALUES ('jdelacruz', '', 0, ?)")->execute([$old]);
         }
         $this->assertTrue($this->signedIn($this->login('jdelacruz', 'Right-pass-1')), 'failures older than 15 minutes do not count');
@@ -79,7 +79,7 @@ final class LoginGuardTest extends AppTestCase
 
     public function testFailuresBeforeASuccessfulSignInDoNotCount(): void
     {
-        for ($i = 0; $i < 4; $i++) { $this->login('jdelacruz', "guess-$i"); }
+        for ($i = 0; $i < \WD_LOGIN_USER_MAX - 1; $i++) { $this->login('jdelacruz', "guess-$i"); }
         $this->assertTrue($this->signedIn($this->login('jdelacruz', 'Right-pass-1')));
         $this->assertSame('1', $this->login('jdelacruz', 'guess-x'), 'a fresh count after signing in');
     }
