@@ -29,6 +29,30 @@ $(document).ready(function(){
                             });
            });
 
+    // Unlock sign-in after too many wrong passwords (the password stays the same)
+    $(document).on("click", ".btnunlocklogin", function(){
+        var $b = $(this).prop("disabled", true);
+        $.ajax({
+            url:'query/query-unlocklogin.php',
+            data:{data : $b.data("emp")},
+            type:'POST',
+            dataType:'json',
+            success:function(res){
+                var ok = res && res.status === 'ok';
+                if (ok) { $b.remove(); } else { $b.prop("disabled", false); }
+                $('#modalWarning .alert').text(ok ? 'Sign-in unlocked. The employee may sign in again now with their current password.'
+                                                  : ((res && res.msg) || 'The sign-in was not unlocked.'));
+                $('#modalWarning').modal('show');
+            },
+            error:function(xhr){
+                $b.prop("disabled", false);
+                var r = xhr.responseJSON;
+                $('#modalWarning .alert').text((r && r.msg) || 'The sign-in was not unlocked.');
+                $('#modalWarning').modal('show');
+            }
+        });
+    });
+
     // 201 files → shared PDF viewer (delegated: tiles are re-rendered by live search).
     // The PDF only loads on click, and is unloaded on close.
     $(document).on("click", ".e2-file", function(e){

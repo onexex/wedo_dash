@@ -127,20 +127,9 @@ function wd_login_wait(PDO $pdo, string $username, string $ip): int
 function wd_login_lock(PDO $pdo, string $username, string $ip): array
 {
     if (!wd_login_ready($pdo)) { return ['wait' => 0, 'scope' => '']; }
-    $user = strtolower(trim($username));
     $since = date('Y-m-d H:i:s', time() - WD_LOGIN_WINDOW);
-    $wait = 0;
-    $scope = '';
-
-    $st = $pdo->prepare("SELECT CreatedAt FROM login_attempts WHERE Username = :u AND Success = 0 AND CreatedAt > :s
-                         AND CreatedAt > COALESCE((SELECT MAX(CreatedAt) FROM login_attempts WHERE Username = :u2 AND Success = 1), '1970-01-01')
-                         ORDER BY CreatedAt DESC LIMIT " . WD_LOGIN_USER_MAX);
-    $st->execute([':u' => $user, ':u2' => $user, ':s' => $since]);
-    $rows = $st->fetchAll(PDO::FETCH_COLUMN);
-    if (count($rows) >= WD_LOGIN_USER_MAX) {   // locked until the oldest of the last N failures is 15 minutes old
-        $wait = strtotime(end($rows)) + WD_LOGIN_WINDOW - time();
-        $scope = 'user';
-    }
+    $wait = wd_login_user_wait($pdo, $username);
+    $scope = $wait > 0 ? 'user' : '';
 
     $st = $pdo->prepare("SELECT CreatedAt FROM login_attempts WHERE IP = :ip AND Success = 0 AND CreatedAt > :s
                          ORDER BY CreatedAt DESC LIMIT " . WD_LOGIN_IP_MAX);
@@ -153,6 +142,21 @@ function wd_login_lock(PDO $pdo, string $username, string $ip): array
     return $wait > 0 ? ['wait' => $wait, 'scope' => $scope] : ['wait' => 0, 'scope' => ''];
 }
 
+/** Seconds this username stays locked by its own wrong passwords (0 = not locked). */
+function wd_login_user_wait(PDO $pdo, string $username): int
+{
+    if (!wd_login_ready($pdo)) { return 0; }
+    $user = strtolower(trim($username));
+    $st = $pdo->prepare("SELECT CreatedAt FROM login_attempts WHERE Username = :u AND Success = 0 AND CreatedAt > :s
+                         AND CreatedAt > COALESCE((SELECT MAX(CreatedAt) FROM login_attempts WHERE Username = :u2 AND Success = 1), '1970-01-01')
+                         ORDER BY CreatedAt DESC LIMIT " . WD_LOGIN_USER_MAX);
+    $st->execute([':u' => $user, ':u2' => $user, ':s' => date('Y-m-d H:i:s', time() - WD_LOGIN_WINDOW)]);
+    $rows = $st->fetchAll(PDO::FETCH_COLUMN);
+    if (count($rows) < WD_LOGIN_USER_MAX) { return 0; }
+    // locked until the oldest of the last N failures is 15 minutes old
+    return max(0, strtotime(end($rows)) + WD_LOGIN_WINDOW - time());
+}
+
 /**
  * Unknown username: do the same bcrypt work as a real password check, so the
  * answer takes as long as "wrong password" and timing can't reveal accounts.
@@ -161,6 +165,17 @@ function wd_login_lock(PDO $pdo, string $username, string $ip): array
 function wd_login_dummy_verify(string $password): void
 {
     password_verify($password, '$2y$10$epVM34qUXoQ2SBWIA0FYIOVZBQjOk4G.d.yprllXEtBMNQgQ168kG');
+}
+
+/**
+ * HR "Unlock sign-in": wrong passwords only count since the last success, so a
+ * success row (IP 'unlock') ends this username's lock at once. Locks on an
+ * address (a whole office) are not touched.
+ */
+function wd_login_unlock(PDO $pdo, string $username): void
+{
+    if (trim($username) === '') { return; }
+    wd_login_record($pdo, $username, 'unlock', true);
 }
 
 /** Remember one sign-in attempt (the typed username, never the password). */

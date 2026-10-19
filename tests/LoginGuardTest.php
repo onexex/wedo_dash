@@ -84,6 +84,52 @@ final class LoginGuardTest extends AppTestCase
         $this->assertSame('1', $this->login('jdelacruz', 'guess-x'), 'a fresh count after signing in');
     }
 
+    /** Lock a username the way wrong passwords would (without the bcrypt work of real sign-ins). */
+    private function lockOut(string $user): void
+    {
+        $now = self::manila(0);
+        for ($i = 0; $i < \WD_LOGIN_USER_MAX; $i++) {
+            self::db()->prepare("INSERT INTO login_attempts (Username, IP, Success, CreatedAt) VALUES (?, '', 0, ?)")->execute([$user, $now]);
+        }
+    }
+
+    public function testHrCanUnlockALockedSignIn(): void
+    {
+        $this->lockOut('jdelacruz');
+        $this->assertStringStartsWith('429|', $this->login('jdelacruz', 'Right-pass-1'));
+        $this->assertGreaterThan(0, wd_login_user_wait(self::db(), 'jdelacruz'));
+
+        // a regular employee may not unlock anyone
+        $res = $this->request('query/query-unlocklogin.php', [], ['data' => self::EMP], $this->asEmployee());
+        $this->assertSame(403, $res['status']);
+        $this->assertGreaterThan(0, wd_login_user_wait(self::db(), 'jdelacruz'), 'still locked');
+
+        $res = $this->request('query/query-unlocklogin.php', [], ['data' => self::EMP], $this->asAdmin());
+        $this->assertSame(200, $res['status']);
+        $this->assertNoPhpErrors($res['body']);
+        $this->assertSame('ok', json_decode($res['body'], true)['status']);
+        $this->assertSame(0, wd_login_user_wait(self::db(), 'jdelacruz'));
+        $this->assertTrue($this->signedIn($this->login('jdelacruz', 'Right-pass-1')), 'the same password works at once');
+        $this->assertNotNull($this->row("SELECT * FROM dars WHERE EmpID = ? AND EmpActivity = ?", [self::ADMIN, 'Sign-in unlocked for ' . self::EMP]));
+    }
+
+    public function testHrWhoIsNotAnAdminCannotUnlockAnAdmin(): void
+    {
+        $this->lockOut('aadmin');
+        self::db()->exec("UPDATE accessrights SET updte = 2 WHERE EmpID = '" . self::EMP . "'");
+        $hr = ['id' => self::EMP, 'UserType' => 2, 'CompanyName' => 'TestCo', 'CompID' => 'TC'];
+        $this->assertSame(403, $this->request('query/query-unlocklogin.php', [], ['data' => self::ADMIN], $hr)['status']);
+        $this->assertGreaterThan(0, wd_login_user_wait(self::db(), 'aadmin'));
+    }
+
+    public function testResettingThePasswordAlsoUnlocks(): void
+    {
+        $this->lockOut('jdelacruz');
+        $res = $this->request('query/query-resetpassword.php', [], ['data' => self::EMP], $this->asAdmin());
+        $temp = json_decode($res['body'], true)['password'];
+        $this->assertTrue($this->signedIn($this->login('jdelacruz', $temp)), 'the temporary password works at once');
+    }
+
     public function testOneAddressTryingManyAccountsIsBlocked(): void
     {
         $db = self::db();
