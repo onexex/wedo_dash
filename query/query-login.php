@@ -22,7 +22,7 @@ die("ERROR: Could not connect. " . $e->getMessage());
 
 /* --------------------------------------------------------------------------
    Brute-force protection (includes/bot-guard.php):
-     - 5 wrong passwords for a username / 50 failed sign-ins from one address
+     - 15 wrong passwords for a username / 50 failed sign-ins from one address
        in 15 minutes -> "429|<minutes>|<seconds>|<user or ip>" until the window
        passes (the page turns the Sign in button off with a countdown)
      - Cloudflare Turnstile is checked on the server when its keys are set

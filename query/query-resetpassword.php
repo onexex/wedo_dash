@@ -13,6 +13,7 @@
 	if (!isset($_SESSION['UserType']) || $_SESSION['UserType'] == 3) { http_response_code(403); echo json_encode(['status' => 'error', 'msg' => 'Not allowed']); exit; }
 	include 'w_conn.php';
 	require_once __DIR__ . '/../includes/account-gate.php';
+	require_once __DIR__ . '/../includes/bot-guard.php';
 	try{
 		$pdo = new PDO("mysql:host=$servername;dbname=$db", $username,$password);
 		$pdo->setAttribute(PDO::ATTR_ERRMODE, PDO::ERRMODE_EXCEPTION);
@@ -30,12 +31,12 @@
 	}
 
    	$EmpD = (string) ($_REQUEST['data'] ?? '');
-	$t = $pdo->prepare('SELECT EmpRoleID FROM empdetails WHERE EmpID = :id');
+	$t = $pdo->prepare('SELECT EmpRoleID, EmpUN FROM empdetails WHERE EmpID = :id');
 	$t->execute([':id' => $EmpD]);
-	$role = $t->fetchColumn();
-	if ($role === false) { echo json_encode(['status' => 'error', 'msg' => 'Employee not found.']); exit; }
+	$emp = $t->fetch(PDO::FETCH_ASSOC);
+	if ($emp === false) { echo json_encode(['status' => 'error', 'msg' => 'Employee not found.']); exit; }
 	if ($EmpD === $me) { http_response_code(422); echo json_encode(['status' => 'error', 'msg' => 'Use Change password for your own account.']); exit; }
-	if ((string) $role === '1' && !$isAdmin) {
+	if ((string) $emp['EmpRoleID'] === '1' && !$isAdmin) {
 		http_response_code(403); echo json_encode(['status' => 'error', 'msg' => "Only an admin may reset an admin's password."]); exit;
 	}
 
@@ -45,6 +46,7 @@
 	$stmt->execute([':pw' => $epass, ':id' => $EmpD]);
 	wd_set_must_change_password($pdo, $EmpD, true);
 	wd_account_revoke($pdo, $EmpD);   // whoever had the old password is signed out everywhere
+	wd_login_unlock($pdo, (string) $emp['EmpUN']);   // a locked account can use the temporary password at once
 	try {
 		$pdo->prepare("INSERT INTO dars (EmpID, EmpActivity, DarDateTime) VALUES (:id, :act, NOW())")
 			->execute([':id' => $me, ':act' => 'Password reset for ' . $EmpD]);

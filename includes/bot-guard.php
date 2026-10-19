@@ -20,7 +20,7 @@ const WD_CF_RANGES = ['173.245.48.0/20', '103.21.244.0/22', '103.22.200.0/22', '
     '2803:f800::/32', '2405:b500::/32', '2405:8100::/32', '2a06:98c0::/29', '2c0f:f248::/32'];
 
 /* Sign-in throttling: wrong passwords per username, and failed sign-ins per address. */
-const WD_LOGIN_USER_MAX = 5;      // wrong passwords for one username …
+const WD_LOGIN_USER_MAX = 15;     // wrong passwords for one username …
 const WD_LOGIN_IP_MAX   = 50;     // … or failed sign-ins from one address (generous: a whole office shares one address) …
 const WD_LOGIN_WINDOW   = 900;    // … within 15 minutes = locked for the rest of those 15 minutes
 
@@ -105,6 +105,18 @@ function wd_turnstile_check($response, string $ip): string
 
 /* ---------------------------------------------------------------- sign-in throttling */
 
+/* login_attempts times are Manila wall-clock, whatever the calling script's
+   timezone (the sign-in sets Asia/Manila; HR pages and endpoints may not). */
+function wd_login_clock(int $ts): string
+{
+    return (new DateTime('@' . $ts))->setTimezone(new DateTimeZone('Asia/Manila'))->format('Y-m-d H:i:s');
+}
+
+function wd_login_ts(string $at): int
+{
+    return (new DateTime($at, new DateTimeZone('Asia/Manila')))->getTimestamp();
+}
+
 function wd_login_ready(PDO $pdo): bool
 {
     try { $pdo->query("SELECT 1 FROM login_attempts LIMIT 1"); return true; }
@@ -127,30 +139,34 @@ function wd_login_wait(PDO $pdo, string $username, string $ip): int
 function wd_login_lock(PDO $pdo, string $username, string $ip): array
 {
     if (!wd_login_ready($pdo)) { return ['wait' => 0, 'scope' => '']; }
-    $user = strtolower(trim($username));
-    $since = date('Y-m-d H:i:s', time() - WD_LOGIN_WINDOW);
-    $wait = 0;
-    $scope = '';
-
-    $st = $pdo->prepare("SELECT CreatedAt FROM login_attempts WHERE Username = :u AND Success = 0 AND CreatedAt > :s
-                         AND CreatedAt > COALESCE((SELECT MAX(CreatedAt) FROM login_attempts WHERE Username = :u2 AND Success = 1), '1970-01-01')
-                         ORDER BY CreatedAt DESC LIMIT " . WD_LOGIN_USER_MAX);
-    $st->execute([':u' => $user, ':u2' => $user, ':s' => $since]);
-    $rows = $st->fetchAll(PDO::FETCH_COLUMN);
-    if (count($rows) >= WD_LOGIN_USER_MAX) {   // locked until the oldest of the last N failures is 15 minutes old
-        $wait = strtotime(end($rows)) + WD_LOGIN_WINDOW - time();
-        $scope = 'user';
-    }
+    $since = wd_login_clock(time() - WD_LOGIN_WINDOW);
+    $wait = wd_login_user_wait($pdo, $username);
+    $scope = $wait > 0 ? 'user' : '';
 
     $st = $pdo->prepare("SELECT CreatedAt FROM login_attempts WHERE IP = :ip AND Success = 0 AND CreatedAt > :s
                          ORDER BY CreatedAt DESC LIMIT " . WD_LOGIN_IP_MAX);
     $st->execute([':ip' => $ip, ':s' => $since]);
     $rows = $st->fetchAll(PDO::FETCH_COLUMN);
     if (count($rows) >= WD_LOGIN_IP_MAX) {
-        $ipWait = strtotime(end($rows)) + WD_LOGIN_WINDOW - time();
+        $ipWait = wd_login_ts(end($rows)) + WD_LOGIN_WINDOW - time();
         if ($ipWait > $wait) { $wait = $ipWait; $scope = 'ip'; }
     }
     return $wait > 0 ? ['wait' => $wait, 'scope' => $scope] : ['wait' => 0, 'scope' => ''];
+}
+
+/** Seconds this username stays locked by its own wrong passwords (0 = not locked). */
+function wd_login_user_wait(PDO $pdo, string $username): int
+{
+    if (!wd_login_ready($pdo)) { return 0; }
+    $user = strtolower(trim($username));
+    $st = $pdo->prepare("SELECT CreatedAt FROM login_attempts WHERE Username = :u AND Success = 0 AND CreatedAt > :s
+                         AND CreatedAt > COALESCE((SELECT MAX(CreatedAt) FROM login_attempts WHERE Username = :u2 AND Success = 1), '1970-01-01')
+                         ORDER BY CreatedAt DESC LIMIT " . WD_LOGIN_USER_MAX);
+    $st->execute([':u' => $user, ':u2' => $user, ':s' => wd_login_clock(time() - WD_LOGIN_WINDOW)]);
+    $rows = $st->fetchAll(PDO::FETCH_COLUMN);
+    if (count($rows) < WD_LOGIN_USER_MAX) { return 0; }
+    // locked until the oldest of the last N failures is 15 minutes old
+    return max(0, wd_login_ts(end($rows)) + WD_LOGIN_WINDOW - time());
 }
 
 /**
@@ -163,6 +179,17 @@ function wd_login_dummy_verify(string $password): void
     password_verify($password, '$2y$10$epVM34qUXoQ2SBWIA0FYIOVZBQjOk4G.d.yprllXEtBMNQgQ168kG');
 }
 
+/**
+ * HR "Unlock sign-in": wrong passwords only count since the last success, so a
+ * success row (IP 'unlock') ends this username's lock at once. Locks on an
+ * address (a whole office) are not touched.
+ */
+function wd_login_unlock(PDO $pdo, string $username): void
+{
+    if (trim($username) === '') { return; }
+    wd_login_record($pdo, $username, 'unlock', true);
+}
+
 /** Remember one sign-in attempt (the typed username, never the password). */
 function wd_login_record(PDO $pdo, string $username, string $ip, bool $success): void
 {
@@ -170,7 +197,7 @@ function wd_login_record(PDO $pdo, string $username, string $ip, bool $success):
     try {
         $pdo->prepare("INSERT INTO login_attempts (Username, IP, Success, CreatedAt) VALUES (:u, :ip, :s, :t)")
             ->execute([':u' => mb_substr(strtolower(trim($username)), 0, 150), ':ip' => $ip, ':s' => $success ? 1 : 0,
-                       ':t' => date('Y-m-d H:i:s')]);
+                       ':t' => wd_login_clock(time())]);
         if (random_int(1, 100) === 1) {   // now and then: keep only the last day
             $pdo->exec("DELETE FROM login_attempts WHERE CreatedAt < (NOW() - INTERVAL 1 DAY)");
         }

@@ -156,6 +156,14 @@ $address = trim(preg_replace('/\s+/', ' ', implode(' ', [
 $pdo = new PDO("mysql:host=$servername;dbname=$db", $username, $password);
 $pdo->setAttribute(PDO::ATTR_ERRMODE, PDO::ERRMODE_EXCEPTION);
 
+// Sign-in locked by too many wrong passwords? HR (same rule as Reset password) may unlock it.
+$canUnlock = !$isSelf && ($_SESSION['UserType'] == 1 || $canUpdate);
+$loginWait = 0;
+if ($canUnlock) {
+  require_once __DIR__ . '/bot-guard.php';
+  $loginWait = wd_login_user_wait($pdo, (string)$res['EmpUN']);
+}
+
 /* ---- Work schedule ---------------------------------------------------------
  * The live schedule is per weekday in workdays (SchedTime → workschedule,
  * 0 = rest day), grouped into effectivity ranges (EFID → schedeffectivity).
@@ -309,6 +317,12 @@ $hasSched = (bool)$effs;
       <?php if ($_SESSION['UserType'] != 3) { ?>
         <button type="button" class="e2-act e2-act--icon" id="changepasskey" data-toggle="modal" data-target="#e201ResetPass" title="Reset password">
           <i class="fa-solid fa-key"></i>
+        </button>
+      <?php } ?>
+      <?php if ($loginWait > 0) { ?>
+        <button type="button" class="e2-act e2-act--warn btnunlocklogin" data-emp="<?php echo e2h($eid); ?>"
+          title="Too many wrong passwords — locked for about <?php echo (int)ceil($loginWait / 60); ?> more min">
+          <i class="fa-solid fa-lock-open"></i><span>Unlock sign-in</span>
         </button>
       <?php } ?>
     </div>
