@@ -105,6 +105,18 @@ function wd_turnstile_check($response, string $ip): string
 
 /* ---------------------------------------------------------------- sign-in throttling */
 
+/* login_attempts times are Manila wall-clock, whatever the calling script's
+   timezone (the sign-in sets Asia/Manila; HR pages and endpoints may not). */
+function wd_login_clock(int $ts): string
+{
+    return (new DateTime('@' . $ts))->setTimezone(new DateTimeZone('Asia/Manila'))->format('Y-m-d H:i:s');
+}
+
+function wd_login_ts(string $at): int
+{
+    return (new DateTime($at, new DateTimeZone('Asia/Manila')))->getTimestamp();
+}
+
 function wd_login_ready(PDO $pdo): bool
 {
     try { $pdo->query("SELECT 1 FROM login_attempts LIMIT 1"); return true; }
@@ -127,7 +139,7 @@ function wd_login_wait(PDO $pdo, string $username, string $ip): int
 function wd_login_lock(PDO $pdo, string $username, string $ip): array
 {
     if (!wd_login_ready($pdo)) { return ['wait' => 0, 'scope' => '']; }
-    $since = date('Y-m-d H:i:s', time() - WD_LOGIN_WINDOW);
+    $since = wd_login_clock(time() - WD_LOGIN_WINDOW);
     $wait = wd_login_user_wait($pdo, $username);
     $scope = $wait > 0 ? 'user' : '';
 
@@ -136,7 +148,7 @@ function wd_login_lock(PDO $pdo, string $username, string $ip): array
     $st->execute([':ip' => $ip, ':s' => $since]);
     $rows = $st->fetchAll(PDO::FETCH_COLUMN);
     if (count($rows) >= WD_LOGIN_IP_MAX) {
-        $ipWait = strtotime(end($rows)) + WD_LOGIN_WINDOW - time();
+        $ipWait = wd_login_ts(end($rows)) + WD_LOGIN_WINDOW - time();
         if ($ipWait > $wait) { $wait = $ipWait; $scope = 'ip'; }
     }
     return $wait > 0 ? ['wait' => $wait, 'scope' => $scope] : ['wait' => 0, 'scope' => ''];
@@ -150,11 +162,11 @@ function wd_login_user_wait(PDO $pdo, string $username): int
     $st = $pdo->prepare("SELECT CreatedAt FROM login_attempts WHERE Username = :u AND Success = 0 AND CreatedAt > :s
                          AND CreatedAt > COALESCE((SELECT MAX(CreatedAt) FROM login_attempts WHERE Username = :u2 AND Success = 1), '1970-01-01')
                          ORDER BY CreatedAt DESC LIMIT " . WD_LOGIN_USER_MAX);
-    $st->execute([':u' => $user, ':u2' => $user, ':s' => date('Y-m-d H:i:s', time() - WD_LOGIN_WINDOW)]);
+    $st->execute([':u' => $user, ':u2' => $user, ':s' => wd_login_clock(time() - WD_LOGIN_WINDOW)]);
     $rows = $st->fetchAll(PDO::FETCH_COLUMN);
     if (count($rows) < WD_LOGIN_USER_MAX) { return 0; }
     // locked until the oldest of the last N failures is 15 minutes old
-    return max(0, strtotime(end($rows)) + WD_LOGIN_WINDOW - time());
+    return max(0, wd_login_ts(end($rows)) + WD_LOGIN_WINDOW - time());
 }
 
 /**
@@ -185,7 +197,7 @@ function wd_login_record(PDO $pdo, string $username, string $ip, bool $success):
     try {
         $pdo->prepare("INSERT INTO login_attempts (Username, IP, Success, CreatedAt) VALUES (:u, :ip, :s, :t)")
             ->execute([':u' => mb_substr(strtolower(trim($username)), 0, 150), ':ip' => $ip, ':s' => $success ? 1 : 0,
-                       ':t' => date('Y-m-d H:i:s')]);
+                       ':t' => wd_login_clock(time())]);
         if (random_int(1, 100) === 1) {   // now and then: keep only the last day
             $pdo->exec("DELETE FROM login_attempts WHERE CreatedAt < (NOW() - INTERVAL 1 DAY)");
         }
