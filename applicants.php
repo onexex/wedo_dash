@@ -24,6 +24,7 @@ require_once __DIR__ . '/includes/applicants-mail.php';
 try {
     $aplpdo = new PDO("mysql:host=$servername;dbname=$db;charset=utf8mb4", $username, $password);
     $aplpdo->setAttribute(PDO::ATTR_ERRMODE, PDO::ERRMODE_EXCEPTION);
+    apl_db_clock($aplpdo);   // applicant times are Manila time (the server MySQL runs on UTC)
 } catch (PDOException $e) { die("ERROR: Could not connect."); }
 if (!apl_can_manage($aplpdo)) { header('location: 404?'); exit(); }
 
@@ -146,6 +147,16 @@ $v = function ($f) { return @filemtime(__DIR__ . '/' . $f) ?: 0; };
             </div>
           </div>
         </div>
+      </div>
+
+      <!-- exam result picture, full size -->
+      <div class="apl-viewer" id="aplViewer" role="dialog" aria-label="Exam result picture" hidden>
+        <button type="button" class="apl-viewer__btn apl-viewer__close" id="aplViewerClose" aria-label="Close"><i class="fa-solid fa-xmark"></i></button>
+        <button type="button" class="apl-viewer__btn apl-viewer__prev" id="aplViewerPrev" aria-label="Previous"><i class="fa-solid fa-chevron-left"></i></button>
+        <img id="aplViewerImg" alt="">
+        <button type="button" class="apl-viewer__btn apl-viewer__next" id="aplViewerNext" aria-label="Next"><i class="fa-solid fa-chevron-right"></i></button>
+        <div class="apl-viewer__bar"><span id="aplViewerCap"></span>
+          <a class="wd-btn wd-btn--ghost wd-btn--sm" id="aplViewerOpen" target="_blank" rel="noopener"><i class="fa-solid fa-up-right-from-square"></i> Open full size</a></div>
       </div>
 
       <!-- hire: create the employee from the registration -->

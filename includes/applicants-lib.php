@@ -15,20 +15,24 @@
        Independent Contractor, with a generated EmpID, username and one-time
        temporary password; the matching contract can be emailed
        (includes/applicants-contract.php).
-   Resumes and photos: uploads/applicants/ (deny-all .htaccess), served only
-   by query/applicant-resume.php / query/applicant-photo.php. The photo is
-   taken live with the camera (sql/2026-10-15-add-applicant-photo.sql) and
-   becomes the profile picture on hire.
+   Resumes, photos and exam result images: uploads/applicants/ (deny-all
+   .htaccess), served only by query/applicant-resume.php /
+   applicant-photo.php / applicant-file.php. The photo is taken live with the
+   camera (sql/2026-10-15-add-applicant-photo.sql) and becomes the profile
+   picture on hire. Exam results: table applicant_files
+   (sql/2026-10-20-applicants-screening-exam-files.sql).
    Tables: sql/2026-10-14-add-applicants.sql.
    ========================================================================== */
 date_default_timezone_set("Asia/Manila");
 require_once __DIR__ . '/lifecycle-lib.php';
 require_once __DIR__ . '/bot-guard.php';
 
-const APL_STAGES = ['new' => 'New', 'screening' => 'Screening', 'exam' => 'Exam / Assessment', 'interview' => 'Initial interview',
+const APL_STAGES = ['screening' => 'Screening', 'exam' => 'Exam / Assessment', 'interview' => 'Initial interview',
                     'final' => 'Final interview', 'offer' => 'Job offer', 'hired' => 'Hired', 'rejected' => 'Not selected', 'withdrawn' => 'Withdrawn'];
+/** Stages no longer used, still named in older history ("New" was the first stage until 2026-10-20). */
+const APL_OLD_STAGES = ['new' => 'New'];
 const APL_CLOSED       = ['hired', 'rejected', 'withdrawn'];
-const APL_PIPELINE     = ['new', 'screening', 'exam', 'interview', 'final', 'offer'];   // taken in this order, one step at a time
+const APL_PIPELINE     = ['screening', 'exam', 'interview', 'final', 'offer'];   // taken in this order, one step at a time; a new application starts at the first
 const APL_HIRE_STAGE   = 'offer';         // Hire unlocks only once the application reaches Job offer
 const APL_TRAINEE      = 3;               // empstatus.EmpStatID a new hire starts as
 const APL_IC           = 2;               // empstatus.EmpStatID of an Independent Contractor
@@ -38,6 +42,9 @@ const APL_MAX_RESUME   = 5 * 1024 * 1024;
 const APL_RESUME_TYPES = ['pdf', 'doc', 'docx'];
 const APL_MAX_PHOTO    = 3 * 1024 * 1024;
 const APL_PHOTO_PX     = 600;             // the photo is stored as a 600 x 600 JPEG
+const APL_MAX_IMAGE    = 10 * 1024 * 1024; // one exam result image, as uploaded
+const APL_IMAGE_PX     = 2400;            // exam result images are stored at most 2400 px on the long side
+const APL_MAX_EXAM     = 30;              // exam result images per application
 const APL_PER_IP_HOUR  = 3;               // applications from one address per hour
 const APL_PER_HOUR_ALL = 60;              // all applications per hour (a flood from many addresses)
 const APL_MIN_SECONDS  = 20;              // nobody fills the six steps faster than this
@@ -89,6 +96,20 @@ function apl_can_hire(PDO $pdo) { return apl_can_manage($pdo) && lcy_right($pdo,
 function apl_csrf_token() {
     if (empty($_SESSION['apl_csrf'])) { $_SESSION['apl_csrf'] = bin2hex(random_bytes(16)); }
     return $_SESSION['apl_csrf'];
+}
+
+/**
+ * Applicant times are Manila wall-clock. NOW() and the CURRENT_TIMESTAMP
+ * column defaults follow the connection's time zone, and the servers' MySQL
+ * runs on UTC — so every applicant connection is switched to Manila first.
+ */
+function apl_db_clock(PDO $pdo) {
+    $pdo->exec("SET time_zone = '" . (new DateTime('now', new DateTimeZone('Asia/Manila')))->format('P') . "'");
+}
+
+/** A stage's name, including stages only older history uses. */
+function apl_stage_label($s) {
+    return APL_STAGES[$s] ?? APL_OLD_STAGES[$s] ?? (string) $s;
 }
 
 function apl_ready(PDO $pdo) {
@@ -245,6 +266,127 @@ function apl_photo_to_profile($key, $empId, ?string $profiles = null) {
     $profiles = $profiles ?? dirname(__DIR__) . '/assets/images/profiles';
     if (!is_dir($profiles)) { @mkdir($profiles, 0775, true); }
     return @copy($src, $profiles . '/' . $empId . '.jpg');
+}
+
+/* ------------------------------------------------------------------ exam result images */
+
+function apl_has_files(PDO $pdo) {
+    try { $pdo->query("SELECT 1 FROM applicant_files LIMIT 1"); return true; }
+    catch (Throwable $e) { return false; }
+}
+
+/**
+ * Check and store one exam result image ($_FILES entry): JPEG, PNG, WebP or
+ * GIF, 10 MB at most. It is re-drawn as a JPEG (at most 2400 px on the long
+ * side) so nothing but the picture is kept. $uploaded = false only for tests.
+ * @return array{ok:bool, key?:string, w?:int, h?:int, msg?:string}
+ */
+function apl_store_image(array $f, $uploaded = true, ?string $dir = null) {
+    $name = (string) ($f['name'] ?? 'the image');
+    $bad = ['ok' => false, 'msg' => '"' . $name . '" is not a picture we can read — use JPG or PNG.'];
+    $err = (int) ($f['error'] ?? UPLOAD_ERR_NO_FILE);
+    if ($err === UPLOAD_ERR_INI_SIZE || $err === UPLOAD_ERR_FORM_SIZE) { return ['ok' => false, 'msg' => '"' . $name . '" is too large (10 MB at most).']; }
+    if ($err !== UPLOAD_ERR_OK || empty($f['tmp_name']) || ($uploaded && !is_uploaded_file($f['tmp_name']))) { return $bad; }
+    $size = (int) @filesize($f['tmp_name']);
+    if ($size > APL_MAX_IMAGE) { return ['ok' => false, 'msg' => '"' . $name . '" is too large (10 MB at most).']; }
+    $info = @getimagesize($f['tmp_name']);
+    $types = [IMAGETYPE_JPEG, IMAGETYPE_PNG, IMAGETYPE_GIF];
+    if (defined('IMAGETYPE_WEBP')) { $types[] = IMAGETYPE_WEBP; }
+    if ($size <= 0 || !$info || !in_array($info[2], $types, true)) { return $bad; }
+    if ($info[0] < 50 || $info[1] < 50 || $info[0] * $info[1] > 40000000) { return $bad; }   // 40 megapixels: no memory bombs
+    $src = @imagecreatefromstring((string) file_get_contents($f['tmp_name']));
+    if (!$src) { return $bad; }
+    $w = imagesx($src);
+    $h = imagesy($src);
+    $k = min(1, APL_IMAGE_PX / max($w, $h));
+    $nw = max(1, (int) round($w * $k));
+    $nh = max(1, (int) round($h * $k));
+    $out = imagecreatetruecolor($nw, $nh);
+    imagefill($out, 0, 0, imagecolorallocate($out, 255, 255, 255));   // transparent PNGs on white
+    imagecopyresampled($out, $src, 0, 0, 0, 0, $nw, $nh, $w, $h);
+    unset($src);
+    $key  = date('Y/m') . '/' . bin2hex(random_bytes(16)) . '.jpg';
+    $path = apl_dir($dir) . '/' . $key;
+    if (!is_dir(dirname($path))) { @mkdir(dirname($path), 0775, true); }
+    $ok = @imagejpeg($out, $path, 88);
+    unset($out);
+    return $ok ? ['ok' => true, 'key' => $key, 'w' => $nw, 'h' => $nh] : ['ok' => false, 'msg' => '"' . $name . '" could not be saved — please try again.'];
+}
+
+/** An application's exam result images, oldest first. */
+function apl_exam_files(PDO $pdo, $id) {
+    if (!apl_has_files($pdo)) { return []; }
+    $st = $pdo->prepare("SELECT f.id, f.Caption, f.Width, f.Height, f.CreatedAt, b.EmpFN, b.EmpLN
+                         FROM applicant_files f LEFT JOIN employees b ON b.EmpID = f.ByEmpID
+                         WHERE f.ApplicantID = :a AND f.Kind = 'exam' ORDER BY f.CreatedAt, f.id");
+    $st->execute([':a' => (int) $id]);
+    return array_map(function ($f) {
+        return ['id' => (int) $f['id'], 'caption' => (string) $f['Caption'], 'w' => (int) $f['Width'], 'h' => (int) $f['Height'],
+                'at' => $f['CreatedAt'], 'by' => trim(($f['EmpFN'] ?? '') . ' ' . ($f['EmpLN'] ?? ''))];
+    }, $st->fetchAll(PDO::FETCH_ASSOC));
+}
+
+/** Exam results can be added once the application reaches the exam, and kept after it closes. */
+function apl_exam_open($stage) {
+    $i = array_search($stage, APL_PIPELINE, true);
+    return $i === false ? in_array($stage, APL_CLOSED, true) : $i >= array_search('exam', APL_PIPELINE, true);
+}
+
+/**
+ * Add exam result images to an application. $files: $_FILES entries (one per
+ * image). All are checked before any is kept: one bad file adds none.
+ * @return array{ok:bool, msg?:string, added?:int}
+ */
+function apl_add_exam_files(PDO $pdo, $id, array $files, $caption, $actor, $uploaded = true) {
+    if (!apl_has_files($pdo)) { return ['ok' => false, 'msg' => 'Exam results are not set up on this server yet (database update pending).']; }
+    $r = apl_row($pdo, $id);
+    if (!$r) { return ['ok' => false, 'msg' => 'That application no longer exists.']; }
+    if (!apl_exam_open($r['Stage'])) { return ['ok' => false, 'msg' => 'Move the application to "' . APL_STAGES['exam'] . '" first.']; }
+    $files = array_values(array_filter($files, function ($f) { return (int) ($f['error'] ?? UPLOAD_ERR_NO_FILE) !== UPLOAD_ERR_NO_FILE; }));
+    if (!$files) { return ['ok' => false, 'msg' => 'Choose the picture(s) of the exam result.']; }
+    $have = count(apl_exam_files($pdo, $id));
+    if ($have + count($files) > APL_MAX_EXAM) { return ['ok' => false, 'msg' => 'An application keeps at most ' . APL_MAX_EXAM . ' exam images (' . $have . ' already).']; }
+    $stored = [];
+    foreach ($files as $f) {
+        $s = apl_store_image($f, $uploaded);
+        if (!$s['ok']) {
+            foreach ($stored as $k) { @unlink(apl_photo_path($k['key'])); }
+            return ['ok' => false, 'msg' => $s['msg']];
+        }
+        $stored[] = $s;
+    }
+    $caption = lcy_text($caption, 150);
+    $ins = $pdo->prepare("INSERT INTO applicant_files (ApplicantID, Kind, FileKey, Caption, Width, Height, ByEmpID)
+                          VALUES (:a, 'exam', :k, :c, :w, :h, :b)");
+    foreach ($stored as $s) {
+        $ins->execute([':a' => (int) $id, ':k' => $s['key'], ':c' => $caption === '' ? null : $caption, ':w' => $s['w'], ':h' => $s['h'], ':b' => $actor]);
+    }
+    $n = count($stored);
+    apl_event($pdo, $id, $r['Stage'], $r['Stage'], 'Exam result uploaded (' . $n . ' image' . ($n === 1 ? '' : 's') . ')' . ($caption !== '' ? ': ' . $caption : ''), $actor);
+    lcy_audit($pdo, 'Applicant #' . (int) $id . ': ' . $n . ' exam image(s) added');
+    return ['ok' => true, 'added' => $n];
+}
+
+/** Path of one exam result image of an application, or null. */
+function apl_exam_file_path(PDO $pdo, $fileId) {
+    if (!apl_has_files($pdo)) { return null; }
+    $st = $pdo->prepare("SELECT FileKey FROM applicant_files WHERE id = :f");
+    $st->execute([':f' => (int) $fileId]);
+    return apl_photo_path($st->fetchColumn());
+}
+
+function apl_delete_exam_file(PDO $pdo, $id, $fileId, $actor) {
+    if (!apl_has_files($pdo)) { return ['ok' => false, 'msg' => 'That image no longer exists.']; }
+    $st = $pdo->prepare("SELECT f.FileKey, a.Stage FROM applicant_files f JOIN applicants a ON a.id = f.ApplicantID
+                         WHERE f.id = :f AND f.ApplicantID = :a");
+    $st->execute([':f' => (int) $fileId, ':a' => (int) $id]);
+    $f = $st->fetch(PDO::FETCH_ASSOC);
+    if (!$f) { return ['ok' => false, 'msg' => 'That image no longer exists.']; }
+    $pdo->prepare("DELETE FROM applicant_files WHERE id = :f")->execute([':f' => (int) $fileId]);
+    $path = apl_photo_path($f['FileKey']);
+    if ($path) { @unlink($path); }
+    apl_event($pdo, $id, $f['Stage'], $f['Stage'], 'Exam result image removed', $actor);
+    return ['ok' => true];
 }
 
 /* ------------------------------------------------------------------ public registration */
@@ -481,7 +623,7 @@ function apl_submit(PDO $pdo, array $p, ?array $file, $ip, $uploaded = true, ?ar
     }
 
     $row = $v['row'] + ['OpeningID' => $opening ?: null, 'ResumeKey' => $resume['key'], 'ResumeName' => mb_substr($resume['name'], 0, 120),
-                        'IP' => $ip];
+                        'IP' => $ip, 'Stage' => APL_PIPELINE[0]];
     if ($hash && apl_has_resume_hash($pdo)) { $row['ResumeHash'] = $hash; }
     if ($pic) { $row['PhotoKey'] = $pic['key']; }
     $cols = array_keys($row);
@@ -500,7 +642,7 @@ function apl_submit(PDO $pdo, array $p, ?array $file, $ip, $uploaded = true, ?ar
         foreach ($v['fam'] as $f) {
             $ins->execute([':a' => $id, ':n' => $f['Name'], ':r' => $f['Relationship'], ':ad' => $f['Address'], ':c' => $f['Contact'], ':e' => $f['Emergency']]);
         }
-        $pdo->prepare("INSERT INTO applicant_events (ApplicantID, FromStage, ToStage, Notes) VALUES (:a, NULL, 'new', 'Registered online')")
+        $pdo->prepare("INSERT INTO applicant_events (ApplicantID, FromStage, ToStage, Notes) VALUES (:a, NULL, '" . APL_PIPELINE[0] . "', 'Registered online')")
             ->execute([':a' => $id]);
         $pdo->commit();
     } catch (Throwable $e) {
@@ -535,7 +677,7 @@ function apl_out(array $r) {
         'id' => (int) $r['id'], 'name' => apl_name($r), 'first' => $r['FirstName'], 'last' => $r['LastName'],
         'birthDate' => $r['BirthDate'], 'email' => $r['Email'], 'mobile' => $r['Mobile'], 'city' => (string) $r['City'],
         'openingId' => $r['OpeningID'] === null ? null : (int) $r['OpeningID'], 'opening' => (string) ($r['OpeningTitle'] ?? ''),
-        'stage' => $r['Stage'], 'stageLabel' => APL_STAGES[$r['Stage']] ?? $r['Stage'], 'stageAt' => $r['StageAt'],
+        'stage' => $r['Stage'], 'stageLabel' => apl_stage_label($r['Stage']), 'stageAt' => $r['StageAt'],
         'appliedAt' => $r['CreatedAt'], 'empId' => $r['EmpID'], 'hiredAt' => $r['HiredAt'],
         'hasPhoto' => !empty($r['PhotoKey']),
     ];
@@ -630,13 +772,16 @@ function apl_detail(PDO $pdo, $id) {
     $a['resumeName'] = (string) $r['ResumeName'];
     $a['education']  = apl_education($pdo, $a['id']);
     $a['family']     = apl_family($pdo, $a['id']);
+    $a['examFiles']  = apl_exam_files($pdo, $a['id']);
+    $a['examOpen']   = apl_has_files($pdo) && apl_exam_open($a['stage']);
 
     $st = $pdo->prepare("SELECT ev.*, b.EmpFN, b.EmpLN FROM applicant_events ev LEFT JOIN employees b ON b.EmpID = ev.ByEmpID
                          WHERE ev.ApplicantID = :a ORDER BY ev.CreatedAt, ev.id");
     $st->execute([':a' => $a['id']]);
     $a['events'] = [];
     foreach ($st->fetchAll(PDO::FETCH_ASSOC) as $e) {
-        $a['events'][] = ['from' => $e['FromStage'], 'to' => $e['ToStage'], 'toLabel' => APL_STAGES[$e['ToStage']] ?? $e['ToStage'],
+        $a['events'][] = ['from' => $e['FromStage'], 'to' => $e['ToStage'], 'toLabel' => apl_stage_label($e['ToStage']),
+                          'fromLabel' => $e['FromStage'] !== null ? apl_stage_label($e['FromStage']) : '',
                           'notes' => (string) $e['Notes'], 'by' => trim(($e['EmpFN'] ?? '') . ' ' . ($e['EmpLN'] ?? '')) ?: 'Applicant',
                           'at' => $e['CreatedAt']];
     }
@@ -703,7 +848,7 @@ function apl_event(PDO $pdo, $id, $from, $to, $notes, $actor) {
 
 /**
  * The stage a closed (Not selected / Withdrawn) application had reached: it can be
- * reopened there or earlier, never further. 'new' when the history doesn't say.
+ * reopened there or earlier, never further. The first stage when the history doesn't say.
  */
 function apl_reopen_stage(PDO $pdo, $id, $stage) {
     if (!in_array($stage, ['rejected', 'withdrawn'], true)) { return null; }
@@ -711,7 +856,7 @@ function apl_reopen_stage(PDO $pdo, $id, $stage) {
                          ORDER BY CreatedAt DESC, id DESC LIMIT 1");
     $st->execute([':a' => (int) $id, ':s' => $stage]);
     $from = (string) $st->fetchColumn();
-    return in_array($from, APL_PIPELINE, true) ? $from : 'new';
+    return in_array($from, APL_PIPELINE, true) ? $from : APL_PIPELINE[0];
 }
 
 /**
@@ -723,7 +868,7 @@ function apl_reopen_stage(PDO $pdo, $id, $stage) {
 function apl_allowed_stages($stage, $reopen = null) {
     if ($stage === 'hired') { return []; }
     $i = array_search($stage, APL_PIPELINE, true);
-    $upto = $i === false ? array_search($reopen ?: 'new', APL_PIPELINE, true) : min($i + 1, count(APL_PIPELINE) - 1);
+    $upto = $i === false ? array_search($reopen ?: APL_PIPELINE[0], APL_PIPELINE, true) : min($i + 1, count(APL_PIPELINE) - 1);
     return array_merge(array_slice(APL_PIPELINE, 0, $upto + 1), ['rejected', 'withdrawn']);
 }
 
@@ -756,7 +901,7 @@ function apl_set_stage(PDO $pdo, $id, $stage, $notes, $actor) {
 
 /**
  * Delete a closed application (Not selected / Withdrawn) with its resume, photo,
- * education and family rows — personal data is kept no longer than needed.
+ * exam result images, education and family rows — personal data is kept no longer than needed.
  * Hired applications stay: they link to the employee's account.
  */
 function apl_delete(PDO $pdo, $id, $actor) {
@@ -767,6 +912,13 @@ function apl_delete(PDO $pdo, $id, $actor) {
     }
     $pdo->beginTransaction();
     try {
+        $examKeys = [];
+        if (apl_has_files($pdo)) {
+            $st = $pdo->prepare("SELECT FileKey FROM applicant_files WHERE ApplicantID = :a");
+            $st->execute([':a' => (int) $id]);
+            $examKeys = $st->fetchAll(PDO::FETCH_COLUMN);
+            $pdo->prepare("DELETE FROM applicant_files WHERE ApplicantID = :a")->execute([':a' => (int) $id]);
+        }
         foreach (['applicant_education', 'applicant_family', 'applicant_events'] as $t) {
             $pdo->prepare("DELETE FROM $t WHERE ApplicantID = :a")->execute([':a' => (int) $id]);
         }
@@ -776,7 +928,9 @@ function apl_delete(PDO $pdo, $id, $actor) {
         $pdo->rollBack();
         throw $e;
     }
-    foreach ([apl_resume_path($r['ResumeKey']), apl_photo_path($r['PhotoKey'] ?? null)] as $path) {
+    $paths = [apl_resume_path($r['ResumeKey']), apl_photo_path($r['PhotoKey'] ?? null)];
+    foreach ($examKeys as $k) { $paths[] = apl_photo_path($k); }
+    foreach ($paths as $path) {
         if ($path) { @unlink($path); }
     }
     lcy_audit($pdo, 'Applicant #' . (int) $id . ' deleted (' . apl_name($r) . ')');

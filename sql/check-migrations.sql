@@ -85,6 +85,8 @@ FROM (
          IF((SELECT COUNT(*) FROM information_schema.COLUMNS WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'applicants' AND COLUMN_NAME = 'PhotoKey') = 0, 'applicants.PhotoKey', '')
   UNION ALL SELECT '2026-10-20-add-db-backup-access-right',
          IF((SELECT COUNT(*) FROM information_schema.COLUMNS WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'accessrights' AND COLUMN_NAME = 'dbbackup') = 0, 'accessrights.dbbackup', '')
+  UNION ALL SELECT '2026-10-20-applicants-screening-exam-files',
+         IF((SELECT COUNT(*) FROM information_schema.TABLES WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'applicant_files') = 0, 'table applicant_files', '')
   UNION ALL SELECT 'security fix (remember-me hash, see wedo-security-fixes)',
          IF((SELECT COUNT(*) FROM information_schema.COLUMNS WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'empdetails' AND COLUMN_NAME = 'remember_hash') = 0, 'empdetails.remember_hash', '')
 ) AS m;

@@ -4,6 +4,7 @@
    (applicants.php). POST action=..., returns JSON. Every action needs the
    `applicants` access right and the per-session token from apl_csrf_token():
      list, detail, stage, delete, openings, save_opening
+     exam_upload (images[] + caption), exam_delete   (exam result pictures)
      hire_options, contract_preview, hire   (+ "Enroll Employee": hiring creates an account)
      mail_status, mail_test (the "Email setup" check + a test email)
    Emails to the applicant (includes/applicants-mail.php, only when Brevo is
@@ -31,6 +32,7 @@ require_once __DIR__ . '/../includes/applicants-contract.php';
 try {
     $pdo = new PDO("mysql:host=$servername;dbname=$db;charset=utf8mb4", $username, $password);
     $pdo->setAttribute(PDO::ATTR_ERRMODE, PDO::ERRMODE_EXCEPTION);
+    apl_db_clock($pdo);   // applicant times are Manila time (the server MySQL runs on UTC)
 } catch (PDOException $e) {
     apx_out(500, ['status' => 'error', 'msg' => 'Database unavailable.']);
 }
@@ -92,6 +94,25 @@ try {
     case 'delete':
         $fail(apl_delete($pdo, (int) $p('id'), $actor));
         apx_out(200, ['status' => 'ok']);
+
+    case 'exam_upload':   // pictures of the exam result, to review later
+        $id = (int) $p('id');
+        $up = $_FILES['images'] ?? null;
+        $files = [];
+        if (is_array($up) && is_array($up['name'] ?? null)) {   // images[]: one $_FILES entry per picture
+            foreach (array_keys($up['name']) as $i) {
+                $files[] = ['name' => $up['name'][$i], 'tmp_name' => $up['tmp_name'][$i], 'size' => $up['size'][$i], 'error' => $up['error'][$i]];
+            }
+        } elseif (is_array($up)) {
+            $files[] = $up;
+        }
+        $fail(apl_add_exam_files($pdo, $id, $files, $p('caption'), $actor));
+        apx_out(200, ['status' => 'ok', 'applicant' => apl_detail($pdo, $id)]);
+
+    case 'exam_delete':
+        $id = (int) $p('id');
+        $fail(apl_delete_exam_file($pdo, $id, (int) $p('file'), $actor));
+        apx_out(200, ['status' => 'ok', 'applicant' => apl_detail($pdo, $id)]);
 
     case 'openings':
         apx_out(200, ['status' => 'ok', 'openings' => apl_openings($pdo, false)]);

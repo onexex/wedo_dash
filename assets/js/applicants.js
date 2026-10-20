@@ -1,7 +1,7 @@
 /* ==========================================================================
    applicants.js  —  screen logic for applicants.php (Management > Applicants).
    Pipeline list + filters, one application (profile, resume, rehire check,
-   history, stage changes), Hire (creates the employee from the registration
+   history, stage changes, exam result pictures), Hire (creates the employee from the registration
    and shows the temporary password once), delete closed applications, and
    the job openings. Everything goes to query/applicants-action.php; every
    value from applicants is escaped before it reaches the page.
@@ -11,7 +11,7 @@
 
   var L = window.LCY, esc = L.esc, BOOT = L.boot;
   var STAGES = BOOT.stages || {};
-  var TONE = { new: 'info', screening: 'info', exam: 'info', interview: 'info', final: 'info', offer: 'warn', hired: 'ok', rejected: 'danger', withdrawn: 'info' };
+  var TONE = { screening: 'info', exam: 'info', interview: 'info', final: 'info', offer: 'warn', hired: 'ok', rejected: 'danger', withdrawn: 'info' };
   var filter = { stage: '', opening: '', q: '' };
   var current = null;      // the application in the modal
   var hireOpts = null;
@@ -116,7 +116,7 @@
   }
 
   function ago(s) {
-    var d = new Date(String(s || '').replace(' ', 'T'));
+    var d = new Date(String(s || '').replace(' ', 'T') + '+08:00');   // stored as Manila time
     if (isNaN(d)) { return ''; }
     var m = Math.round((Date.now() - d) / 60000);
     if (m < 1) { return 'just now'; }
@@ -214,7 +214,7 @@
     var hint = BOOT.canHire === false && !closed
       ? '<div class="apl-callout is-info"><i class="fa-solid fa-circle-info"></i><div><span>Hiring creates a WeDo account, so it also needs the "Enroll Employee" right.</span></div></div>' : '';
 
-    $id('aplBody').innerHTML = hint + rehireBox(a) + '<div class="apl-cards">'
+    $id('aplBody').innerHTML = hint + rehireBox(a) + examCard(a) + '<div class="apl-cards">'
       + card('fa-user', 'Personal', kv([['Birth date', [L.fmtDate(a.birthDate), age(a.birthDate)].filter(Boolean).join(' · ')], ['Gender', p.Gender],
           ['Civil status', p.CivilStatus], ['Citizenship', p.Citizenship], ['Religion', p.Religion]]))
       + card('fa-address-book', 'Contact & address', kv([['Email', a.email, true], ['Mobile', a.mobile], ['Home phone', p.HomePhone],
@@ -229,7 +229,7 @@
       + '<p class="apl-consent-note"><i class="fa-solid fa-shield-halved"></i> Data Privacy consent given ' + esc(L.fmtDateTime(p.ConsentAt) || '—') + '</p>';
 
     $id('aplHistory').innerHTML = a.events.length ? a.events.slice().reverse().map(function (e) {
-      var what = e.from && e.from !== e.to ? (STAGES[e.from] || e.from) + ' → ' + e.toLabel : (e.from ? 'Note' : e.toLabel);
+      var what = e.from && e.from !== e.to ? (e.fromLabel || STAGES[e.from] || e.from) + ' → ' + e.toLabel : (e.from ? 'Note' : e.toLabel);
       return '<li class="apl-feed__item apl-feed--' + esc(TONE[e.to] || 'info') + '"><div class="apl-feed__what">' + esc(what) + '</div>'
         + (e.notes ? '<div class="apl-feed__note"><div class="apl-feed__text">' + esc(e.notes) + '</div>'
           + '<button type="button" class="apl-feed__more" hidden>Show more</button></div>' : '')
@@ -271,6 +271,143 @@
     }
   }
 
+  /* ------------------------------------------------------------ exam result pictures */
+  function examUrl(f) { return 'query/applicant-file.php?id=' + encodeURIComponent(f.id); }
+
+  function examCard(a) {
+    var files = a.examFiles || [];
+    if (!a.examOpen && !files.length) { return ''; }
+    var grid = files.length ? '<div class="apl-exam__grid">' + files.map(function (f, i) {
+      return '<figure class="apl-exam__item"><button type="button" class="apl-exam__thumb" data-view="' + i + '" title="View">'
+        + '<img src="' + examUrl(f) + '" alt="Exam result ' + (i + 1) + '" loading="lazy"></button>'
+        + '<figcaption>' + (f.caption ? '<b>' + esc(f.caption) + '</b>' : '') + '<span>' + esc(L.fmtDateTime(f.at)) + (f.by ? ' · ' + esc(f.by) : '') + '</span></figcaption>'
+        + (a.examOpen ? '<button type="button" class="apl-exam__del" data-del="' + f.id + '" title="Remove this picture" aria-label="Remove"><i class="fa-solid fa-trash"></i></button>' : '')
+        + '</figure>';
+    }).join('') + '</div>' : '<p class="apl-none">No pictures yet. Add photos or scans of the exam so they can be reviewed later.</p>';
+    var add = a.examOpen ? '<form class="apl-exam__add" id="aplExamForm" autocomplete="off">'
+      + '<input class="wd-input" id="aplExamCaption" maxlength="150" placeholder="Caption (optional), e.g. Typing test — 45 wpm">'
+      + '<label class="wd-btn wd-btn--primary wd-btn--sm apl-exam__pick"><i class="fa-solid fa-camera"></i> Add pictures'
+      + '<input type="file" id="aplExamFiles" accept="image/*" multiple hidden></label>'
+      + '<span class="apl-exam__status" id="aplExamStatus" role="status"></span></form>' : '';
+    return '<section class="apl-card apl-exam"><h5 class="apl-card__title"><i class="fa-solid fa-file-image"></i> Exam results'
+      + (files.length ? ' <span class="apl-exam__count">' + files.length + '</span>' : '') + '</h5>' + grid + add + '</section>';
+  }
+
+  /** a phone photo is several MB: shrink it in the browser (long side 2400 px, JPEG) before sending */
+  function shrink(file) {
+    return new Promise(function (done) {
+      if (!/^image\/(jpeg|png|webp)$/.test(file.type) || !window.URL || !document.createElement('canvas').toBlob) { done(file); return; }
+      var img = new Image(), url = URL.createObjectURL(file);
+      img.onload = function () {
+        URL.revokeObjectURL(url);
+        var k = Math.min(1, 2400 / Math.max(img.naturalWidth, img.naturalHeight));
+        if (k === 1 && file.size < 2 * 1024 * 1024) { done(file); return; }
+        var c = document.createElement('canvas');
+        c.width = Math.round(img.naturalWidth * k);
+        c.height = Math.round(img.naturalHeight * k);
+        var g = c.getContext('2d');
+        g.fillStyle = '#fff';
+        g.fillRect(0, 0, c.width, c.height);
+        g.drawImage(img, 0, 0, c.width, c.height);
+        c.toBlob(function (b) { done(b ? new File([b], file.name.replace(/\.\w+$/, '') + '.jpg', { type: 'image/jpeg' }) : file); }, 'image/jpeg', 0.88);
+      };
+      img.onerror = function () { URL.revokeObjectURL(url); done(file); };
+      img.src = url;
+    });
+  }
+
+  function postImage(file, caption) {
+    var fd = new FormData();
+    fd.append('action', 'exam_upload');
+    fd.append('token', BOOT.token || '');
+    fd.append('id', current.id);
+    fd.append('caption', caption);
+    fd.append('images[]', file, file.name);
+    return fetch('query/applicants-action.php', { method: 'POST', body: fd, credentials: 'same-origin' })
+      .then(function (r) { return r.json().catch(function () { return { status: 'error', msg: 'The picture may be too large for the server.' }; }); })
+      .catch(function () { return { status: 'error', msg: 'Could not reach the server — check your connection.' }; });
+  }
+
+  /* one picture per request, so a batch never runs into the server's upload size limit */
+  function uploadExam(list) {
+    var files = Array.prototype.slice.call(list || []), st = $id('aplExamStatus'), caption = $id('aplExamCaption').value, last = null, n = 0;
+    if (!files.length) { return; }
+    var pick = $id('aplExamFiles');
+    pick.disabled = true;
+    var next = function () {
+      if (n >= files.length) {
+        if (last) { keepFeed(function () { render(last); }); }
+        load();
+        return;
+      }
+      st.className = 'apl-exam__status';
+      st.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> Uploading ' + (n + 1) + ' of ' + files.length + '…';
+      shrink(files[n]).then(function (f) { return postImage(f, caption); }).then(function (res) {
+        if (res.status !== 'ok') {
+          if (last) { keepFeed(function () { render(last); }); }
+          var s2 = $id('aplExamStatus');
+          s2.className = 'apl-exam__status is-bad';
+          s2.textContent = (n ? n + ' added. ' : '') + res.msg;
+          if ($id('aplExamFiles')) { $id('aplExamFiles').disabled = false; }
+          return;
+        }
+        last = res.applicant;
+        n++;
+        next();
+      });
+    };
+    next();
+  }
+
+  /** re-render without losing an expanded Activity feed */
+  function keepFeed(fn) {
+    var on = $id('aplActivity').classList.contains('is-expanded');
+    fn();
+    if (on) { feedExpand(true); } else { clampNotes(); }
+  }
+
+  $id('aplBody').addEventListener('change', function (ev) {
+    if (ev.target.id === 'aplExamFiles') { uploadExam(ev.target.files); }
+  });
+  $id('aplBody').addEventListener('click', function (ev) {
+    var v = ev.target.closest('[data-view]');
+    if (v) { openViewer(+v.getAttribute('data-view')); return; }
+    var d = ev.target.closest('[data-del]');
+    if (!d) { return; }
+    if (!confirm('Remove this exam picture for good?')) { return; }
+    post('exam_delete', { id: current.id, file: d.getAttribute('data-del') }).then(function (res) {
+      if (res.status !== 'ok') { alert(res.msg); return; }
+      keepFeed(function () { render(res.applicant); });
+    });
+  });
+
+  /* full-size viewer: arrows / Esc, open the original in a new tab */
+  var viewAt = 0;
+  function openViewer(i) {
+    var files = (current && current.examFiles) || [];
+    if (!files.length) { return; }
+    viewAt = (i + files.length) % files.length;
+    var f = files[viewAt];
+    $id('aplViewerImg').src = examUrl(f);
+    $id('aplViewerImg').alt = f.caption || 'Exam result ' + (viewAt + 1);
+    $id('aplViewerOpen').href = examUrl(f);
+    $id('aplViewerCap').innerHTML = '<b>' + (viewAt + 1) + ' / ' + files.length + '</b>' + (f.caption ? ' · ' + esc(f.caption) : '')
+      + ' <span>' + esc(L.fmtDateTime(f.at)) + (f.by ? ' · ' + esc(f.by) : '') + '</span>';
+    $id('aplViewerPrev').hidden = $id('aplViewerNext').hidden = files.length < 2;
+    $id('aplViewer').hidden = false;
+  }
+  function closeViewer() { $id('aplViewer').hidden = true; $id('aplViewerImg').removeAttribute('src'); }
+  $id('aplViewerClose').addEventListener('click', closeViewer);
+  $id('aplViewerPrev').addEventListener('click', function () { openViewer(viewAt - 1); });
+  $id('aplViewerNext').addEventListener('click', function () { openViewer(viewAt + 1); });
+  $id('aplViewer').addEventListener('click', function (ev) { if (ev.target === this) { closeViewer(); } });
+  document.addEventListener('keydown', function (ev) {
+    if ($id('aplViewer').hidden) { return; }
+    if (ev.key === 'Escape') { ev.stopPropagation(); ev.preventDefault(); closeViewer(); }   // close the picture, not the profile
+    else if (ev.key === 'ArrowLeft') { openViewer(viewAt - 1); }
+    else if (ev.key === 'ArrowRight') { openViewer(viewAt + 1); }
+  }, true);
+
   /* long notes show 3 lines with "Show more"; Expand shows the whole feed, every note in full */
   function clampNotes() {
     Array.prototype.forEach.call($id('aplHistory').querySelectorAll('.apl-feed__note'), function (n) {
@@ -296,7 +433,7 @@
   }
   $id('aplFeedExpand').addEventListener('click', function () { feedExpand(!$id('aplActivity').classList.contains('is-expanded')); });
   // the modal is hidden while render() runs, so measure the notes again once it is on screen
-  $('#aplModal').on('shown.bs.modal', clampNotes).on('hidden.bs.modal', function () { feedExpand(false); });
+  $('#aplModal').on('shown.bs.modal', clampNotes).on('hidden.bs.modal', function () { feedExpand(false); closeViewer(); });
 
   $id('aplBody').addEventListener('click', function (ev) {
     var b = ev.target.closest('[data-copy]');

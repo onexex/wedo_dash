@@ -317,6 +317,22 @@ CREATE TABLE `applicant_events` (
 /*!40101 SET character_set_client = @saved_cs_client */;
 /*!40101 SET @saved_cs_client     = @@character_set_client */;
 /*!40101 SET character_set_client = utf8 */;
+CREATE TABLE `applicant_files` (
+  `id` int(11) NOT NULL AUTO_INCREMENT,
+  `ApplicantID` int(11) NOT NULL,
+  `Kind` varchar(12) NOT NULL DEFAULT 'exam',
+  `FileKey` varchar(80) NOT NULL,
+  `Caption` varchar(150) DEFAULT NULL,
+  `Width` int(11) NOT NULL DEFAULT 0,
+  `Height` int(11) NOT NULL DEFAULT 0,
+  `ByEmpID` varchar(50) DEFAULT NULL,
+  `CreatedAt` datetime NOT NULL DEFAULT current_timestamp(),
+  PRIMARY KEY (`id`),
+  KEY `ix_apl_files` (`ApplicantID`,`Kind`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
+/*!40101 SET character_set_client = @saved_cs_client */;
+/*!40101 SET @saved_cs_client     = @@character_set_client */;
+/*!40101 SET character_set_client = utf8 */;
 CREATE TABLE `applicant_family` (
   `id` int(11) NOT NULL AUTO_INCREMENT,
   `ApplicantID` int(11) NOT NULL,
@@ -369,7 +385,7 @@ CREATE TABLE `applicants` (
   `ResumeName` varchar(120) DEFAULT NULL,
   `PhotoKey` varchar(80) DEFAULT NULL,
   `ResumeHash` char(40) DEFAULT NULL,
-  `Stage` varchar(12) NOT NULL DEFAULT 'new',
+  `Stage` varchar(12) NOT NULL DEFAULT 'screening',
   `StageAt` datetime NOT NULL DEFAULT current_timestamp(),
   `ConsentAt` datetime NOT NULL,
   `IP` varchar(45) DEFAULT NULL,
