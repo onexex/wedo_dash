@@ -89,16 +89,14 @@
       return bad;
     },
     3: function () {
-      var bad = [], any = false, max = new Date().getFullYear() + 5;
-      ['Primary', 'Secondary', 'Tertiary'].forEach(function (p) {
-        var s = form.elements['edu[' + p + '][school]'], f = form.elements['edu[' + p + '][from]'], t = form.elements['edu[' + p + '][to]'];
-        if (s.value.trim()) { any = true; }
+      var bad = [], max = new Date().getFullYear() + 5;
+      ['Primary', 'Secondary', 'Vocational', 'Tertiary'].forEach(function (p) {   // all optional
+        var f = form.elements['edu[' + p + '][from]'], t = form.elements['edu[' + p + '][to]'];
         [f, t].forEach(function (y) {
           if (y.value.trim() && !(/^\d{4}$/.test(y.value.trim()) && +y.value >= 1940 && +y.value <= max)) { bad.push([y, 'Year as YYYY.']); }
         });
         if (/^\d{4}$/.test(f.value) && /^\d{4}$/.test(t.value) && +t.value < +f.value) { bad.push([t, 'Before the start year.']); }
       });
-      if (!any) { bad.push([form.elements['edu[Tertiary][school]'], 'Enter at least one school you attended.']); }
       ['sss', 'tin', 'philhealth', 'pagibig', 'umid', 'passportNo'].forEach(function (k) {
         var el = form.elements[k];
         if (el.value.trim() && !/^[0-9A-Za-z][0-9A-Za-z\- ]{3,29}$/.test(el.value.trim())) {
@@ -367,7 +365,7 @@
     var job = opening ? opening.closest('.apl-choice').querySelector('b').textContent : 'Any open position';
     var name = [val('firstName'), val('middleName'), val('lastName'), val('suffix')].filter(Boolean).join(' ');
     var bday = val('birthDate') ? new Date(val('birthDate') + 'T00:00:00').toLocaleDateString(undefined, { year: 'numeric', month: 'long', day: 'numeric' }) : '';
-    var schools = ['Tertiary', 'Secondary', 'Primary'].map(function (p) { return val('edu[' + p + '][school]'); }).filter(Boolean);
+    var schools = ['Tertiary', 'Vocational', 'Secondary', 'Primary'].map(function (p) { return val('edu[' + p + '][school]'); }).filter(Boolean);
     var people = [];
     fam.querySelectorAll('.apl-person').forEach(function (r) {
       var n = r.querySelector('[name$="[name]"]').value.trim();

@@ -233,12 +233,12 @@ $steps = ['Position', 'Personal', 'Contact', 'Background', 'Family', 'Review'];
                 <!-- 4 · Background -->
                 <div class="apl-step" data-step="3" hidden>
                     <h3 class="apl-step__title">Education</h3>
-                    <p class="apl-step__sub">At least one school. Leave the rest blank if they don't apply.</p>
+                    <p class="apl-step__sub">Optional — fill in the schools you attended and leave the rest blank.</p>
                     <?php foreach (APL_PROGRAMS as $prog): ?>
                     <div class="apl-school">
-                        <span class="apl-school__lvl"><?php echo $prog === 'Tertiary' ? 'College' : ($prog === 'Secondary' ? 'High school' : 'Elementary'); ?></span>
+                        <span class="apl-school__lvl"><?php echo APL_PROGRAM_LABELS[$prog]; ?></span>
                         <div class="apl-grid apl-grid--school">
-                            <div class="apl-f apl-f--wide"><label>School</label><input class="wd-input" name="edu[<?php echo $prog; ?>][school]" maxlength="100"></div>
+                            <div class="apl-f apl-f--wide"><label><?php echo $prog === 'Vocational' ? 'School / training center and course' : 'School'; ?></label><input class="wd-input" name="edu[<?php echo $prog; ?>][school]" maxlength="100"<?php echo $prog === 'Vocational' ? ' placeholder="e.g. TESDA — Bookkeeping NC III"' : ''; ?>></div>
                             <div class="apl-f"><label>From</label><input class="wd-input" name="edu[<?php echo $prog; ?>][from]" inputmode="numeric" maxlength="4" placeholder="YYYY"></div>
                             <div class="apl-f"><label>To</label><input class="wd-input" name="edu[<?php echo $prog; ?>][to]" inputmode="numeric" maxlength="4" placeholder="YYYY"></div>
                             <div class="apl-f apl-f--wide"><label>School address</label><input class="wd-input" name="edu[<?php echo $prog; ?>][address]" maxlength="100"></div>

@@ -167,7 +167,7 @@ final class ApplicantsTest extends AppTestCase
         $this->assertSame('203.0.113.5', $a['IP']);
         $this->assertNotNull(apl_resume_path($a['ResumeKey']), 'resume stored under a random name');
         $this->assertSame('My Resume.pdf', $a['ResumeName']);
-        $this->assertCount(3, $this->rows("SELECT id FROM applicant_education WHERE ApplicantID = ?", [$r['id']]));
+        $this->assertCount(4, $this->rows("SELECT id FROM applicant_education WHERE ApplicantID = ?", [$r['id']]));
         $this->assertSame('Mother', $this->row("SELECT Relationship FROM applicant_family WHERE ApplicantID = ?", [$r['id']])['Relationship']);
         $this->assertArrayNotHasKey('apl_pub', $_SESSION, 'one registration per form load');
     }
@@ -209,7 +209,6 @@ final class ApplicantsTest extends AppTestCase
             'school years'   => [['edu' => ['Tertiary' => ['from' => '2018', 'to' => '2014']]], 'school years'],
             'relationship'   => [['fam' => [['relationship' => 'Boss']]], 'relationship'],
             'emergency'      => [['fam' => [['emergency' => '']]], 'emergency contact'],
-            'no school'      => [['edu' => ['Secondary' => ['school' => ''], 'Tertiary' => ['school' => '']]], 'school'],
             'markup'         => [['religion' => 'Catholic<img src=x onerror=alert(1)>'], '< and >'],
             'nested markup'  => [['fam' => [['address' => '<script>x</script>']]], '< and >'],
         ];
@@ -643,6 +642,38 @@ final class ApplicantsTest extends AppTestCase
         $this->files[] = dirname(__DIR__) . '/assets/images/profiles/' . $hire['json']['empId'] . '.jpg';
         $this->assertNull($hire['json']['contractMailed'], 'not ticked: not sent');
         $this->assertCount(0, $this->sent());
+    }
+
+    public function testEducationIsOptionalAndTakesVocational(): void
+    {
+        $none = $this->submit(['email' => 'noschool@example.com', 'mobile' => '09180000011',
+                               'edu' => ['Secondary' => ['school' => '', 'from' => '', 'to' => '', 'address' => ''],
+                                         'Tertiary' => ['school' => '', 'from' => '', 'to' => '', 'address' => '']]]);
+        $this->assertTrue($none['ok'], $none['msg'] ?? '');
+
+        $voc = $this->submit(['email' => 'voc@example.com', 'mobile' => '09180000012',
+                              'edu' => ['Vocational' => ['school' => 'TESDA — Bookkeeping NC III', 'from' => '2019', 'to' => '2019', 'address' => 'Pasig']]]);
+        $this->assertTrue($voc['ok'], $voc['msg'] ?? '');
+        $edu = $this->act('detail', ['id' => $voc['id']])['json']['applicant']['education'];
+        $this->assertSame(['Primary', 'Secondary', 'Vocational', 'Tertiary'], array_column($edu, 'Program'));
+        $this->assertSame(['Elementary', 'High school', 'Vocational / technical', 'College'], array_column($edu, 'Label'));
+        $this->assertSame('TESDA — Bookkeeping NC III', $edu[2]['School']);
+        $bad = $this->submit(['email' => 'voc2@example.com', 'mobile' => '09180000013',
+                              'edu' => ['Vocational' => ['school' => 'X', 'from' => '2020', 'to' => '2018']]]);
+        $this->assertStringContainsString('Vocational / technical', $bad['msg']);
+
+        // on hire: the three base rows always, plus Vocational because it was given
+        $this->advance($voc['id'], 'offer');
+        $hire = $this->act('hire', ['id' => $voc['id']] + $this->hireData());
+        $this->assertSame(200, $hire['status'], $hire['body']);
+        $this->files[] = dirname(__DIR__) . '/assets/images/profiles/' . $hire['json']['empId'] . '.jpg';
+        $this->assertSame(['Primary', 'Secondary', 'Vocational', 'Tertiary'],
+            array_column($this->rows("SELECT Program FROM empeducationalbackground WHERE EmpID = ? ORDER BY EB_ID", [$hire['json']['empId']]), 'Program'));
+        self::db()->prepare("UPDATE empdetails SET must_change_pw = 0 WHERE EmpID = ?")->execute([$hire['json']['empId']]);
+        $own = $this->request('e201.php', [], [], ['id' => $hire['json']['empId'], 'UserType' => 3] + $this->asEmployee());
+        $this->assertStringContainsString('Vocational / technical', $own['body'], 'shown on their 201 profile');
+        $this->assertStringContainsString('TESDA — Bookkeeping NC III', $own['body']);
+        $this->assertStringNotContainsString('Vocational / technical', $this->request('e201.php', [], [], $this->asEmployee())['body'], 'hidden when there is none');
     }
 
     public function testOlderHistoryStillNamesTheNewStage(): void
