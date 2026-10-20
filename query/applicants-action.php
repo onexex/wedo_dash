@@ -4,11 +4,12 @@
    (applicants.php). POST action=..., returns JSON. Every action needs the
    `applicants` access right and the per-session token from apl_csrf_token():
      list, detail, stage, delete, openings, save_opening
-     hire_options, hire     (+ "Enroll Employee": hiring creates an account)
+     hire_options, contract_preview, hire   (+ "Enroll Employee": hiring creates an account)
      mail_status, mail_test (the "Email setup" check + a test email)
    Emails to the applicant (includes/applicants-mail.php, only when Brevo is
    set up): stage with email=1 + emailMessage (Job offer / Not selected only),
-   hire with welcome=1 (employee no. + username, never the password).
+   hire with welcome=1 (employee no. + username, never the password) and
+   contract=1 (the Trainee / Independent Contractor contract, filled in).
    ========================================================================== */
 if (session_status() === PHP_SESSION_NONE) { session_start(); }
 date_default_timezone_set("Asia/Manila");
@@ -25,6 +26,7 @@ if ($_SERVER['REQUEST_METHOD'] !== 'POST') { apx_out(405, ['status' => 'error', 
 include 'w_conn.php';
 require_once __DIR__ . '/../includes/applicants-lib.php';
 require_once __DIR__ . '/../includes/applicants-mail.php';
+require_once __DIR__ . '/../includes/applicants-contract.php';
 
 try {
     $pdo = new PDO("mysql:host=$servername;dbname=$db;charset=utf8mb4", $username, $password);
@@ -48,6 +50,12 @@ $mailOut = function (?array $a, ?array $m) {
     if (!$a || !$m || !wd_mail_enabled()) { return ['mailed' => null, 'mailError' => '']; }
     try { $r = apl_mail_send($a, $m); } catch (Throwable $e) { $r = ['ok' => false, 'error' => 'Unexpected error.']; error_log('[wedo applicants] mail: ' . $e->getMessage()); }
     return ['mailed' => $r['ok'], 'mailError' => $r['ok'] ? '' : $r['error']];
+};
+/** The Hire dialog's fields (agency and HMO are not asked). */
+$hireIn = function () use ($p) {
+    $d = [];
+    foreach (['company', 'department', 'position', 'superior', 'classification', 'hired', 'basic', 'allowance', 'hourly', 'idNumber'] as $k) { $d[$k] = $p($k); }
+    return $d;
 };
 $needHire = function () use ($pdo) {
     if (!apl_can_hire($pdo)) { apx_out(403, ['status' => 'error', 'msg' => 'Hiring creates a WeDo account — it needs the "Enroll Employee" right too.']); }
@@ -111,24 +119,44 @@ try {
 
     case 'hire_options':
         $needHire();
-        apx_out(200, ['status' => 'ok', 'options' => apl_hire_options($pdo)]);
+        apx_out(200, ['status' => 'ok', 'options' => apl_hire_options($pdo) + ['contracts' => apl_contract_info()]]);
+
+    case 'contract_preview':   // the contract as it would be emailed, from the Hire dialog's current values
+        $needHire();
+        $r = apl_row($pdo, (int) $p('id'));
+        if (!$r) { apx_out(404, ['status' => 'error', 'msg' => 'That application no longer exists.']); }
+        $chk = apl_hire_values($pdo, $hireIn());
+        $fail($chk);
+        $c = apl_contract_render($r, $chk['v']);
+        $fail($c);
+        apx_out(200, ['status' => 'ok', 'title' => $c['title'], 'draft' => $c['draft'], 'page' => apl_contract_page($c)]);
 
     case 'hire':
         $needHire();
-        $r = apl_hire($pdo, (int) $p('id'), [
-            'company' => $p('company'), 'department' => $p('department'), 'position' => $p('position'), 'superior' => $p('superior'),
-            'agency' => $p('agency'), 'hmo' => $p('hmo'), 'hmoNumber' => $p('hmoNumber'), 'classification' => $p('classification'),
-            'hired' => $p('hired'), 'basic' => $p('basic'), 'allowance' => $p('allowance'), 'hourly' => $p('hourly'),
-            'idNumber' => $p('idNumber'),
-        ], $actor);
+        $id = (int) $p('id');
+        $row = apl_row($pdo, $id);   // before hire: the contract uses the registration as it was
+        $r = apl_hire($pdo, $id, $hireIn(), $actor);
         $fail($r);
+        $a = apl_get($pdo, $id);
         // the welcome email has the employee no. and username — the password only ever goes to HR, below
         $mail = $p('welcome') === '1'
-            ? $mailOut($a = apl_get($pdo, (int) $p('id')), $a ? apl_mail_welcome($a, $r['empId'], $r['username'], wd_site_url() . '/login.php') : null)
+            ? $mailOut($a, $a ? apl_mail_welcome($a, $r['empId'], $r['username'], wd_site_url() . '/login.php') : null)
             : ['mailed' => null, 'mailError' => ''];
+        // the Trainee / Independent Contractor contract, filled in from the dialog
+        $contract = ['contractMailed' => null, 'contractError' => '', 'contractTitle' => ''];
+        if ($p('contract') === '1' && $a && $row) {
+            $c = apl_contract_render($row, $r['values'], $r['empId']);
+            if ($c['ok']) {
+                $m = $mailOut($a, apl_mail_contract($a, $c, $r['values']['hired']));
+                $contract = ['contractMailed' => $m['mailed'], 'contractError' => $m['mailError'], 'contractTitle' => $c['title']];
+                if ($m['mailed']) { apl_event($pdo, $id, 'hired', 'hired', 'Contract emailed (' . $c['title'] . ')', $actor); }
+            } else {
+                $contract = ['contractMailed' => false, 'contractError' => $c['msg'], 'contractTitle' => ''];
+            }
+        }
         // the temporary password is shown once to HR and never stored in plain text
         apx_out(200, ['status' => 'ok', 'empId' => $r['empId'], 'username' => $r['username'], 'password' => $r['password'],
-                      'applicant' => apl_detail($pdo, (int) $p('id'))] + $mail);
+                      'applicant' => apl_detail($pdo, $id)] + $mail + $contract);
     }
 } catch (Throwable $e) {
     error_log('[wedo applicants] ' . $action . ': ' . $e->getMessage());

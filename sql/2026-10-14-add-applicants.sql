@@ -37,7 +37,7 @@ CREATE TABLE IF NOT EXISTS `job_openings` (
 
 -- 3) One row per application = the applicant's 201 profile. Column comments
 --    name the employee column each value is copied to on hire.
---    Stage: new | screening | interview | exam | offer | hired | rejected | withdrawn.
+--    Stage: new | screening | exam | interview (initial) | final (interview) | offer | hired | rejected | withdrawn.
 CREATE TABLE IF NOT EXISTS `applicants` (
   `id`             INT(11)      NOT NULL AUTO_INCREMENT,
   `OpeningID`      INT(11)      NULL,                 -- NULL = "any open position"

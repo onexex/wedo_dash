@@ -11,7 +11,7 @@
 
   var L = window.LCY, esc = L.esc, BOOT = L.boot;
   var STAGES = BOOT.stages || {};
-  var TONE = { new: 'info', screening: 'info', interview: 'info', exam: 'info', offer: 'warn', hired: 'ok', rejected: 'danger', withdrawn: 'info' };
+  var TONE = { new: 'info', screening: 'info', exam: 'info', interview: 'info', final: 'info', offer: 'warn', hired: 'ok', rejected: 'danger', withdrawn: 'info' };
   var filter = { stage: '', opening: '', q: '' };
   var current = null;      // the application in the modal
   var hireOpts = null;
@@ -37,7 +37,7 @@
   /* ------------------------------------------------------------ list */
   function renderChips(counts) {
     var open = 0;
-    ['new', 'screening', 'interview', 'exam', 'offer'].forEach(function (k) { open += counts[k] || 0; });
+    (BOOT.pipeline || []).forEach(function (k) { open += counts[k] || 0; });
     var chips = [['', 'In progress (' + open + ')']].concat(Object.keys(STAGES).map(function (k) { return [k, STAGES[k] + ' (' + (counts[k] || 0) + ')']; }))
       .concat([['all', 'All']]);
     $id('aplChips').innerHTML = chips.map(function (c) {
@@ -77,7 +77,7 @@
   }
 
   /* ------------------------------------------------------------ one application */
-  var PIPE = ['new', 'screening', 'interview', 'exam', 'offer', 'hired'];
+  var PIPE = (BOOT.pipeline || []).concat(['hired']);
 
   function filled(v) { return v !== null && v !== undefined && String(v).trim() !== ''; }
 
@@ -231,9 +231,11 @@
     $id('aplHistory').innerHTML = a.events.length ? a.events.slice().reverse().map(function (e) {
       var what = e.from && e.from !== e.to ? (STAGES[e.from] || e.from) + ' → ' + e.toLabel : (e.from ? 'Note' : e.toLabel);
       return '<li class="apl-feed__item apl-feed--' + esc(TONE[e.to] || 'info') + '"><div class="apl-feed__what">' + esc(what) + '</div>'
-        + (e.notes ? '<div class="apl-feed__note">' + esc(e.notes) + '</div>' : '')
+        + (e.notes ? '<div class="apl-feed__note"><div class="apl-feed__text">' + esc(e.notes) + '</div>'
+          + '<button type="button" class="apl-feed__more" hidden>Show more</button></div>' : '')
         + '<div class="apl-feed__meta" title="' + esc(L.fmtDateTime(e.at)) + '">' + esc(e.by) + ' · ' + esc(ago(e.at)) + '</div></li>';
     }).join('') : '<li class="apl-none">No activity yet.</li>';
+    clampNotes();
 
     // stages go in order: the ones the server would refuse are shown but can't be picked
     var sel = $id('aplStage'), ok = a.allowedStages || [];
@@ -268,6 +270,33 @@
       });
     }
   }
+
+  /* long notes show 3 lines with "Show more"; Expand shows the whole feed, every note in full */
+  function clampNotes() {
+    Array.prototype.forEach.call($id('aplHistory').querySelectorAll('.apl-feed__note'), function (n) {
+      var t = n.querySelector('.apl-feed__text'), b = n.querySelector('.apl-feed__more');
+      n.classList.remove('is-open');
+      b.hidden = t.scrollHeight <= t.clientHeight + 1;
+      b.textContent = 'Show more';
+    });
+  }
+  $id('aplHistory').addEventListener('click', function (ev) {
+    var b = ev.target.closest('.apl-feed__more');
+    if (!b) { return; }
+    var n = b.closest('.apl-feed__note'), on = n.classList.toggle('is-open');
+    b.textContent = on ? 'Show less' : 'Show more';
+  });
+  function feedExpand(on) {
+    var b = $id('aplFeedExpand');
+    $id('aplActivity').classList.toggle('is-expanded', on);
+    b.setAttribute('aria-expanded', on ? 'true' : 'false');
+    b.innerHTML = on ? '<i class="fa-solid fa-down-left-and-up-right-to-center"></i> <span>Collapse</span>'
+                     : '<i class="fa-solid fa-up-right-and-down-left-from-center"></i> <span>Expand</span>';
+    if (!on) { clampNotes(); }
+  }
+  $id('aplFeedExpand').addEventListener('click', function () { feedExpand(!$id('aplActivity').classList.contains('is-expanded')); });
+  // the modal is hidden while render() runs, so measure the notes again once it is on screen
+  $('#aplModal').on('shown.bs.modal', clampNotes).on('hidden.bs.modal', function () { feedExpand(false); });
 
   $id('aplBody').addEventListener('click', function (ev) {
     var b = ev.target.closest('[data-copy]');
@@ -357,14 +386,35 @@
     return !bad.length;
   }
 
-  function hireMode(done) {
-    $id('aplHireForm').classList.toggle('lcy-hidden', done);
+  /** 'form' | 'preview' (the contract) | 'done' (the sign-in details) */
+  function hireMode(mode) {
+    var done = mode === 'done';
+    $id('aplHireForm').classList.toggle('lcy-hidden', mode !== 'form');
+    $id('aplHirePreview').classList.toggle('lcy-hidden', mode !== 'preview');
     $id('aplHireDone').classList.toggle('lcy-hidden', !done);
     $id('aplHireSave').classList.toggle('lcy-hidden', done);
     $id('aplHireFootNote').classList.toggle('lcy-hidden', done);
     var c = $id('aplHireCancel');
     c.textContent = done ? 'Done' : 'Cancel';
     c.className = 'wd-btn ' + (done ? 'wd-btn--primary' : 'wd-btn--ghost');
+  }
+
+  /* the contract that goes with the classification: Trainee -> Training Agreement, IC -> Independent Contractor Agreement */
+  function syncContract() {
+    var info = (hireOpts.contracts || {})[$id('aplHClass').value] || null;
+    $id('aplHContractTitle').textContent = info ? info.title : 'No contract for this classification';
+    $id('aplHContractDraft').classList.toggle('lcy-hidden', !(info && info.draft));
+    $id('aplHContractPreview').disabled = !info;
+    $id('aplHireContractRow').classList.toggle('lcy-hidden', !BOOT.canMail || !info);
+    // sample wording is never emailed by accident: HR ticks it on purpose
+    $id('aplHireContract').checked = !!(BOOT.canMail && info && !info.draft);
+  }
+
+  function hireData() {
+    var d = L.formData($id('aplHireForm'));
+    d.id = current.id;
+    ['basic', 'allowance', 'hourly'].forEach(function (k) { d[k] = String(d[k] || '').replace(/,/g, '').trim(); });
+    return d;
   }
 
   function openHire() {
@@ -375,7 +425,7 @@
       $id('aplHireErr').textContent = '';
       $id('aplHireWelcomeRow').classList.toggle('lcy-hidden', !BOOT.canMail);
       $id('aplHireWelcome').checked = !!BOOT.canMail;
-      hireMode(false);
+      hireMode('form');
       $id('aplHireAv').innerHTML = face(current);
       $id('aplHireAv').classList.toggle('has-photo', !!current.hasPhoto);
       $id('aplHireTitle').textContent = current.name;
@@ -384,8 +434,7 @@
       var o = hireOpts;
       options($id('aplHCompany'), o.companies, o.companies.length > 1 ? '—' : null, o.companies.length === 1 ? o.companies[0].id : '');
       options($id('aplHClass'), o.classes, null, o.trainee);
-      options($id('aplHAgency'), o.agencies, '—', '');
-      options($id('aplHHmo'), o.hmos, '—', '');
+      syncContract();
       $id('aplHDate').value = o.today;
       $id('aplHSup').innerHTML = '';
       fillDepts();
@@ -412,20 +461,35 @@
       + '<i class="fa-regular fa-copy"></i> Copy both</button>'
       + (res.mailed === true ? '<p class="apl-mailres is-ok"><i class="fa-regular fa-envelope"></i> Welcome email sent to ' + esc(current.email) + ' (without the password).</p>'
         : res.mailed === false ? '<p class="apl-mailres is-bad"><i class="fa-solid fa-envelope-circle-check"></i> The welcome email could not be sent: ' + esc(res.mailError || 'unknown error') + '</p>' : '')
+      + (res.contractMailed === true ? '<p class="apl-mailres is-ok"><i class="fa-solid fa-file-signature"></i> ' + esc(res.contractTitle) + ' emailed to ' + esc(current.email) + '.</p>'
+        : res.contractMailed === false ? '<p class="apl-mailres is-bad"><i class="fa-solid fa-file-signature"></i> The contract could not be emailed: ' + esc(res.contractError || 'unknown error') + '</p>' : '')
       + '<p class="apl-hire__warn"><i class="fa-solid fa-triangle-exclamation"></i> Give these to the new hire privately. The password is shown <b>only now</b> — it is not stored anywhere in readable form, and they must set their own at first sign-in.</p>';
-    hireMode(true);
+    hireMode('done');
   }
 
   $id('aplHCompany').addEventListener('change', fillDepts);
+  $id('aplHClass').addEventListener('change', syncContract);
+  $id('aplHContractPreview').addEventListener('click', function () {
+    if (!hireCheck()) { $id('aplHireErr').textContent = 'Fill in the highlighted fields first — the contract uses them.'; return; }
+    var btn = this;
+    btn.disabled = true;
+    post('contract_preview', hireData()).then(function (res) {
+      btn.disabled = false;
+      if (res.status !== 'ok') { $id('aplHireErr').textContent = res.msg; return; }
+      $id('aplHirePreviewTitle').textContent = res.title + (res.draft ? ' (sample wording)' : '');
+      $id('aplHirePreviewFrame').srcdoc = res.page;   // sandboxed: no scripts, no access to this page
+      hireMode('preview');
+    });
+  });
+  $id('aplHirePreviewBack').addEventListener('click', function () { hireMode('form'); });
   $id('aplHDept').addEventListener('change', fillPositions);
   $id('aplHireForm').addEventListener('input', function (ev) { hireClear(ev.target); $id('aplHireErr').textContent = ''; });
   $id('aplHireForm').addEventListener('change', function (ev) { hireClear(ev.target); });
   $id('aplHireSave').addEventListener('click', function () {
     if (!hireCheck()) { $id('aplHireErr').textContent = 'Please fill in the highlighted fields.'; return; }
-    var btn = this, d = L.formData($id('aplHireForm'));
-    d.id = current.id;
+    var btn = this, d = hireData();
     d.welcome = BOOT.canMail && $id('aplHireWelcome').checked ? '1' : '';
-    ['basic', 'allowance', 'hourly'].forEach(function (k) { d[k] = String(d[k] || '').replace(/,/g, '').trim(); });
+    d.contract = !$id('aplHireContractRow').classList.contains('lcy-hidden') && $id('aplHireContract').checked ? '1' : '';
     btn.disabled = true;
     btn.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> Creating…';
     post('hire', d).then(function (res) {

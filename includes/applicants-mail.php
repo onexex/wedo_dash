@@ -5,6 +5,7 @@
      offer         HR moves the application to Job offer and ticks "Email"
      not_selected  HR moves it to Not selected and ticks "Email"
      welcome       on Hire, when HR ticks it — never contains the password
+     contract      on Hire, when HR ticks it (includes/applicants-contract.php)
    $a is an application as apl_get()/apl_detail() return it. Every value is
    escaped; HR's personal message keeps its line breaks.
    ========================================================================== */
@@ -91,7 +92,7 @@ function apl_mail_welcome(array $a, $empId, $username, $signInUrl) {
 
 /** Send one of the emails above to the applicant. @return array{ok:bool, error:string} */
 function apl_mail_send(array $a, array $m) {
-    return wd_mail_send((string) $a['email'], (string) $a['name'], $m['subject'], $m['html'], $m['text']);
+    return wd_mail_send((string) $a['email'], (string) $a['name'], $m['subject'], $m['html'], $m['text'], $m['attachments'] ?? []);
 }
 
 /** After a public registration: the "we received your application" email. True when it was sent. */

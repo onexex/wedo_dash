@@ -26,6 +26,7 @@ final class ApplicantsTest extends AppTestCase
         parent::setUpBeforeClass();
         require_once dirname(__DIR__) . '/includes/applicants-lib.php';
         require_once dirname(__DIR__) . '/includes/applicants-mail.php';
+        require_once dirname(__DIR__) . '/includes/applicants-contract.php';
     }
 
     protected function setUp(): void
@@ -33,6 +34,7 @@ final class ApplicantsTest extends AppTestCase
         parent::setUp();
         $db = self::db();
         $db->exec("INSERT IGNORE INTO empstatus (EmpStatID, EmpCODE, EmpStatDesc) VALUES (3, 'TR', 'Trainee')");
+        $db->exec("UPDATE empstatus SET EmpCODE = 'IC', EmpStatDesc = 'Independent Contractor' WHERE EmpStatID = 2");   // as on the servers
         $db->exec("INSERT IGNORE INTO estatus (ID, StatusEmpDesc) VALUES (4, 'Terminated'), (5, 'AWOL')");
         // the HR user reviews applicants and may enroll employees
         $db->exec("UPDATE accessrights SET applicants = 2, eemployee = 2, separation = 2 WHERE EmpID = '" . self::ADMIN . "'");
@@ -141,8 +143,8 @@ final class ApplicantsTest extends AppTestCase
 
     private function hireData(array $over = []): array
     {
-        return $over + ['company' => 'TC', 'department' => '1', 'position' => '10', 'superior' => self::ADMIN, 'agency' => '1',
-                        'hmo' => '1', 'hmoNumber' => 'HMO-9', 'classification' => '3', 'hired' => '2026-10-20',
+        return $over + ['company' => 'TC', 'department' => '1', 'position' => '10', 'superior' => self::ADMIN,
+                        'classification' => '3', 'hired' => '2026-10-20',
                         'basic' => '18000', 'allowance' => '1500', 'hourly' => '103.45', 'idNumber' => ''];
     }
 
@@ -371,7 +373,7 @@ final class ApplicantsTest extends AppTestCase
         $this->assertTrue($d['matches'][0]['strong']);
         $this->assertSame('Mother', $d['family'][0]['Relationship']);
 
-        $this->advance($id, 'screening');
+        $this->advance($id, 'exam');
         $this->assertSame(200, $this->act('stage', ['id' => $id, 'stage' => 'interview', 'notes' => 'Initial call OK'])['status']);
         $this->assertSame(422, $this->act('stage', ['id' => $id, 'stage' => 'hired'])['status'], 'hired only through Hire');
         $this->assertSame('interview', $this->row("SELECT Stage FROM applicants WHERE id = ?", [$id])['Stage']);
@@ -381,24 +383,29 @@ final class ApplicantsTest extends AppTestCase
     public function testStagesGoInOrder(): void
     {
         $id = $this->submit()['id'];
-        $skip = $this->act('stage', ['id' => $id, 'stage' => 'interview', 'notes' => '']);
+        $this->assertSame(['new', 'screening', 'exam', 'interview', 'final', 'offer'], APL_PIPELINE, 'Screening, Exam, Initial + Final interview, Job offer');
+        $skip = $this->act('stage', ['id' => $id, 'stage' => 'exam', 'notes' => '']);
         $this->assertSame(422, $skip['status'], 'no skipping Screening');
         $this->assertStringContainsString('Screening', $skip['json']['msg']);
         $this->assertSame(422, $this->act('stage', ['id' => $id, 'stage' => 'offer', 'notes' => ''])['status'], 'no jumping to the offer');
         $this->assertSame(['new', 'screening', 'rejected', 'withdrawn'], $this->act('detail', ['id' => $id])['json']['applicant']['allowedStages']);
 
-        $this->advance($id, 'exam');
-        $this->assertSame(200, $this->act('stage', ['id' => $id, 'stage' => 'screening', 'notes' => 'Wrong stage'])['status'], 'back is fine');
+        $this->advance($id, 'screening');
+        $exam = $this->act('stage', ['id' => $id, 'stage' => 'interview', 'notes' => '']);
+        $this->assertSame(422, $exam['status'], 'the exam comes before the initial interview');
+        $this->assertStringContainsString('Exam', $exam['json']['msg']);
         $this->advance($id, 'interview');
+        $this->assertSame(200, $this->act('stage', ['id' => $id, 'stage' => 'screening', 'notes' => 'Wrong stage'])['status'], 'back is fine');
+        $this->advance($id, 'final');
         $this->assertSame(200, $this->act('stage', ['id' => $id, 'stage' => 'rejected', 'notes' => 'Not a fit'])['status'], 'not selected at any point');
 
-        // reopened where it was (Interview) or earlier, not further
-        $this->assertSame(['new', 'screening', 'interview', 'rejected', 'withdrawn'], $this->act('detail', ['id' => $id])['json']['applicant']['allowedStages']);
-        $far = $this->act('stage', ['id' => $id, 'stage' => 'exam', 'notes' => '']);
+        // reopened where it was (Final interview) or earlier, not further
+        $this->assertSame(['new', 'screening', 'exam', 'interview', 'final', 'rejected', 'withdrawn'], $this->act('detail', ['id' => $id])['json']['applicant']['allowedStages']);
+        $far = $this->act('stage', ['id' => $id, 'stage' => 'offer', 'notes' => '']);
         $this->assertSame(422, $far['status']);
-        $this->assertStringContainsString('Interview', $far['json']['msg']);
-        $this->assertSame(200, $this->act('stage', ['id' => $id, 'stage' => 'interview', 'notes' => 'Second look'])['status']);
-        $this->assertSame('interview', $this->row("SELECT Stage FROM applicants WHERE id = ?", [$id])['Stage']);
+        $this->assertStringContainsString('Final interview', $far['json']['msg']);
+        $this->assertSame(200, $this->act('stage', ['id' => $id, 'stage' => 'final', 'notes' => 'Second look'])['status']);
+        $this->assertSame('final', $this->row("SELECT Stage FROM applicants WHERE id = ?", [$id])['Stage']);
     }
 
     public function testTheApplicantIsEmailedAtTheRightMoments(): void
@@ -416,7 +423,7 @@ final class ApplicantsTest extends AppTestCase
         $this->assertNull($res['json']['mailed']);
         $this->assertCount(1, $this->sent());
 
-        $this->advance($id, 'exam');
+        $this->advance($id, 'final');
         $res = $this->act('stage', ['id' => $id, 'stage' => 'offer', 'notes' => 'Offer approved by the manager',
                                     'email' => '1', 'emailMessage' => "Start Monday 8 AM\nBring 2 IDs <b>"]);
         $this->assertTrue($res['json']['mailed'], $res['body']);
@@ -510,11 +517,12 @@ final class ApplicantsTest extends AppTestCase
         $this->assertSame(['3', '3', self::ADMIN, '1', 'TC', '2026-10-20'],
             [(string) $d['EmpStatID'], (string) $d['EmpRoleID'], $d['EmpISID'], (string) $d['EmpdepID'], $d['EmpCompID'], $d['EmpDateHired']]);
         $this->assertSame('MSantos', $d['EmpUN']);
+        $this->assertSame(['', ''], [$d['AgencyID'], $d['HMO_ID']], 'agency and HMO are not asked on hire');
         $this->assertTrue(password_verify($res['json']['password'], $d['EmpPW']), 'temporary password works');
         $this->assertSame('1', (string) $d['must_change_pw'], 'must set their own password at first sign-in');
         $this->assertStringNotContainsString($res['json']['password'], json_encode($this->rows("SELECT * FROM dars")), 'never logged');
         $p = $this->row("SELECT * FROM empprofiles WHERE EmpID = ?", [$empId]);
-        $this->assertSame(['12 Mabini St', 'San Roque', 'Pasig', '09171234567', '1998-03-14', 'Single', 'maria@example.com', '34-5678901-2', 'Acme Call Center', 'HMO-9'],
+        $this->assertSame(['12 Mabini St', 'San Roque', 'Pasig', '09171234567', '1998-03-14', 'Single', 'maria@example.com', '34-5678901-2', 'Acme Call Center', ''],
             [$p['EmpAddress1'], $p['EmpAddDis'], $p['EmpAddCity'], $p['EmpPhone'], $p['EmpDOB'], $p['EmpCS'], $p['EmpEmail'], $p['EmpSSS'], $p['EmpPP'], $p['EmpHMONumber']]);
         $this->assertSame(['Primary', 'Secondary', 'Tertiary'], array_column($this->rows("SELECT Program FROM empeducationalbackground WHERE EmpID = ? ORDER BY EB_ID", [$empId]), 'Program'));
         $f = $this->row("SELECT * FROM fdetails WHERE FDetID = ?", [$empId]);
@@ -541,18 +549,96 @@ final class ApplicantsTest extends AppTestCase
         $early = $this->act('hire', ['id' => $id] + $this->hireData());
         $this->assertSame(422, $early['status'], 'no hiring before the job offer');
         $this->assertStringContainsString('Job offer', $early['json']['msg']);
-        $this->advance($id, 'interview');
+        $this->advance($id, 'final');
         $this->assertSame(422, $this->act('hire', ['id' => $id] + $this->hireData())['status'], 'still not at the job offer');
         $this->advance($id, 'offer');
 
         $this->assertSame(422, $this->act('hire', ['id' => $id] + $this->hireData(['position' => '11']))['status'], 'position of another department');
         $this->assertSame(422, $this->act('hire', ['id' => $id] + $this->hireData(['basic' => 'lots']))['status']);
         $this->assertSame(422, $this->act('hire', ['id' => $id] + $this->hireData(['superior' => self::EMP]))['status'], 'a rank-and-file superior');
+        $reg = $this->act('hire', ['id' => $id] + $this->hireData(['classification' => '1']));
+        $this->assertSame(422, $reg['status'], 'only Trainee or Independent Contractor');
+        $this->assertStringContainsString('Independent Contractor', $reg['json']['msg']);
         $this->assertCount(2, $this->rows("SELECT EmpID FROM employees"), 'nothing created');
 
         self::db()->exec("UPDATE accessrights SET eemployee = 1 WHERE EmpID = '" . self::ADMIN . "'");
         $this->assertSame(403, $this->act('hire', ['id' => $id] + $this->hireData())['status']);
         $this->assertSame('offer', $this->row("SELECT Stage FROM applicants WHERE id = ?", [$id])['Stage']);
+    }
+
+    public function testHireOffersOnlyTraineeOrIndependentContractor(): void
+    {
+        $o = $this->act('hire_options', [])['json']['options'];
+        $this->assertSame([['id' => 3, 'name' => 'Trainee'], ['id' => 2, 'name' => 'Independent Contractor']],
+            array_map(fn ($c) => ['id' => (int) $c['id'], 'name' => $c['name']], $o['classes']), 'Trainee first (the default)');
+        $this->assertArrayNotHasKey('agencies', $o);
+        $this->assertArrayNotHasKey('hmos', $o);
+        $this->assertSame(['trainee', 'independent-contractor'], [$o['contracts'][3]['kind'], $o['contracts'][2]['kind']]);
+        $page = $this->request('applicants.php', [], [], $this->asAdmin())['body'];
+        $this->assertStringNotContainsString('aplHAgency', $page);
+        $this->assertStringNotContainsString('aplHHmo', $page);
+        $this->assertStringContainsString('"pipeline":["new","screening","exam","interview","final","offer"]', $page);
+    }
+
+    public function testTheContractIsFilledInAndEmailedOnHire(): void
+    {
+        $this->mailOn();
+        $id = $this->submit()['id'];
+        $this->advance($id, 'offer');
+
+        // the preview: the Independent Contractor agreement with the dialog's values, nothing saved
+        $pre = $this->act('contract_preview', ['id' => $id] + $this->hireData(['classification' => '2']));
+        $this->assertSame(200, $pre['status'], $pre['body']);
+        $this->assertSame('Independent Contractor Agreement', $pre['json']['title']);
+        foreach (['Maria Lopez Santos', '12 Mabini St, San Roque, Pasig', 'October 20, 2026', '₱18,000.00', '₱1,500.00', '₱103.45', '(given on hire)'] as $want) {
+            $this->assertStringContainsString($want, $pre['json']['page'], $want);
+        }
+        $this->assertStringNotContainsString('{{', $pre['json']['page'], 'every placeholder filled in');
+        $this->assertStringNotContainsString('<!--', $pre['json']['page'], 'the template notes stay out');
+        $this->assertSame('offer', $this->row("SELECT Stage FROM applicants WHERE id = ?", [$id])['Stage'], 'a preview hires nobody');
+        $this->assertSame(422, $this->act('contract_preview', ['id' => $id] + $this->hireData(['basic' => '']))['status'], 'needs the pay');
+        $this->assertCount(0, $this->sent());
+
+        $hire = $this->act('hire', ['id' => $id, 'contract' => '1'] + $this->hireData(['classification' => '2']));
+        $this->assertSame(200, $hire['status'], $hire['body']);
+        $this->files[] = dirname(__DIR__) . '/assets/images/profiles/' . $hire['json']['empId'] . '.jpg';
+        $this->assertTrue($hire['json']['contractMailed']);
+        $this->assertNull($hire['json']['mailed'], 'no welcome email unless ticked');
+        $this->assertSame('2', (string) $this->row("SELECT EmpStatID FROM empdetails WHERE EmpID = ?", [$hire['json']['empId']])['EmpStatID']);
+        $got = $this->sent();
+        $this->assertCount(1, $got);
+        $this->assertSame('maria@example.com', $got[0]['to'][0]['email']);
+        $this->assertStringContainsString('Independent Contractor Agreement', $got[0]['subject']);
+        $this->assertStringContainsString($hire['json']['empId'], $got[0]['htmlContent'], 'the new employee no. is on it');
+        $this->assertStringNotContainsString($hire['json']['password'], json_encode($got[0]), 'never the password');
+        $this->assertSame('Independent-Contractor-Agreement-Maria-Lopez-Santos.html', $got[0]['attachment'][0]['name']);
+        $this->assertStringContainsString('<!doctype html>', base64_decode($got[0]['attachment'][0]['content']), 'a printable copy');
+        $notes = implode(' | ', array_column($hire['json']['applicant']['events'], 'notes'));
+        $this->assertStringContainsString('Contract emailed (Independent Contractor Agreement)', $notes, 'shows in Activity');
+    }
+
+    public function testTraineeGetsTheTrainingAgreementOnlyWhenTicked(): void
+    {
+        $this->mailOn();
+        $c = apl_contract_render(['FirstName' => 'Ana', 'MiddleName' => '', 'LastName' => 'Cruz <b>', 'Suffix' => '', 'Street' => '1 A St',
+                                  'Barangay' => '', 'City' => 'Pasig', 'Province' => '', 'Zip' => '', 'Country' => 'Philippines'],
+            ['company' => 'Test & Co', 'department' => 'Ops', 'position' => 'Bookkeeper', 'superiorName' => '', 'className' => 'Trainee',
+             'contract' => 'trainee', 'hired' => '2026-11-03', 'money' => ['basic' => '15000', 'allowance' => '0', 'hourly' => '86.21']], 'TC-0009');
+        $this->assertTrue($c['ok']);
+        $this->assertSame('Training Agreement', $c['title']);
+        $this->assertStringContainsString('Cruz &lt;b&gt;', $c['html'], 'values are escaped');
+        $this->assertStringContainsString('Test &amp; Co', $c['html']);
+        $this->assertStringContainsString('November 3, 2026', $c['html']);
+        $this->assertStringContainsString('the department head', $c['html'], 'no superior chosen');
+        $this->assertFalse(apl_contract_render([], ['contract' => 'regular'])['ok'], 'no contract for other classifications');
+
+        $id = $this->submit()['id'];
+        $this->advance($id, 'offer');
+        $hire = $this->act('hire', ['id' => $id] + $this->hireData());
+        $this->assertSame(200, $hire['status'], $hire['body']);
+        $this->files[] = dirname(__DIR__) . '/assets/images/profiles/' . $hire['json']['empId'] . '.jpg';
+        $this->assertNull($hire['json']['contractMailed'], 'not ticked: not sent');
+        $this->assertCount(0, $this->sent());
     }
 
     public function testNextEmployeeNumberNeverReusesOne(): void

@@ -4,9 +4,11 @@
    Registrations from the public Apply page (apply.php): filter by position
    and stage, open one to see the full profile, resume, the rehire check
    against former employees and the stage history, move it along (Screening
-   -> Interview -> Exam -> Job offer), then "Hire": a short dialog (company,
-   department, position, superior, pay) and WeDo creates the employee from
-   the registration, as Trainee — the temporary password is shown once.
+   -> Exam -> Initial interview -> Final interview -> Job offer), then
+   "Hire": a short dialog (company, department, position, superior, Trainee
+   or Independent Contractor, pay) and WeDo creates the employee from the
+   registration and can email the matching contract — the temporary
+   password is shown once.
    Closed applications can be deleted. Also manages the job openings.
    Rules: includes/applicants-lib.php. Reads/writes: query/applicants-action.php.
    Gated by the `applicants` access right.
@@ -35,6 +37,7 @@ try {
 $boot = [
     'token'     => apl_csrf_token(),
     'stages'    => APL_STAGES,
+    'pipeline'  => APL_PIPELINE,
     'hireStage' => APL_HIRE_STAGE,
     'canMail'   => wd_mail_enabled(),          // Brevo set up: offer emails to the applicant
     'mailStages'=> APL_MAIL_STAGES,
@@ -134,8 +137,9 @@ $v = function ($f) { return @filemtime(__DIR__ . '/' . $f) ?: 0; };
                   <button type="submit" class="wd-btn wd-btn--primary apl-card__btn"><i class="fa-solid fa-check"></i> Save</button>
                   <p class="apl-mailres" id="aplMailRes" role="status"></p>
                 </form>
-                <section class="apl-card">
-                  <h5 class="apl-card__title"><i class="fa-solid fa-clock-rotate-left"></i> Activity</h5>
+                <section class="apl-card" id="aplActivity">
+                  <h5 class="apl-card__title"><i class="fa-solid fa-clock-rotate-left"></i> Activity
+                    <button type="button" class="apl-feed__expand" id="aplFeedExpand" aria-expanded="false" title="Show all activity and notes in full"><i class="fa-solid fa-up-right-and-down-left-from-center"></i> <span>Expand</span></button></h5>
                   <ul class="apl-feed" id="aplHistory"></ul>
                 </section>
               </aside>
@@ -173,10 +177,9 @@ $v = function ($f) { return @filemtime(__DIR__ . '/' . $f) ?: 0; };
 
               <section class="apl-hire__sec">
                 <h5><span>2</span> Employment</h5>
-                <div class="apl-grid">
-                  <div class="wd-field"><label for="aplHClass">Classification</label><select class="wd-select" id="aplHClass" name="classification"></select></div>
+                <div class="apl-grid apl-grid--3">
+                  <div class="wd-field"><label for="aplHClass">Hire as *</label><select class="wd-select" id="aplHClass" name="classification" required></select></div>
                   <div class="wd-field"><label for="aplHDate">Hire date *</label><input type="date" class="wd-input" id="aplHDate" name="hired" required></div>
-                  <div class="wd-field"><label for="aplHAgency">Agency *</label><select class="wd-select" id="aplHAgency" name="agency" required></select></div>
                   <div class="wd-field"><label for="aplHIdNo">Employee ID (card)</label><input class="wd-input" id="aplHIdNo" name="idNumber" maxlength="100" placeholder="Optional"></div>
                 </div>
               </section>
@@ -191,17 +194,32 @@ $v = function ($f) { return @filemtime(__DIR__ . '/' . $f) ?: 0; };
               </section>
 
               <section class="apl-hire__sec">
-                <h5><span>4</span> HMO</h5>
-                <div class="apl-grid">
-                  <div class="wd-field"><label for="aplHHmo">HMO provider *</label><select class="wd-select" id="aplHHmo" name="hmo" required></select></div>
-                  <div class="wd-field"><label for="aplHHmoNo">HMO number</label><input class="wd-input" id="aplHHmoNo" name="hmoNumber" maxlength="100" placeholder="Optional"></div>
+                <h5><span>4</span> Contract</h5>
+                <div class="apl-contract">
+                  <span class="apl-contract__icon"><i class="fa-solid fa-file-signature"></i></span>
+                  <div class="apl-contract__body">
+                    <b id="aplHContractTitle">Contract</b>
+                    <small>Filled in with the placement, hire date and pay above.</small>
+                    <small class="apl-contract__draft lcy-hidden" id="aplHContractDraft"><i class="fa-solid fa-triangle-exclamation"></i> Sample wording until the final contract is in — check it before emailing.</small>
+                  </div>
+                  <button type="button" class="wd-btn wd-btn--ghost wd-btn--sm" id="aplHContractPreview"><i class="fa-regular fa-eye"></i> Preview</button>
                 </div>
+                <label class="apl-toggle apl-hire__welcome lcy-hidden" id="aplHireContractRow"><input type="checkbox" id="aplHireContract"><span class="apl-toggle__ui"></span>
+                  <span><i class="fa-regular fa-envelope"></i> Email the contract <small>— in the email and as a printable attachment</small></span></label>
               </section>
 
               <label class="apl-toggle apl-hire__welcome lcy-hidden" id="aplHireWelcomeRow"><input type="checkbox" id="aplHireWelcome" checked><span class="apl-toggle__ui"></span>
                 <span><i class="fa-regular fa-envelope"></i> Email a welcome message <small>— employee no. and username, never the password</small></span></label>
               <p class="lcy-modal-error" id="aplHireErr" role="alert"></p>
             </form>
+
+            <div class="apl-hire__preview lcy-hidden" id="aplHirePreview">
+              <div class="apl-hire__previewbar">
+                <button type="button" class="wd-btn wd-btn--ghost wd-btn--sm" id="aplHirePreviewBack"><i class="fa-solid fa-arrow-left"></i> Back to the form</button>
+                <b id="aplHirePreviewTitle"></b>
+              </div>
+              <iframe class="apl-hire__previewframe" id="aplHirePreviewFrame" title="Contract preview" sandbox=""></iframe>
+            </div>
 
             <div class="apl-hire__done lcy-hidden" id="aplHireDone" role="status"></div>
 

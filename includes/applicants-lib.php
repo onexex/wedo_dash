@@ -11,8 +11,10 @@
        deleting closed applications (Data Privacy: keep no longer than needed)
      - hiring (apl_hire): one transaction copies the profile into the
        employee tables — employees, empdetails, empdetails2, empprofiles,
-       empeducationalbackground, fdetails, accessrights — as a Trainee, with
-       a generated EmpID, username and one-time temporary password.
+       empeducationalbackground, fdetails, accessrights — as a Trainee or an
+       Independent Contractor, with a generated EmpID, username and one-time
+       temporary password; the matching contract can be emailed
+       (includes/applicants-contract.php).
    Resumes and photos: uploads/applicants/ (deny-all .htaccess), served only
    by query/applicant-resume.php / query/applicant-photo.php. The photo is
    taken live with the camera (sql/2026-10-15-add-applicant-photo.sql) and
@@ -23,12 +25,15 @@ date_default_timezone_set("Asia/Manila");
 require_once __DIR__ . '/lifecycle-lib.php';
 require_once __DIR__ . '/bot-guard.php';
 
-const APL_STAGES = ['new' => 'New', 'screening' => 'Screening', 'interview' => 'Interview', 'exam' => 'Exam / Assessment',
-                    'offer' => 'Job offer', 'hired' => 'Hired', 'rejected' => 'Not selected', 'withdrawn' => 'Withdrawn'];
+const APL_STAGES = ['new' => 'New', 'screening' => 'Screening', 'exam' => 'Exam / Assessment', 'interview' => 'Initial interview',
+                    'final' => 'Final interview', 'offer' => 'Job offer', 'hired' => 'Hired', 'rejected' => 'Not selected', 'withdrawn' => 'Withdrawn'];
 const APL_CLOSED       = ['hired', 'rejected', 'withdrawn'];
-const APL_PIPELINE     = ['new', 'screening', 'interview', 'exam', 'offer'];   // taken in this order, one step at a time
+const APL_PIPELINE     = ['new', 'screening', 'exam', 'interview', 'final', 'offer'];   // taken in this order, one step at a time
 const APL_HIRE_STAGE   = 'offer';         // Hire unlocks only once the application reaches Job offer
 const APL_TRAINEE      = 3;               // empstatus.EmpStatID a new hire starts as
+const APL_IC           = 2;               // empstatus.EmpStatID of an Independent Contractor
+/** The classifications a new hire can start as, and the contract each one gets (includes/contracts/<kind>.html). */
+const APL_HIRE_CLASSES = [APL_TRAINEE => 'trainee', APL_IC => 'independent-contractor'];
 const APL_MAX_RESUME   = 5 * 1024 * 1024;
 const APL_RESUME_TYPES = ['pdf', 'doc', 'docx'];
 const APL_MAX_PHOTO    = 3 * 1024 * 1024;
@@ -780,7 +785,7 @@ function apl_delete(PDO $pdo, $id, $actor) {
 
 /* ------------------------------------------------------------------ hiring */
 
-/** Choices for the hire dialog: companies, departments, positions, superiors, agencies, HMOs, classifications. */
+/** Choices for the hire dialog: companies, departments, positions, superiors, classifications (Trainee / IC only). */
 function apl_hire_options(PDO $pdo) {
     $all = function ($sql) use ($pdo) { return $pdo->query($sql)->fetchAll(PDO::FETCH_ASSOC); };
     return [
@@ -790,9 +795,9 @@ function apl_hire_options(PDO $pdo) {
         'superiors'   => $all("SELECT e.EmpID AS id, CONCAT(e.EmpFN, ' ', e.EmpLN) AS name, d.EmpdepID AS department
                                FROM employees e JOIN empdetails d ON d.EmpID = e.EmpID
                                WHERE e.EmpStatusID = 1 AND d.EmpRoleID <> 3 ORDER BY e.EmpLN, e.EmpFN"),
-        'agencies'    => $all("SELECT AgencyID AS id, AgencyName AS name FROM agency ORDER BY AgencyName"),
-        'hmos'        => $all("SELECT HMO_ID AS id, HMO_PROVIDER AS name FROM hmo ORDER BY HMO_PROVIDER"),
-        'classes'     => $all("SELECT EmpStatID AS id, EmpStatDesc AS name FROM empstatus ORDER BY EmpStatID"),
+        'classes'     => $all("SELECT EmpStatID AS id, EmpStatDesc AS name FROM empstatus
+                               WHERE EmpStatID IN (" . implode(',', array_keys(APL_HIRE_CLASSES)) . ")
+                               ORDER BY FIELD(EmpStatID, " . implode(',', array_keys(APL_HIRE_CLASSES)) . ")"),
         'trainee'     => APL_TRAINEE,
         'today'       => date('Y-m-d'),
     ];
@@ -811,11 +816,54 @@ function apl_next_empid(PDO $pdo, $compcode) {
 
 
 /**
+ * The hire dialog's values, checked: what apl_hire() saves and what the
+ * contract shows. $d: company, department, position, superior,
+ * classification (Trainee / Independent Contractor), hired (date), basic,
+ * allowance, hourly, idNumber. Agency and HMO are not asked on hire.
+ * @return array{ok:bool, msg?:string, v?:array}
+ */
+function apl_hire_values(PDO $pdo, array $d) {
+    $one = function ($sql, $args) use ($pdo) { $st = $pdo->prepare($sql); $st->execute($args); return $st->fetch(PDO::FETCH_ASSOC); };
+    $comp = $one("SELECT CompanyID, compcode, CompanyDesc FROM companies WHERE CompanyID = :c", [':c' => (string) ($d['company'] ?? '')]);
+    if (!$comp || trim((string) $comp['compcode']) === '') { return ['ok' => false, 'msg' => 'Choose the company.']; }
+    $dep = $one("SELECT DepartmentID, DepartmentDesc FROM departments WHERE DepartmentID = :d AND CompID = :c", [':d' => (int) ($d['department'] ?? 0), ':c' => $comp['CompanyID']]);
+    if (!$dep) { return ['ok' => false, 'msg' => 'Choose a department of that company.']; }
+    $pos = $one("SELECT PSID, PositionDesc FROM positions WHERE PSID = :p AND DepartmentID = :d", [':p' => (int) ($d['position'] ?? 0), ':d' => $dep['DepartmentID']]);
+    if (!$pos) { return ['ok' => false, 'msg' => 'Choose a position in that department.']; }
+    $superior = (string) ($d['superior'] ?? 'N/A');
+    $superiorName = '';
+    if ($superior !== 'N/A') {
+        $sup = $one("SELECT CONCAT(e.EmpFN, ' ', e.EmpLN) AS name FROM employees e JOIN empdetails d ON d.EmpID = e.EmpID
+                     WHERE e.EmpID = :s AND e.EmpStatusID = 1 AND d.EmpRoleID <> 3", [':s' => $superior]);
+        if (!$sup) { return ['ok' => false, 'msg' => 'Choose the immediate superior from the list.']; }
+        $superiorName = $sup['name'];
+    }
+    $class = (int) ($d['classification'] ?? APL_TRAINEE);
+    $cls = isset(APL_HIRE_CLASSES[$class]) ? $one("SELECT EmpStatDesc FROM empstatus WHERE EmpStatID = :c", [':c' => $class]) : false;
+    if (!$cls) { return ['ok' => false, 'msg' => 'Choose Trainee or Independent Contractor.']; }
+    $hired = lcy_date($d['hired'] ?? '');
+    if ($hired === null) { return ['ok' => false, 'msg' => 'Enter the hire date.']; }
+    $money = [];
+    foreach (['basic' => 'monthly basic', 'allowance' => 'allowance', 'hourly' => 'hourly rate'] as $k => $label) {
+        $v = trim(str_replace(',', '', (string) ($d[$k] ?? '')));
+        if (!preg_match('/^\d{1,8}(\.\d{1,2})?$/', $v)) { return ['ok' => false, 'msg' => "Enter the $label (a number)."]; }
+        $money[$k] = $v;
+    }
+    return ['ok' => true, 'v' => [
+        'companyId' => $comp['CompanyID'], 'compcode' => trim($comp['compcode']), 'company' => (string) $comp['CompanyDesc'],
+        'departmentId' => $dep['DepartmentID'], 'department' => (string) $dep['DepartmentDesc'],
+        'positionId' => $pos['PSID'], 'position' => (string) $pos['PositionDesc'],
+        'superior' => $superior, 'superiorName' => $superiorName,
+        'class' => $class, 'className' => (string) $cls['EmpStatDesc'], 'contract' => APL_HIRE_CLASSES[$class],
+        'hired' => $hired, 'money' => $money, 'idNumber' => lcy_text($d['idNumber'] ?? '', 100),
+    ]];
+}
+
+/**
  * Hire: copy the application into the employee tables in ONE transaction,
- * as Trainee (or the chosen classification), Employed, role Employee (3).
- * $d: company, department, position, superior, agency, hmo, hmoNumber,
- *     classification, hired (date), basic, allowance, hourly, idNumber.
- * @return array{ok:bool, msg?:string, empId?:string, username?:string, password?:string}
+ * as Trainee or Independent Contractor, Employed, role Employee (3).
+ * $d: see apl_hire_values(). Agency and HMO are left blank.
+ * @return array{ok:bool, msg?:string, empId?:string, username?:string, password?:string, values?:array}
  */
 function apl_hire(PDO $pdo, $id, array $d, $actor) {
     $r = apl_row($pdo, $id);
@@ -827,38 +875,17 @@ function apl_hire(PDO $pdo, $id, array $d, $actor) {
     if ($r['Stage'] !== APL_HIRE_STAGE) {   // hiring comes after the process, not instead of it
         return ['ok' => false, 'msg' => 'Move the application to "' . APL_STAGES[APL_HIRE_STAGE] . '" first — hiring comes after the job offer.'];
     }
-
-    $one = function ($sql, $args) use ($pdo) { $st = $pdo->prepare($sql); $st->execute($args); return $st->fetch(PDO::FETCH_ASSOC); };
-    $comp = $one("SELECT CompanyID, compcode FROM companies WHERE CompanyID = :c", [':c' => (string) ($d['company'] ?? '')]);
-    if (!$comp || trim((string) $comp['compcode']) === '') { return ['ok' => false, 'msg' => 'Choose the company.']; }
-    $dep = $one("SELECT DepartmentID FROM departments WHERE DepartmentID = :d AND CompID = :c", [':d' => (int) ($d['department'] ?? 0), ':c' => $comp['CompanyID']]);
-    if (!$dep) { return ['ok' => false, 'msg' => 'Choose a department of that company.']; }
-    $pos = $one("SELECT PSID FROM positions WHERE PSID = :p AND DepartmentID = :d", [':p' => (int) ($d['position'] ?? 0), ':d' => $dep['DepartmentID']]);
-    if (!$pos) { return ['ok' => false, 'msg' => 'Choose a position in that department.']; }
-    $superior = (string) ($d['superior'] ?? 'N/A');
-    if ($superior !== 'N/A' && !$one("SELECT e.EmpID FROM employees e JOIN empdetails d ON d.EmpID = e.EmpID
-                                       WHERE e.EmpID = :s AND e.EmpStatusID = 1 AND d.EmpRoleID <> 3", [':s' => $superior])) {
-        return ['ok' => false, 'msg' => 'Choose the immediate superior from the list.'];
-    }
-    $agency = (string) ($d['agency'] ?? '');
-    if (!$one("SELECT AgencyID FROM agency WHERE AgencyID = :a", [':a' => $agency])) { return ['ok' => false, 'msg' => 'Choose the agency.']; }
-    $hmo = (string) ($d['hmo'] ?? '');
-    if (!$one("SELECT HMO_ID FROM hmo WHERE HMO_ID = :h", [':h' => $hmo])) { return ['ok' => false, 'msg' => 'Choose the HMO provider.']; }
-    $class = (int) ($d['classification'] ?? APL_TRAINEE);
-    if (!$one("SELECT EmpStatID FROM empstatus WHERE EmpStatID = :c", [':c' => $class])) { return ['ok' => false, 'msg' => 'Choose the classification.']; }
-    $hired = lcy_date($d['hired'] ?? '');
-    if ($hired === null) { return ['ok' => false, 'msg' => 'Enter the hire date.']; }
-    $money = [];
-    foreach (['basic' => 'monthly basic', 'allowance' => 'allowance', 'hourly' => 'hourly rate'] as $k => $label) {
-        $v = trim(str_replace(',', '', (string) ($d[$k] ?? '')));
-        if (!preg_match('/^\d{1,8}(\.\d{1,2})?$/', $v)) { return ['ok' => false, 'msg' => "Enter the $label (a number)."]; }
-        $money[$k] = $v;
-    }
-    $idNumber = lcy_text($d['idNumber'] ?? '', 100);
+    $chk = apl_hire_values($pdo, $d);
+    if (!$chk['ok']) { return $chk; }
+    $v = $chk['v'];
+    $money = $v['money'];
+    $class = $v['class'];
+    $hired = $v['hired'];
+    $superior = $v['superior'];
 
     require_once __DIR__ . '/username.php';
     require_once __DIR__ . '/account-gate.php';
-    $empId    = apl_next_empid($pdo, trim($comp['compcode']));
+    $empId    = apl_next_empid($pdo, $v['compcode']);
     $username = wd_free_username($pdo, wd_unique_username($pdo, $r['FirstName'], $r['LastName']));
     if ($username === '') { $username = wd_free_username($pdo, 'applicant' . (int) $id); }
     $password = wd_temp_password();
@@ -870,7 +897,7 @@ function apl_hire(PDO $pdo, $id, array $d, $actor) {
         $pdo->prepare("INSERT INTO employees (EmpID, EmpSuffix, EmpFN, EmpMN, EmpLN, PosID, EmpStatusID, EmployeeIDNumber)
                        VALUES (:e, :s, :f, :m, :l, :p, 1, :n)")
             ->execute([':e' => $empId, ':s' => (string) $r['Suffix'], ':f' => $r['FirstName'], ':m' => (string) $r['MiddleName'],
-                       ':l' => $r['LastName'], ':p' => $pos['PSID'], ':n' => $idNumber]);
+                       ':l' => $r['LastName'], ':p' => $v['positionId'], ':n' => $v['idNumber']]);
         $ins = $pdo->prepare("INSERT INTO empeducationalbackground (EmpID, Name_of_School, Program, Year_Started, Year_End, School_Address)
                               VALUES (:e, :s, :p, :f, :t, :a)");
         foreach ($edu as $e) {   // always all three programs: Update Employee Information edits them by Program
@@ -886,7 +913,7 @@ function apl_hire(PDO $pdo, $id, array $d, $actor) {
                        ':az' => (string) $r['Zip'], ':aco' => $r['Country'], ':ph' => $r['Mobile'], ':dob' => $r['BirthDate'],
                        ':g' => $r['Gender'], ':cs' => $r['CivilStatus'], ':hp' => (string) $r['HomePhone'], ':em' => $r['Email'],
                        ':ppn' => (string) $r['PassportNo'], ':ppe' => (string) $r['PassportExpiry'], ':ppi' => (string) $r['PassportIssuer'],
-                       ':sss' => (string) $r['SSS'], ':tin' => (string) $r['TIN'], ':hmo' => lcy_text($d['hmoNumber'] ?? '', 100),
+                       ':sss' => (string) $r['SSS'], ':tin' => (string) $r['TIN'], ':hmo' => '',
                        ':pp' => (string) $r['PrevCompany'], ':ppsd' => (string) $r['PrevStart'], ':ppd' => (string) $r['PrevDept'],
                        ':ppp' => (string) $r['PrevPosition'], ':pin' => (string) $r['PagIbig'], ':phn' => (string) $r['PhilHealth'],
                        ':umid' => (string) $r['UMID'], ':pic' => 'assets/images/profiles/' . $empId . '.jpg',
@@ -898,8 +925,8 @@ function apl_hire(PDO $pdo, $id, array $d, $actor) {
                            EmpDateResigned, EmpStatID, AgencyID, HMO_ID)
                        VALUES (:e, :u, :pw, 3, :is, :dep, :c, :dh, NULL, :cl, :ag, :hmo)")
             ->execute([':e' => $empId, ':u' => $username, ':pw' => password_hash($password, PASSWORD_DEFAULT), ':is' => $superior,
-                       ':dep' => $dep['DepartmentID'], ':c' => $comp['CompanyID'], ':dh' => $hired, ':cl' => $class,
-                       ':ag' => $agency, ':hmo' => $hmo]);
+                       ':dep' => $v['departmentId'], ':c' => $v['companyId'], ':dh' => $hired, ':cl' => $class,
+                       ':ag' => '', ':hmo' => '']);   // agency / HMO are not asked on hire (blank, like most employees)
         $ins = $pdo->prepare("INSERT INTO fdetails (FDetID, FName, FAdd, FRel, FContact, FICE) VALUES (:e, :n, :a, :r, :c, :i)");
         foreach ($fam as $f) {
             $ins->execute([':e' => $empId, ':n' => $f['Name'], ':a' => (string) $f['Address'], ':r' => $f['Relationship'],
@@ -919,5 +946,5 @@ function apl_hire(PDO $pdo, $id, array $d, $actor) {
     wd_set_must_change_password($pdo, $empId, true);   // the temporary password works once: they must set their own
     apl_photo_to_profile($r['PhotoKey'] ?? null, $empId);   // their camera photo becomes the profile picture (EmpPPath)
     lcy_audit($pdo, 'Hired applicant #' . (int) $id . ' as ' . $empId . ' (' . apl_name($r) . ')');
-    return ['ok' => true, 'empId' => $empId, 'username' => $username, 'password' => $password];
+    return ['ok' => true, 'empId' => $empId, 'username' => $username, 'password' => $password, 'values' => $v];
 }
