@@ -49,6 +49,10 @@ final class ApplicantsTest extends AppTestCase
                 if ($p) { @unlink($p); }
             }
         }
+        foreach (self::db()->query("SELECT FileKey FROM applicant_files")->fetchAll(\PDO::FETCH_COLUMN) as $k) {
+            $p = apl_photo_path($k);
+            if ($p) { @unlink($p); }
+        }
         foreach ($this->files as $f) { @unlink($f); }
         putenv('BREVO_API_KEY');
         putenv('MAIL_FROM');
@@ -155,9 +159,11 @@ final class ApplicantsTest extends AppTestCase
         $r = $this->submit();
         $this->assertTrue($r['ok'], $r['msg'] ?? '');
         $a = $this->row("SELECT * FROM applicants WHERE id = ?", [$r['id']]);
-        $this->assertSame(['Maria', 'Santos', '1998-03-14', 'Single', '09171234567', 'San Roque', '34-5678901-2', 'new'],
+        $this->assertSame(['Maria', 'Santos', '1998-03-14', 'Single', '09171234567', 'San Roque', '34-5678901-2', 'screening'],
             [$a['FirstName'], $a['LastName'], $a['BirthDate'], $a['CivilStatus'], $a['Mobile'], $a['Barangay'], $a['SSS'], $a['Stage']]);
         $this->assertNotNull($a['ConsentAt']);
+        $ev = $this->row("SELECT FromStage, ToStage, Notes FROM applicant_events WHERE ApplicantID = ?", [$r['id']]);
+        $this->assertSame([null, 'screening', 'Registered online'], [$ev['FromStage'], $ev['ToStage'], $ev['Notes']], 'Screening is the first step');
         $this->assertSame('203.0.113.5', $a['IP']);
         $this->assertNotNull(apl_resume_path($a['ResumeKey']), 'resume stored under a random name');
         $this->assertSame('My Resume.pdf', $a['ResumeName']);
@@ -383,14 +389,11 @@ final class ApplicantsTest extends AppTestCase
     public function testStagesGoInOrder(): void
     {
         $id = $this->submit()['id'];
-        $this->assertSame(['new', 'screening', 'exam', 'interview', 'final', 'offer'], APL_PIPELINE, 'Screening, Exam, Initial + Final interview, Job offer');
-        $skip = $this->act('stage', ['id' => $id, 'stage' => 'exam', 'notes' => '']);
-        $this->assertSame(422, $skip['status'], 'no skipping Screening');
-        $this->assertStringContainsString('Screening', $skip['json']['msg']);
+        $this->assertSame(['screening', 'exam', 'interview', 'final', 'offer'], APL_PIPELINE, 'Screening, Exam, Initial + Final interview, Job offer');
         $this->assertSame(422, $this->act('stage', ['id' => $id, 'stage' => 'offer', 'notes' => ''])['status'], 'no jumping to the offer');
-        $this->assertSame(['new', 'screening', 'rejected', 'withdrawn'], $this->act('detail', ['id' => $id])['json']['applicant']['allowedStages']);
+        $this->assertSame(422, $this->act('stage', ['id' => $id, 'stage' => 'new', 'notes' => ''])['status'], 'New is no longer a stage');
+        $this->assertSame(['screening', 'exam', 'rejected', 'withdrawn'], $this->act('detail', ['id' => $id])['json']['applicant']['allowedStages']);
 
-        $this->advance($id, 'screening');
         $exam = $this->act('stage', ['id' => $id, 'stage' => 'interview', 'notes' => '']);
         $this->assertSame(422, $exam['status'], 'the exam comes before the initial interview');
         $this->assertStringContainsString('Exam', $exam['json']['msg']);
@@ -400,7 +403,7 @@ final class ApplicantsTest extends AppTestCase
         $this->assertSame(200, $this->act('stage', ['id' => $id, 'stage' => 'rejected', 'notes' => 'Not a fit'])['status'], 'not selected at any point');
 
         // reopened where it was (Final interview) or earlier, not further
-        $this->assertSame(['new', 'screening', 'exam', 'interview', 'final', 'rejected', 'withdrawn'], $this->act('detail', ['id' => $id])['json']['applicant']['allowedStages']);
+        $this->assertSame(['screening', 'exam', 'interview', 'final', 'rejected', 'withdrawn'], $this->act('detail', ['id' => $id])['json']['applicant']['allowedStages']);
         $far = $this->act('stage', ['id' => $id, 'stage' => 'offer', 'notes' => '']);
         $this->assertSame(422, $far['status']);
         $this->assertStringContainsString('Final interview', $far['json']['msg']);
@@ -419,7 +422,8 @@ final class ApplicantsTest extends AppTestCase
         $this->assertStringContainsString('APL-000777', $got[0]['subject']);
 
         // ticking "email" on a stage that doesn't send one does nothing
-        $res = $this->act('stage', ['id' => $id, 'stage' => 'screening', 'notes' => '', 'email' => '1', 'emailMessage' => 'x']);
+        $res = $this->act('stage', ['id' => $id, 'stage' => 'exam', 'notes' => '', 'email' => '1', 'emailMessage' => 'x']);
+        $this->assertSame(200, $res['status'], $res['body']);
         $this->assertNull($res['json']['mailed']);
         $this->assertCount(1, $this->sent());
 
@@ -477,7 +481,7 @@ final class ApplicantsTest extends AppTestCase
 
         $this->mailOn();
         $this->assertStringContainsString('"canMail":true', $this->request('applicants.php', [], [], $this->asAdmin())['body']);
-        $this->act('stage', ['id' => $id, 'stage' => 'new', 'notes' => 'Reopened']);
+        $this->act('stage', ['id' => $id, 'stage' => 'screening', 'notes' => 'Reopened']);
         $res = $this->act('stage', ['id' => $id, 'stage' => 'rejected', 'notes' => '', 'email' => '1', 'emailMessage' => '']);
         $this->assertTrue($res['json']['mailed']);
         $this->assertStringContainsString('not to move forward', $this->sent()[0]['htmlContent']);
@@ -577,7 +581,7 @@ final class ApplicantsTest extends AppTestCase
         $page = $this->request('applicants.php', [], [], $this->asAdmin())['body'];
         $this->assertStringNotContainsString('aplHAgency', $page);
         $this->assertStringNotContainsString('aplHHmo', $page);
-        $this->assertStringContainsString('"pipeline":["new","screening","exam","interview","final","offer"]', $page);
+        $this->assertStringContainsString('"pipeline":["screening","exam","interview","final","offer"]', $page);
     }
 
     public function testTheContractIsFilledInAndEmailedOnHire(): void
@@ -639,6 +643,96 @@ final class ApplicantsTest extends AppTestCase
         $this->files[] = dirname(__DIR__) . '/assets/images/profiles/' . $hire['json']['empId'] . '.jpg';
         $this->assertNull($hire['json']['contractMailed'], 'not ticked: not sent');
         $this->assertCount(0, $this->sent());
+    }
+
+    public function testOlderHistoryStillNamesTheNewStage(): void
+    {
+        $id = $this->submit()['id'];
+        self::db()->exec("UPDATE applicant_events SET ToStage = 'new' WHERE ApplicantID = $id");
+        self::db()->prepare("INSERT INTO applicant_events (ApplicantID, FromStage, ToStage, Notes, ByEmpID) VALUES (?, 'new', 'screening', NULL, ?)")
+            ->execute([$id, self::ADMIN]);
+        $ev = $this->act('detail', ['id' => $id])['json']['applicant']['events'];
+        $this->assertSame(['New', 'New', 'Screening'], [$ev[0]['toLabel'], $ev[1]['fromLabel'], $ev[1]['toLabel']]);
+    }
+
+    public function testApplicantTimesAreManilaTime(): void
+    {
+        $c = $GLOBALS['WEDO_TEST_DB'];
+        $pdo = new \PDO('mysql:host=' . $c['host'] . ';dbname=' . $c['name'] . ';charset=utf8mb4', $c['user'], $c['pass']);
+        $pdo->exec("SET time_zone = '+00:00'");   // a server whose MySQL runs on UTC
+        apl_db_clock($pdo);
+        $db = new \DateTime((string) $pdo->query("SELECT NOW()")->fetchColumn(), new \DateTimeZone('Asia/Manila'));
+        $this->assertLessThan(120, abs($db->getTimestamp() - time()), 'NOW() is Manila wall-clock time');
+        $this->assertStringContainsString("+ '+08:00'", file_get_contents(dirname(__DIR__) . '/assets/js/applicants.js'), '"x h ago" reads them as Manila time');
+        foreach (['applicants.php', 'query/applicants-action.php', 'query/apply-action.php'] as $f) {
+            $this->assertStringContainsString('apl_db_clock(', file_get_contents(dirname(__DIR__) . '/' . $f), $f);
+        }
+    }
+
+    /** A picture of an exam sheet: $type png / jpeg, or junk with an image name. */
+    private function examImage(string $type = 'png', int $w = 1200, int $h = 900): array
+    {
+        $tmp = tempnam(sys_get_temp_dir(), 'apl');
+        if ($type === 'junk') {
+            file_put_contents($tmp, 'just some text, not a picture');
+        } else {
+            $img = imagecreatetruecolor($w, $h);
+            imagefilledrectangle($img, 0, 0, $w, $h, imagecolorallocate($img, 250, 250, 245));
+            $type === 'png' ? imagepng($img, $tmp) : imagejpeg($img, $tmp, 90);
+        }
+        $this->files[] = $tmp;
+        return ['name' => 'exam.' . ($type === 'jpeg' ? 'jpg' : 'png'), 'tmp_name' => $tmp, 'size' => filesize($tmp), 'error' => UPLOAD_ERR_OK];
+    }
+
+    public function testExamResultPicturesAreKeptAndViewable(): void
+    {
+        $db = self::db();
+        $id = $this->submit()['id'];
+        $early = apl_add_exam_files($db, $id, [$this->examImage()], '', self::ADMIN, false);
+        $this->assertFalse($early['ok'], 'not before the exam stage');
+        $this->assertStringContainsString('Exam', $early['msg']);
+        $this->assertFalse($this->act('detail', ['id' => $id])['json']['applicant']['examOpen']);
+
+        $this->advance($id, 'exam');
+        $this->assertTrue($this->act('detail', ['id' => $id])['json']['applicant']['examOpen']);
+        $bad = apl_add_exam_files($db, $id, [$this->examImage(), $this->examImage('junk')], '', self::ADMIN, false);
+        $this->assertFalse($bad['ok'], 'not a picture');
+        $this->assertCount(0, $this->rows("SELECT id FROM applicant_files"), 'one bad file adds none');
+        $this->assertSame(['ok' => false, 'msg' => 'Choose the picture(s) of the exam result.'],
+            apl_add_exam_files($db, $id, [['error' => UPLOAD_ERR_NO_FILE]], '', self::ADMIN, false));
+
+        $ok = apl_add_exam_files($db, $id, [$this->examImage('png', 3600, 1800), $this->examImage('jpeg')], 'Typing test <45 wpm>', self::ADMIN, false);
+        $this->assertTrue($ok['ok'], $ok['msg'] ?? '');
+        $files = $this->act('detail', ['id' => $id])['json']['applicant']['examFiles'];
+        $this->assertCount(2, $files);
+        $this->assertSame([2400, 1200], [$files[0]['w'], $files[0]['h']], 'stored at most 2400 px on the long side');
+        $this->assertSame('Typing test <45 wpm>', $files[0]['caption'], 'kept as text; the page escapes it');
+        $path = apl_exam_file_path($db, $files[0]['id']);
+        $this->assertNotNull($path);
+        $this->assertSame(IMAGETYPE_JPEG, getimagesize($path)[2], 're-drawn as a JPEG');
+        $notes = implode(' | ', array_column($this->act('detail', ['id' => $id])['json']['applicant']['events'], 'notes'));
+        $this->assertStringContainsString('Exam result uploaded (2 images): Typing test', $notes, 'shows in Activity');
+
+        // served to HR only
+        $img = $this->request('query/applicant-file.php', ['id' => $files[0]['id']], [], $this->asAdmin());
+        $this->assertSame(200, $img['status']);
+        $this->assertSame(file_get_contents($path), $img['body']);
+        $this->assertSame(403, $this->request('query/applicant-file.php', ['id' => $files[0]['id']], [], $this->asEmployee())['status']);
+        $this->assertSame(404, $this->request('query/applicant-file.php', ['id' => 99999], [], $this->asAdmin())['status']);
+
+        // still there at later stages; removable one at a time
+        $this->advance($id, 'interview');
+        $del = $this->act('exam_delete', ['id' => $id, 'file' => $files[1]['id']]);
+        $this->assertSame(200, $del['status'], $del['body']);
+        $this->assertCount(1, $del['json']['applicant']['examFiles']);
+        $this->assertSame(422, $this->act('exam_delete', ['id' => $id + 1, 'file' => $files[0]['id']])['status'], 'only from its own application');
+        $this->assertSame(422, $this->act('exam_upload', ['id' => $id])['status'], 'no file chosen');
+
+        // deleting the application removes the pictures too
+        $this->act('stage', ['id' => $id, 'stage' => 'rejected', 'notes' => '']);
+        $this->assertSame(200, $this->act('delete', ['id' => $id])['status']);
+        $this->assertCount(0, $this->rows("SELECT id FROM applicant_files"));
+        $this->assertFileDoesNotExist($path);
     }
 
     public function testNextEmployeeNumberNeverReusesOne(): void
