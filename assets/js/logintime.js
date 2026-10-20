@@ -121,9 +121,12 @@ $(document).ready(function () {
                 $(".btnsubmit").text("Sign In").prop("disabled", false);
                 
                 var answer = $.trim(data);
-                if (answer === '0' || answer === '1') {
+                if (answer === '0' || answer === '1' || answer.indexOf('1|') === 0) {
                     // one message for both: a bot can't tell which usernames exist
-                    errorMsg.text("Incorrect username or password.");
+                    // "1|<n>" = n wrong passwords left before this account locks
+                    var left = answer.indexOf('1|') === 0 ? parseInt(answer.split('|')[1], 10) : NaN;
+                    errorMsg.text("Incorrect username or password." + (isNaN(left) ? ""
+                        : " " + left + " attempt" + (left === 1 ? "" : "s") + " left before sign-in is locked for 15 minutes."));
                     errorMsg.fadeIn();
                     resetHumanCheck();
                 } else if (answer.indexOf('429|') === 0) {

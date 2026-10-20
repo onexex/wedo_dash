@@ -20,7 +20,7 @@ const WD_CF_RANGES = ['173.245.48.0/20', '103.21.244.0/22', '103.22.200.0/22', '
     '2803:f800::/32', '2405:b500::/32', '2405:8100::/32', '2a06:98c0::/29', '2c0f:f248::/32'];
 
 /* Sign-in throttling: wrong passwords per username, and failed sign-ins per address. */
-const WD_LOGIN_USER_MAX = 15;     // wrong passwords for one username …
+const WD_LOGIN_USER_MAX = 5;      // wrong passwords for one username …
 const WD_LOGIN_IP_MAX   = 50;     // … or failed sign-ins from one address (generous: a whole office shares one address) …
 const WD_LOGIN_WINDOW   = 900;    // … within 15 minutes = locked for the rest of those 15 minutes
 
@@ -154,16 +154,33 @@ function wd_login_lock(PDO $pdo, string $username, string $ip): array
     return $wait > 0 ? ['wait' => $wait, 'scope' => $scope] : ['wait' => 0, 'scope' => ''];
 }
 
+/**
+ * This username's wrong passwords that count toward its lock, newest first (at
+ * most WD_LOGIN_USER_MAX). "Since the last success" goes by id, not time: a
+ * wrong password in the same second as a sign-in still counts.
+ */
+function wd_login_user_failures(PDO $pdo, string $username): array
+{
+    if (!wd_login_ready($pdo)) { return []; }
+    $user = strtolower(trim($username));
+    $st = $pdo->prepare("SELECT CreatedAt FROM login_attempts WHERE Username = :u AND Success = 0 AND CreatedAt > :s
+                         AND id > COALESCE((SELECT MAX(id) FROM login_attempts WHERE Username = :u2 AND Success = 1), 0)
+                         ORDER BY CreatedAt DESC LIMIT " . WD_LOGIN_USER_MAX);
+    $st->execute([':u' => $user, ':u2' => $user, ':s' => wd_login_clock(time() - WD_LOGIN_WINDOW)]);
+    return $st->fetchAll(PDO::FETCH_COLUMN);
+}
+
+/** Wrong passwords this username may still make before it locks (0 = locked). */
+function wd_login_user_left(PDO $pdo, string $username): int
+{
+    if (!wd_login_ready($pdo)) { return WD_LOGIN_USER_MAX; }
+    return max(0, WD_LOGIN_USER_MAX - count(wd_login_user_failures($pdo, $username)));
+}
+
 /** Seconds this username stays locked by its own wrong passwords (0 = not locked). */
 function wd_login_user_wait(PDO $pdo, string $username): int
 {
-    if (!wd_login_ready($pdo)) { return 0; }
-    $user = strtolower(trim($username));
-    $st = $pdo->prepare("SELECT CreatedAt FROM login_attempts WHERE Username = :u AND Success = 0 AND CreatedAt > :s
-                         AND CreatedAt > COALESCE((SELECT MAX(CreatedAt) FROM login_attempts WHERE Username = :u2 AND Success = 1), '1970-01-01')
-                         ORDER BY CreatedAt DESC LIMIT " . WD_LOGIN_USER_MAX);
-    $st->execute([':u' => $user, ':u2' => $user, ':s' => wd_login_clock(time() - WD_LOGIN_WINDOW)]);
-    $rows = $st->fetchAll(PDO::FETCH_COLUMN);
+    $rows = wd_login_user_failures($pdo, $username);
     if (count($rows) < WD_LOGIN_USER_MAX) { return 0; }
     // locked until the oldest of the last N failures is 15 minutes old
     return max(0, wd_login_ts(end($rows)) + WD_LOGIN_WINDOW - time());

@@ -45,19 +45,24 @@ final class LoginGuardTest extends AppTestCase
 
     private function signedIn(string $answer): bool
     {
-        return !in_array($answer, ['0', '1', '428'], true) && strpos($answer, '429|') !== 0;
+        return !in_array($answer, ['0', '1', '428'], true) && strpos($answer, '429|') !== 0 && strpos($answer, '1|') !== 0;
     }
 
     public function testUnknownUsernameAndWrongPasswordLookTheSame(): void
     {
-        $this->assertSame('1', $this->login('nobody-here', 'whatever1'));
-        $this->assertSame('1', $this->login('jdelacruz', 'wrong-pass-1'));
+        $left = (string) (\WD_LOGIN_USER_MAX - 1);
+        $this->assertSame("1|$left", $this->login('nobody-here', 'whatever1'));
+        $this->assertSame("1|$left", $this->login('jdelacruz', 'wrong-pass-1'));
         $this->assertTrue($this->signedIn($this->login('jdelacruz', 'Right-pass-1')));
     }
 
     public function testTooManyWrongPasswordsLockTheUsername(): void
     {
-        for ($i = 0; $i < \WD_LOGIN_USER_MAX; $i++) { $this->assertSame('1', $this->login('jdelacruz', "guess-$i")); }
+        $this->assertSame(5, \WD_LOGIN_USER_MAX);
+        for ($i = 1; $i < \WD_LOGIN_USER_MAX; $i++) {
+            $this->assertSame('1|' . (\WD_LOGIN_USER_MAX - $i), $this->login('jdelacruz', "guess-$i"), 'counts down the attempts left');
+        }
+        $this->assertStringStartsWith('429|', $this->login('jdelacruz', 'guess-last'), 'the last wrong password locks at once');
         $locked = $this->login('jdelacruz', 'Right-pass-1');
         $this->assertStringStartsWith('429|', $locked, 'even the right password waits out the lock');
         [, $mins, $secs, $scope] = explode('|', $locked);
@@ -81,7 +86,7 @@ final class LoginGuardTest extends AppTestCase
     {
         for ($i = 0; $i < \WD_LOGIN_USER_MAX - 1; $i++) { $this->login('jdelacruz', "guess-$i"); }
         $this->assertTrue($this->signedIn($this->login('jdelacruz', 'Right-pass-1')));
-        $this->assertSame('1', $this->login('jdelacruz', 'guess-x'), 'a fresh count after signing in');
+        $this->assertSame('1|' . (\WD_LOGIN_USER_MAX - 1), $this->login('jdelacruz', 'guess-x'), 'a fresh count after signing in');
     }
 
     /** Lock a username the way wrong passwords would (without the bcrypt work of real sign-ins). */

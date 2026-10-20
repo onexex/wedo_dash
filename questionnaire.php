@@ -31,7 +31,7 @@ if((isset($_SESSION['id']) && $_SESSION['id']!="0")){
   	<script src="https://cdnjs.cloudflare.com/ajax/libs/popper.js/1.16.0/umd/popper.min.js"></script>
   	<script src="https://maxcdn.bootstrapcdn.com/bootstrap/4.4.1/js/bootstrap.min.js"></script>
   	<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/4.7.0/css/font-awesome.min.css">
-	<script  src="assets/js/logintime.js"></script>
+	<script  src="assets/js/logintime.js?v=<?php echo (int) @filemtime(__DIR__ . '/assets/js/logintime.js'); ?>"></script>
 	<script>
 	    $(document).ready(function(){
 	        $("#myModal").modal("toggle");

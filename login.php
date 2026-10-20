@@ -137,7 +137,7 @@
 
     <!-- Functional scripts (unchanged) -->
     <script src="https://ajax.googleapis.com/ajax/libs/jquery/3.5.1/jquery.min.js"></script>
-    <script src="assets/js/logintime.js"></script>
+    <script src="assets/js/logintime.js?v=<?php echo (int) @filemtime(__DIR__ . '/assets/js/logintime.js'); ?>"></script>
     <script src="https://challenges.cloudflare.com/turnstile/v0/api.js" async defer></script>
 <?php
     $lt       = $loginTheme;
