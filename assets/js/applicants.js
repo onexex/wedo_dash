@@ -200,7 +200,7 @@
     var edu = a.education.filter(function (e) { return e.School; });
     var eduHtml = edu.length ? '<ul class="apl-edu">' + edu.map(function (e) {
       var yrs = [e.YearStarted, e.YearEnded].filter(Boolean).join(' – ');
-      return '<li><span class="apl-edu__lvl">' + esc(e.Program) + '</span><b>' + esc(e.School) + '</b>' + (yrs ? '<small>' + esc(yrs) + '</small>' : '') + '</li>';
+      return '<li><span class="apl-edu__lvl">' + esc(e.Label || e.Program) + '</span><b>' + esc(e.School) + '</b>' + (yrs ? '<small>' + esc(yrs) + '</small>' : '') + '</li>';
     }).join('') + '</ul>' : '<p class="apl-none">Not provided</p>';
 
     var famHtml = a.family.length ? '<div class="apl-people">' + a.family.map(function (f) {

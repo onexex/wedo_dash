@@ -416,9 +416,10 @@ $hasSched = (bool)$effs;
       <ol class="e2-timeline">
         <?php
         $stmt = $pdo->prepare("select * from empeducationalbackground where Program = :p and EmpID = :id");
-        foreach (['Tertiary' => 'College', 'Secondary' => 'High school', 'Primary' => 'Elementary'] as $prog => $label) {
+        foreach (['Tertiary' => 'College', 'Vocational' => 'Vocational / technical', 'Secondary' => 'High school', 'Primary' => 'Elementary'] as $prog => $label) {
           $stmt->execute([':p' => $prog, ':id' => $q]);
           $ed = $stmt->fetch() ?: [];
+          if ($prog === 'Vocational' && !$ed) { continue; }   // only hires from the Apply page can have one
           $school = trim((string)($ed['Name_of_School'] ?? ''));
           $years  = trim(($ed['Year_Started'] ?? '') . ((($ed['Year_End'] ?? '') !== '') ? ' – ' . $ed['Year_End'] : ''));
         ?>

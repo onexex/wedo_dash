@@ -56,7 +56,9 @@ const APL_DISPOSABLE = ['mailinator.com', 'guerrillamail.com', 'guerrillamail.ne
     'dispostable.com', 'throwawaymail.com', 'fakeinbox.com', 'mintemail.com', 'mohmal.com', 'emailondeck.com',
     'tempr.email', 'spamgourmet.com', 'mailnesia.com', 'mytemp.email', 'burnermail.io', 'moakt.com'];
 const APL_MAX_FAMILY   = 6;
-const APL_PROGRAMS     = ['Primary', 'Secondary', 'Tertiary'];
+const APL_PROGRAMS     = ['Primary', 'Secondary', 'Vocational', 'Tertiary'];   // all optional
+const APL_PROGRAM_LABELS = ['Primary' => 'Elementary', 'Secondary' => 'High school', 'Vocational' => 'Vocational / technical', 'Tertiary' => 'College'];
+const APL_BASE_PROGRAMS  = ['Primary', 'Secondary', 'Tertiary'];   // the employee record always has these three rows
 const APL_GENDERS      = ['Female', 'Male'];
 const APL_CIVIL        = ['Single', 'Married', 'Divorced', 'Widowed'];
 
@@ -516,12 +518,11 @@ function apl_validate(PDO $pdo, array $p) {
         $from = apl_year($e['from'] ?? '');
         $to   = apl_year($e['to'] ?? '');
         if ($from === false || $to === false || ($from && $to && $to < $from)) {
-            return ['ok' => false, 'msg' => "Check the school years under $prog education."];
+            return ['ok' => false, 'msg' => 'Check the school years under ' . APL_PROGRAM_LABELS[$prog] . '.'];
         }
         $edu[$prog] = ['School' => $school ?: null, 'YearStarted' => $from, 'YearEnded' => $to,
                        'Address' => lcy_text($e['address'] ?? '', 100) ?: null];
     }
-    if (!array_filter(array_column($edu, 'School'))) { return ['ok' => false, 'msg' => 'Enter at least one school you attended.']; }
 
     $rels = array_map('strtolower', apl_relationships($pdo));
     $fam = [];
@@ -745,7 +746,8 @@ function apl_education(PDO $pdo, $id) {
     foreach ($st->fetchAll(PDO::FETCH_ASSOC) as $r) { $by[$r['Program']] = $r; }
     $out = [];
     foreach (APL_PROGRAMS as $p) {
-        $out[] = $by[$p] ?? ['Program' => $p, 'School' => null, 'YearStarted' => null, 'YearEnded' => null, 'Address' => null];
+        $out[] = ($by[$p] ?? ['Program' => $p, 'School' => null, 'YearStarted' => null, 'YearEnded' => null, 'Address' => null])
+               + ['Label' => APL_PROGRAM_LABELS[$p]];
     }
     return $out;
 }
@@ -1054,7 +1056,8 @@ function apl_hire(PDO $pdo, $id, array $d, $actor) {
                        ':l' => $r['LastName'], ':p' => $v['positionId'], ':n' => $v['idNumber']]);
         $ins = $pdo->prepare("INSERT INTO empeducationalbackground (EmpID, Name_of_School, Program, Year_Started, Year_End, School_Address)
                               VALUES (:e, :s, :p, :f, :t, :a)");
-        foreach ($edu as $e) {   // always all three programs: Update Employee Information edits them by Program
+        foreach ($edu as $e) {   // always the three base programs (Update Employee Information edits them by Program); Vocational when given
+            if (!in_array($e['Program'], APL_BASE_PROGRAMS, true) && trim((string) $e['School']) === '') { continue; }
             $ins->execute([':e' => $empId, ':s' => (string) $e['School'], ':p' => $e['Program'], ':f' => (string) $e['YearStarted'],
                            ':t' => (string) $e['YearEnded'], ':a' => (string) $e['Address']]);
         }
