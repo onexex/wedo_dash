@@ -214,6 +214,7 @@ function wd_can($ar, $k) { return isset($ar[$k]) && $ar[$k] == 2; }
       ['agncy',      'agency',                'maintenance?agency',                'building-2',      'Agencies'],
       ['classf',     'classification',        'maintenance?classification',        'tags',            'Classifications'],
       ['comp',       'company',               'maintenance?company',               'building',        'Companies'],
+      ['dbbackup',   'dbbackup',              'dbbackup',                          'database-backup', 'Database Backup'],
       ['dep',        'department',            'maintenance?department',            'network',         'Departments'],
       ['est',        'employeestatus',        'maintenance?employeestatus',        'user-cog',        'Employee Status'],
       ['eoval',      'eovalidation',          'maintenance?eovalidation',          'door-open',       'EO Validation'],

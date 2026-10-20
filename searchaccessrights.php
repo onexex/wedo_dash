@@ -129,6 +129,10 @@ ar_row('fa-square-plus', 'Family Details for Parental',   'pfam',               
 ar_row('fa-square-plus', 'OT Filing System Maintenance',  'otfs',                $row);
 ar_row('fa-square-plus', 'SSS / Pag-IBIG / PhilHealth / SIL Loan', 'SPPContrib', $row);
 ar_row('fa-wand-magic-sparkles', 'Login Theme',           'logintheme',          $row);
+// only once sql/2026-10-20-add-db-backup-access-right.sql has run (a missing column would read as ON)
+if (array_key_exists('dbbackup', $row)) {
+    ar_row('fa-database', 'Database Backup (download the whole database)', 'dbbackup', $row);
+}
 
 /* ---- Others ---- */
 ar_group('Others');
