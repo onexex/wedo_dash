@@ -676,6 +676,57 @@ final class ApplicantsTest extends AppTestCase
         $this->assertStringNotContainsString('Vocational / technical', $this->request('e201.php', [], [], $this->asEmployee())['body'], 'hidden when there is none');
     }
 
+    public function testAnAdminCanUndoAHireThatWasNeverUsed(): void
+    {
+        $db = self::db();
+        $id = $this->submit()['id'];
+        $this->advance($id, 'offer');
+        $hire = $this->act('hire', ['id' => $id] + $this->hireData());
+        $this->assertSame(200, $hire['status'], $hire['body']);
+        $empId = $hire['json']['empId'];
+        $pic = dirname(__DIR__) . '/assets/images/profiles/' . $empId . '.jpg';
+        $this->files[] = $pic;
+        $this->assertFileExists($pic);
+        $this->assertStringContainsString('"canUndoHire":true', $this->request('applicants.php', [], [], $this->asAdmin())['body']);
+
+        // not for HR without the admin role
+        $db->exec("UPDATE empdetails SET EmpRoleID = 2 WHERE EmpID = '" . self::ADMIN . "'");
+        $this->assertSame(403, $this->act('undo_hire', ['id' => $id])['status']);
+        $db->exec("UPDATE empdetails SET EmpRoleID = 1 WHERE EmpID = '" . self::ADMIN . "'");
+
+        // used for work: refused, nothing removed
+        $db->prepare("INSERT INTO attendancelog (EmpID) VALUES (?)")->execute([$empId]);
+        $used = $this->act('undo_hire', ['id' => $id]);
+        $this->assertSame(422, $used['status']);
+        $this->assertStringContainsString('attendance: 1', $used['json']['msg']);
+        $this->assertStringContainsString('Separation', $used['json']['msg']);
+        $this->assertNotNull($this->row("SELECT EmpID FROM employees WHERE EmpID = ?", [$empId]));
+        $db->prepare("DELETE FROM attendancelog WHERE EmpID = ?")->execute([$empId]);
+
+        // never used: the account goes, the application is back at Job offer
+        $db->prepare("INSERT INTO credit (EmpID, CT, CTH) VALUES (?, 5, 5)")->execute([$empId]);   // leave credits set up: still fine
+        $undo = $this->act('undo_hire', ['id' => $id]);
+        $this->assertSame(200, $undo['status'], $undo['body']);
+        $this->assertSame('offer', $undo['json']['applicant']['stage']);
+        $this->assertNull($undo['json']['applicant']['empId']);
+        foreach ([['employees', 'EmpID'], ['empdetails', 'EmpID'], ['empdetails2', 'EmpID'], ['empprofiles', 'EmpID'],
+                  ['empeducationalbackground', 'EmpID'], ['fdetails', 'FDetID'], ['accessrights', 'EmpID'], ['emp_lifecycle_events', 'EmpID'],
+                  ['credit', 'EmpID']] as [$t, $c]) {
+            $this->assertCount(0, $this->rows("SELECT * FROM $t WHERE $c = ?", [$empId]), $t);
+        }
+        $this->assertFileDoesNotExist($pic);
+        $a = $this->row("SELECT Stage, EmpID, HiredAt FROM applicants WHERE id = ?", [$id]);
+        $this->assertSame(['offer', null, null], [$a['Stage'], $a['EmpID'], $a['HiredAt']]);
+        $notes = implode(' | ', array_column($undo['json']['applicant']['events'], 'notes'));
+        $this->assertStringContainsString('Hire undone — WeDo account ' . $empId . ' removed', $notes);
+        $this->assertSame(422, $this->act('undo_hire', ['id' => $id])['status'], 'nothing left to undo');
+
+        // and it can be hired again
+        $again = $this->act('hire', ['id' => $id] + $this->hireData());
+        $this->assertSame(200, $again['status'], $again['body']);
+        $this->files[] = dirname(__DIR__) . '/assets/images/profiles/' . $again['json']['empId'] . '.jpg';
+    }
+
     public function testOlderHistoryStillNamesTheNewStage(): void
     {
         $id = $this->submit()['id'];

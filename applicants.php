@@ -44,6 +44,7 @@ $boot = [
     'mailStages'=> APL_MAIL_STAGES,
     'myEmail'   => filter_var(trim($myEmail), FILTER_VALIDATE_EMAIL) ? trim($myEmail) : '',
     'canHire'   => apl_can_hire($aplpdo),
+    'canUndoHire' => apl_can_undo_hire($aplpdo),   // admins: undo a mistaken / test hire
     'canLife'   => lcy_can_separate($aplpdo),
     'openings'  => $ready ? apl_openings($aplpdo, false) : [],
     'id'        => (int) ($_GET['id'] ?? 0),

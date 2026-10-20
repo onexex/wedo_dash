@@ -364,6 +364,7 @@ body.apl-public { background: #f4f6fb; min-height: 100vh; color: var(--text); }
 .apl-pro__actions .wd-btn--ghost:hover { background: rgba(255, 255, 255, .2); color: #fff; }
 .apl-pro__actions .apl-pro__locked, .apl-pro__actions .apl-pro__locked:hover { background: transparent; border: 1px dashed rgba(255, 255, 255, .35);
   color: rgba(255, 255, 255, .65); cursor: not-allowed; opacity: 1; }
+.apl-pro__actions .apl-pro__undo:hover { background: rgba(249, 54, 39, .28); border-color: rgba(255, 140, 130, .6); }
 
 /* stage tracker */
 .apl-pro__track { display: flex; align-items: center; gap: 16px; padding: 16px 28px; background: var(--surface); border-bottom: 1px solid var(--border); }
