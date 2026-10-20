@@ -22,9 +22,11 @@ die("ERROR: Could not connect. " . $e->getMessage());
 
 /* --------------------------------------------------------------------------
    Brute-force protection (includes/bot-guard.php):
-     - 15 wrong passwords for a username / 50 failed sign-ins from one address
+     - 5 wrong passwords for a username / 50 failed sign-ins from one address
        in 15 minutes -> "429|<minutes>|<seconds>|<user or ip>" until the window
        passes (the page turns the Sign in button off with a countdown)
+     - a wrong password answers "1|<attempts left>" so the page can warn
+       before the lock; the one that uses up the last attempt answers 429 at once
      - Cloudflare Turnstile is checked on the server when its keys are set
        (config.local.php turnstile_site / turnstile_secret) -> "428" if not passed
      - an unknown username and a wrong password get the same answer ("1")
@@ -41,6 +43,16 @@ $lgLock = wd_login_lock($pdo, $lgUser, $lgIp);
 if ($lgLock['wait'] > 0) {
     echo '429|' . (int) ceil($lgLock['wait'] / 60) . '|' . (int) $lgLock['wait'] . '|' . $lgLock['scope'];
     exit;
+}
+// a wrong password (or unknown username — same answer): how many tries are left,
+// or the lock itself when that was the last one
+function wd_login_wrong(PDO $pdo, string $user, string $ip): string
+{
+    $lock = wd_login_lock($pdo, $user, $ip);
+    if ($lock['wait'] > 0) {
+        return '429|' . (int) ceil($lock['wait'] / 60) . '|' . (int) $lock['wait'] . '|' . $lock['scope'];
+    }
+    return '1|' . wd_login_user_left($pdo, $user);
 }
 if (wd_turnstile_check($_POST['cf-turnstile-response'] ?? '', $lgIp) === 'bad') {
     wd_login_record($pdo, $lgUser, $lgIp, false);
@@ -96,7 +108,7 @@ if (wd_turnstile_check($_POST['cf-turnstile-response'] ?? '', $lgIp) === 'bad') 
             	// same answer and the same work as a wrong password: usernames can't be probed
             	wd_login_dummy_verify($lgPass);
             	wd_login_record($pdo, $lgUser, $lgIp, false);
-            	print "1";
+            	print wd_login_wrong($pdo, $lgUser, $lgIp);
             	session_destroy();
             ?>
             
@@ -323,7 +335,7 @@ if (wd_turnstile_check($_POST['cf-turnstile-response'] ?? '', $lgIp) === 'bad') 
 
             	} else {
             	    wd_login_record($pdo, $lgUser, $lgIp, false);
-            	    echo '1';
+            	    echo wd_login_wrong($pdo, $lgUser, $lgIp);
             	}
             
              	?>
