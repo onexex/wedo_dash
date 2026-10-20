@@ -54,10 +54,10 @@ function wd_site_url(): string
 
 /**
  * Send one email. $html is the full HTML body (see wd_mail_layout), $text the
- * plain-text version.
+ * plain-text version, $attachments a list of ['name' => file name, 'content' => raw bytes].
  * @return array{ok:bool, error:string}
  */
-function wd_mail_send(string $toEmail, string $toName, string $subject, string $html, string $text = ''): array
+function wd_mail_send(string $toEmail, string $toName, string $subject, string $html, string $text = '', array $attachments = []): array
 {
     $cfg = wd_mail_config();
     if (!$cfg) { return ['ok' => false, 'error' => 'Email is not set up on this server.']; }
@@ -71,6 +71,7 @@ function wd_mail_send(string $toEmail, string $toName, string $subject, string $
     ];
     if ($text !== '') { $msg['textContent'] = $text; }
     if ($cfg['replyTo'] !== '') { $msg['replyTo'] = ['email' => $cfg['replyTo']]; }
+    foreach ($attachments as $f) { $msg['attachment'][] = ['name' => (string) $f['name'], 'content' => base64_encode((string) $f['content'])]; }
 
     $log = getenv('WEDO_MAIL_LOG');
     if ($log) {   // tests: write instead of sending
