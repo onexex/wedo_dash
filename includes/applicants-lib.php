@@ -1105,3 +1105,103 @@ function apl_hire(PDO $pdo, $id, array $d, $actor) {
     lcy_audit($pdo, 'Hired applicant #' . (int) $id . ' as ' . $empId . ' (' . apl_name($r) . ')');
     return ['ok' => true, 'empId' => $empId, 'username' => $username, 'password' => $password, 'values' => $v];
 }
+
+/* ------------------------------------------------------------------ undo a hire */
+
+/**
+ * Records that mean the account has been used for real work: [table, employee column, what it is].
+ * Any of these blocks "Undo hire" — such an employee is separated (Separation & Lifecycle), not removed.
+ */
+const APL_WORK_RECORDS = [
+    ['attendancelog', 'EmpID', 'attendance'], ['workdays', 'empid', 'work days'], ['otattendancelog', 'EmpID', 'overtime'],
+    ['earlyout', 'EMPID', 'early-out'], ['hleaves', 'EmpID', 'leave'], ['obs', 'EmpID', 'official business'],
+    ['payrol', 'PYEmpID', 'payroll'], ['prdetails', 'EmpID', 'payroll'], ['temp_payroll', 'EmpID', 'payroll'],
+    ['tblholidaypayroll', 'empid', 'holiday pay'], ['adjusment2', 'EmpID', 'payroll adjustment'], ['silloan', 'loanEmpID', 'loan'],
+    ['messages', 'SenderID', 'message'], ['messageheader', 'SenderID', 'message'], ['msg_group_members', 'EmpID', 'chat group'],
+    ['msg_call_members', 'EmpID', 'call'], ['notifications', 'SenderID', 'notification'], ['announcements', 'EmpID', 'announcement'],
+    ['coe_requests', 'EmpID', 'COE request'], ['employment_verifications', 'EmpID', 'employment verification'],
+    ['emp_separations', 'EmpID', 'separation record'], ['idcard_cards', 'EmpID', 'ID card'], ['idcard_print_log', 'EmpID', 'ID card'],
+    ['profile_change_requests', 'EmpID', 'profile change request'], ['empe201files', 'EMPID', '201 file'],
+    ['empjobdesc', 'EmpID', 'job description'], ['parentalrel', 'EmpID', 'parental record'], ['holidays', 'HOffsetEmpID', 'holiday offset'],
+    ['empdetails', 'EmpISID', 'employee reporting to them'], ['otattendancelog', 'EmpISID', 'overtime they approve'],
+    ['earlyout', 'EmpISID', 'early-out they approve'],
+];
+
+/** What Hire created, plus setup and sign-in rows: removed by "Undo hire". [table, employee column]. */
+const APL_HIRE_ROWS = [
+    ['employees', 'EmpID'], ['empdetails', 'EmpID'], ['empdetails2', 'EmpID'], ['empprofiles', 'EmpID'],
+    ['empeducationalbackground', 'EmpID'], ['fdetails', 'FDetID'], ['accessrights', 'EmpID'], ['emp_lifecycle_events', 'EmpID'],
+    ['credit', 'EmpID'], ['credit_log', 'EmpID'], ['schedtime', 'empid'],
+    ['app_remember', 'EmpID'], ['push_devices', 'EmpID'], ['msg_presence', 'EmpID'], ['msg_cleared', 'EmpID'],
+    ['notif_seen', 'EmpID'], ['annseen', 'EmpID'],
+];
+
+/** Undo hire is for admins (role 1, read fresh) who may also hire. */
+function apl_can_undo_hire(PDO $pdo) {
+    if (!apl_can_hire($pdo)) { return false; }
+    $st = $pdo->prepare("SELECT EmpRoleID FROM empdetails WHERE EmpID = :id");
+    $st->execute([':id' => (string) $_SESSION['id']]);
+    return (int) $st->fetchColumn() === 1;
+}
+
+/** Tables of this database (lower case), so a server without some module's tables still works. */
+function apl_tables(PDO $pdo) {
+    return array_flip(array_map('strtolower', $pdo->query("SELECT TABLE_NAME FROM information_schema.TABLES WHERE TABLE_SCHEMA = DATABASE()")
+                                                  ->fetchAll(PDO::FETCH_COLUMN)));
+}
+
+/** The work records an employee has: ['attendance' => 12, ...]; empty = the account was never used for work. */
+function apl_work_records(PDO $pdo, $empId) {
+    $have = apl_tables($pdo);
+    $found = [];
+    $seen = [];
+    foreach (APL_WORK_RECORDS as [$t, $c, $what]) {
+        if (!isset($have[$t]) || isset($seen["$t.$c"])) { continue; }
+        $seen["$t.$c"] = true;
+        $st = $pdo->prepare("SELECT COUNT(*) FROM `$t` WHERE `$c` = :e");
+        $st->execute([':e' => (string) $empId]);
+        $n = (int) $st->fetchColumn();
+        if ($n > 0) { $found[$what] = ($found[$what] ?? 0) + $n; }
+    }
+    return $found;
+}
+
+/**
+ * Undo a hire made by mistake or as a test: remove the WeDo account Hire
+ * created and put the application back at Job offer. Only while the account
+ * has no work records (attendance, payroll, leave, messages, ...). The audit
+ * log (dars) keeps what happened.
+ * @return array{ok:bool, msg?:string, empId?:string}
+ */
+function apl_undo_hire(PDO $pdo, $id, $actor) {
+    $r = apl_row($pdo, $id);
+    if (!$r) { return ['ok' => false, 'msg' => 'That application no longer exists.']; }
+    $empId = (string) $r['EmpID'];
+    if ($r['Stage'] !== 'hired' || $empId === '') { return ['ok' => false, 'msg' => 'This applicant is not hired.']; }
+    if ($empId === (string) $actor) { return ['ok' => false, 'msg' => 'You cannot undo your own hire.']; }
+    $found = apl_work_records($pdo, $empId);
+    if ($found) {
+        $list = [];
+        foreach ($found as $what => $n) { $list[] = $what . ': ' . $n; }
+        return ['ok' => false, 'msg' => $empId . ' has already been used for work (' . implode(', ', $list) . '), so the hire cannot be undone. '
+              . 'Use Separation & Lifecycle to end the employment instead.'];
+    }
+    $have = apl_tables($pdo);
+    $pdo->beginTransaction();
+    try {
+        foreach (APL_HIRE_ROWS as [$t, $c]) {
+            if (isset($have[$t])) { $pdo->prepare("DELETE FROM `$t` WHERE `$c` = :e")->execute([':e' => $empId]); }
+        }
+        $pdo->prepare("UPDATE applicants SET EmpID = NULL, Stage = :s, StageAt = NOW(), HiredAt = NULL WHERE id = :id")
+            ->execute([':s' => APL_HIRE_STAGE, ':id' => (int) $id]);
+        apl_event($pdo, $id, 'hired', APL_HIRE_STAGE, 'Hire undone — WeDo account ' . $empId . ' removed (it had no work records)', $actor);
+        $pdo->commit();
+    } catch (Throwable $e) {
+        $pdo->rollBack();
+        throw $e;
+    }
+    $pic = dirname(__DIR__) . '/assets/images/profiles/' . preg_replace('/[^A-Za-z0-9._-]/', '', $empId) . '.jpg';
+    if (is_file($pic)) { @unlink($pic); }   // the copy Hire made of the camera photo
+    lcy_audit($pdo, 'Undid hire of applicant #' . (int) $id . ': account ' . $empId . ' removed (' . apl_name($r) . ')');
+    return ['ok' => true, 'empId' => $empId];
+}

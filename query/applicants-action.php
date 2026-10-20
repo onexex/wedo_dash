@@ -6,6 +6,7 @@
      list, detail, stage, delete, openings, save_opening
      exam_upload (images[] + caption), exam_delete   (exam result pictures)
      hire_options, contract_preview, hire   (+ "Enroll Employee": hiring creates an account)
+     undo_hire              (admins only; the account must have no work records)
      mail_status, mail_test (the "Email setup" check + a test email)
    Emails to the applicant (includes/applicants-mail.php, only when Brevo is
    set up): stage with email=1 + emailMessage (Job offer / Not selected only),
@@ -108,6 +109,13 @@ try {
         }
         $fail(apl_add_exam_files($pdo, $id, $files, $p('caption'), $actor));
         apx_out(200, ['status' => 'ok', 'applicant' => apl_detail($pdo, $id)]);
+
+    case 'undo_hire':   // a mistaken or test hire: remove the account (only if never used for work), back to Job offer
+        if (!apl_can_undo_hire($pdo)) { apx_out(403, ['status' => 'error', 'msg' => 'Only an admin can undo a hire.']); }
+        $id = (int) $p('id');
+        $r = apl_undo_hire($pdo, $id, $actor);
+        $fail($r);
+        apx_out(200, ['status' => 'ok', 'empId' => $r['empId'], 'applicant' => apl_detail($pdo, $id)]);
 
     case 'exam_delete':
         $id = (int) $p('id');

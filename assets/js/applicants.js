@@ -193,7 +193,9 @@
             + '<i class="fa-solid fa-lock"></i> Hire at ' + esc(STAGES[BOOT.hireStage]) + '</button>') : '')
       + (a.stage === 'rejected' || a.stage === 'withdrawn' ? '<button type="button" class="wd-btn wd-btn--danger wd-btn--sm" id="aplDeleteBtn"><i class="fa-solid fa-trash"></i> Delete</button>' : '')
       + (a.empId ? '<span class="wd-pill wd-pill--ok"><i class="fa-solid fa-id-badge"></i> Employee ' + esc(a.empId) + '</span>'
-          + (BOOT.canLife ? '<a class="wd-btn wd-btn--ghost wd-btn--sm" href="separation?emp=' + encodeURIComponent(a.empId) + '">Lifecycle</a>' : '') : '');
+          + (BOOT.canLife ? '<a class="wd-btn wd-btn--ghost wd-btn--sm" href="separation?emp=' + encodeURIComponent(a.empId) + '">Lifecycle</a>' : '')
+          + (BOOT.canUndoHire && a.stage === 'hired' ? '<button type="button" class="wd-btn wd-btn--ghost wd-btn--sm apl-pro__undo" id="aplUndoHireBtn" title="Remove the account Hire created — only if it was never used for work">'
+            + '<i class="fa-solid fa-rotate-left"></i> Undo hire</button>' : '') : '');
     $id('aplTrack').innerHTML = track(a);
 
     /* ---- body */
@@ -265,6 +267,20 @@
         post('delete', { id: a.id }).then(function (res) {
           if (res.status !== 'ok') { alert(res.msg); return; }
           $('#aplModal').modal('hide');
+          load();
+        });
+      });
+    }
+    var ub = $id('aplUndoHireBtn');
+    if (ub) {
+      ub.addEventListener('click', function () {
+        if (!confirm('Undo the hire of ' + a.name + '?\n\nThe WeDo account ' + a.empId + ' (sign-in, 201 profile, pay and access rights) is removed '
+          + 'and the application goes back to ' + (STAGES[BOOT.hireStage] || 'Job offer') + '. This only works if the account was never used for work.')) { return; }
+        ub.disabled = true;
+        post('undo_hire', { id: a.id }).then(function (res) {
+          ub.disabled = false;
+          if (res.status !== 'ok') { alert(res.msg); return; }
+          keepFeed(function () { render(res.applicant); });
           load();
         });
       });
