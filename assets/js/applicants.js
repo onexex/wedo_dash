@@ -134,12 +134,16 @@
     });
   }
 
-  /** the pipeline stepper; a closed (rejected / withdrawn) application shows how far it got. */
+  /** the pipeline stepper; a closed (rejected / withdrawn) application stops at the stage it was closed from
+      (same rule as apl_reopen_stage: an undone hire or an earlier, further stage in its history doesn't count). */
   function track(a) {
     var closed = a.stage === 'rejected' || a.stage === 'withdrawn';
     var reached = PIPE.indexOf(a.stage);
     if (closed) {
-      a.events.forEach(function (e) { reached = Math.max(reached, PIPE.indexOf(e.from), PIPE.indexOf(e.to)); });
+      reached = 0;
+      a.events.forEach(function (e) {
+        if (e.to === a.stage && e.from !== e.to && BOOT.pipeline.indexOf(e.from) >= 0) { reached = PIPE.indexOf(e.from); }
+      });
     }
     var steps = PIPE.map(function (k, i) {
       var cls = i < reached || (i === reached && k === 'hired') ? 'is-done' : (i === reached ? (closed ? 'is-stop' : 'is-on') : '');
