@@ -18,6 +18,16 @@ try {
 require_once __DIR__ . '/account-gate.php';
 wd_account_gate($wdpdo);
 
+/* Corner birthday greetings for today, if no sign-in has posted them yet: this
+   covers the remember-me cookie, the app's token and sessions that ran past
+   midnight, which never go through the password sign-in. Once per session a day. */
+date_default_timezone_set("Asia/Manila");
+if (($_SESSION['wd_bday_day'] ?? '') !== date('Y-m-d')) {
+    require_once __DIR__ . '/corner-lib.php';
+    try { wd_post_birthday_greetings($wdpdo); } catch (Throwable $wdErr) { error_log('[wedo birthday] ' . $wdErr->getMessage()); }
+    $_SESSION['wd_bday_day'] = date('Y-m-d');
+}
+
 /* user + position */
 $wdu = $wdpdo->prepare("SELECT e.EmpLN, e.EmpFN, p.PositionDesc,
       (SELECT ep.EmpPPath FROM empprofiles ep WHERE ep.EmpID = e.EmpID LIMIT 1) AS EmpPPath

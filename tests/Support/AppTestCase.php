@@ -24,7 +24,7 @@ abstract class AppTestCase extends TestCase
         'empeducationalbackground', 'fdetails', 'accessrights', 'dars', 'profile_change_requests',
         'idcard_cards', 'idcard_print_log', 'idcard_settings', 'credit', 'credit_years', 'credit_log', 'hleaves', 'messageheader', 'messages', 'msg_presence', 'msg_calls', 'msg_call_members', 'msg_call_signals', 'msg_groups', 'msg_group_members', 'msg_reactions', 'msg_mentions', 'push_devices', 'app_remember', 'msg_cleared', 'msg_deleted_archive', 'msg_review_log', 'announcements',
         'emp_lifecycle_events', 'emp_separations', 'coe_requests', 'employment_verifications', 'amsarchive',
-        'job_openings', 'applicants', 'applicant_education', 'applicant_family', 'applicant_events', 'applicant_files', 'login_attempts',
+        'job_openings', 'applicants', 'applicant_education', 'applicant_family', 'applicant_events', 'applicant_files', 'login_attempts', 'tblsyslog',
         'earlyout', 'obshbd', 'hleavesbd', 'otattendancelog', 'leaves', 'payrol',
     ];
 
@@ -59,6 +59,8 @@ abstract class AppTestCase extends TestCase
             $db->prepare("INSERT INTO `$table` ($cols) VALUES ($ph)")->execute(array_values($row));
         };
 
+        // today's Corner birthday greetings count as already posted, so no page test gets one by surprise
+        $ins('tblsyslog', ['datecheck' => (new \DateTime('now', new \DateTimeZone('Asia/Manila')))->format('Y-m-d')]);
         $ins('companies', ['CompanyID' => 'TC', 'CompanyDesc' => 'TestCo', 'compcode' => 'TC', 'comcolor' => '#f93627']);
         $ins('departments', ['DepartmentID' => 1, 'DepartmentDesc' => 'Engineering', 'CompID' => 'TC']);
         $ins('departments', ['DepartmentID' => 2, 'DepartmentDesc' => 'People', 'CompID' => 'TC']);
