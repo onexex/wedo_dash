@@ -176,80 +176,10 @@ if (wd_turnstile_check($_POST['cf-turnstile-response'] ?? '', $lgIp) === 'bad') 
                         }
                        
             	    }else{
-                        $today = date("Y-m-d");
-                        //validate the tblsysLog for daily record
-                        $stmtValDayLog = $pdo->prepare("select * from tblsyslog where datecheck = '$today' ");
-                        $stmtValDayLog->execute(); 
-                        $varCountDayLog=$stmtValDayLog->rowCount();
-                        $varRowDayLog=$stmtValDayLog->fetch();
-
-                            //get the date 
-                            //if have no action
-                        if( $varCountDayLog > 0){
-                            //no action
-                        }else{
-                            //if no record select for posible birthday in 
-                            // $getEmployeeBday = $pdo->prepare("SELECT * FROM empprofiles WHERE DATE_FORMAT(EmpDOB,'%m-%d') = DATE_FORMAT(NOW(),'%m-%d')OR ((DATE_FORMAT(NOW(),'%Y') % 4 <> 0 
-                            // OR (DATE_FORMAT(NOW(),'%Y') % 100 = 0 AND DATE_FORMAT(NOW(),'%Y') % 400 <> 0) )AND DATE_FORMAT(NOW(),'%m-%d') = '03-01'AND DATE_FORMAT(EmpDOB,'%m-%d') = '02-29');");
-                            // $getEmployeeBday->execute(); 
-                            // $varCountemployee=$getEmployeeBday->rowCount();
-                            // $varEmloyeebday=$getEmployeeBday->fetch();
-                             //if no record select for posible birthday in 
-                            $getEmployeeBday = $pdo->prepare("SELECT * FROM empprofiles INNER JOIN employees ON empprofiles.EmpID=employees.EmpID WHERE EmpStatusID=1  AND DATE_FORMAT(EmpDOB,'%m-%d') = DATE_FORMAT(NOW(),'%m-%d')OR ((DATE_FORMAT(NOW(),'%Y') % 4 <> 0 
-                            OR (DATE_FORMAT(NOW(),'%Y') % 100 = 0 AND DATE_FORMAT(NOW(),'%Y') % 400 <> 0) )AND DATE_FORMAT(NOW(),'%m-%d') = '03-01'AND DATE_FORMAT(EmpDOB,'%m-%d') = '02-29');");
-                            $getEmployeeBday->execute(); 
-                            $varCountemployee=$getEmployeeBday->rowCount();
-
-                            $employeeData=[];
-                            if( $varCountemployee>=1){
-                               while ( $varEmloyeebday=$getEmployeeBday->fetch()) {
-                                    //get employee
-                                    $idemp = $varEmloyeebday['EmpID'];
-                                    echo $idemp ;
-                                    $stmtEmp = $pdo->prepare("select * from employees where EmpID = '$idemp' ");
-                                    $stmtEmp->execute(); 
-                                    $empRowcount=$stmtEmp->rowCount();
-                                    $empRow=$stmtEmp->fetch();
-
-                                    //create announcement 
-                                    $todayDT = date("Y-m-d H:i:s");
-                                    $creatorName='admin';
-                                    $ann='Announcement';
-                                    $message= 'Happy Birthday ' . $empRow['EmpFN'] . ' ' . $empRow['EmpLN'] . " <i class='fa fa-birthday-cake'></i>";
-                                    $sql = "INSERT INTO announcements (EmpID,Title,ADesc,ADate) 
-                                       VALUES (:id,:AnnT,:announ,:dtte)";
-                                        $stmt = $pdo->prepare($sql);
-                                        $stmt->bindParam(':id' ,$creatorName);
-                                        $stmt->bindParam(':AnnT' ,$ann);
-                                        $stmt->bindParam(':announ' ,$message);
-                                        $stmt->bindParam(':dtte' ,$todayDT);
-                                        $stmt->execute(); 
-                                }
-                                //insert logs validator
-                                $todaylogs = date("Y-m-d");
-                                $todaylogsLong = date("Y-m-d");
-                                $sql = "INSERT INTO tblsyslog (datecheck,created_at) 
-                                       VALUES (:dc,:ca)";
-                                        $stmt = $pdo->prepare($sql);
-                                        // $stmt->bindParam(':id' ,$creatorName);
-                                        $stmt->bindParam(':dc' ,$todaylogs);
-                                        $stmt->bindParam(':ca' ,$todaylogsLong);
-                                        $stmt->execute(); 
-                            }else{
-                                $todaylogs = date("Y-m-d");
-                                $todaylogsLong = date("Y-m-d");
-                                $sql = "INSERT INTO tblsyslog (datecheck,created_at) 
-                                       VALUES (:dc,:ca)";
-                                        $stmt = $pdo->prepare($sql);
-                                        // $stmt->bindParam(':id' ,$creatorName);
-                                        $stmt->bindParam(':dc' ,$todaylogs);
-                                        $stmt->bindParam(':ca' ,$todaylogsLong);
-                                        $stmt->execute(); 
-                            }
-                        }
-                        //then create announcement 
-                        //then insert copy of logs for the day
-                        // echo $varCountDayLog;
+                        // first sign-in of the day posts the Corner birthday greetings (includes/corner-lib.php);
+                        // never let it block a sign-in
+                        require_once __DIR__ . '/../includes/corner-lib.php';
+                        try { wd_post_birthday_greetings($pdo); } catch (Throwable $e) { error_log('[wedo birthday] ' . $e->getMessage()); }
                        
 
             	          $_SESSION['quesID']=$row['EmpID'];
