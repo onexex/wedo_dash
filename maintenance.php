@@ -15,6 +15,23 @@ if (session_status() === PHP_SESSION_NONE) { session_start(); }
 		exit;
 	}
 
+	// Holidays is reskinned too (includes/holiday.php renders its own shell) and
+	// gated by the `hldy` access right (==2), the same switch that lists it in
+	// the Maintenance menu.
+	if (isset($_GET['holiday'])) {
+		include 'w_conn.php';
+		require_once 'includes/holiday-lib.php';
+		$hldOk = false;
+		try {
+			$hldpdo = new PDO("mysql:host=$servername;dbname=$db;charset=utf8mb4", $username, $password);
+			$hldpdo->setAttribute(PDO::ATTR_ERRMODE, PDO::ERRMODE_EXCEPTION);
+			$hldOk = hld_can($hldpdo, (string) $_SESSION['id']);
+		} catch (PDOException $e) { $hldOk = false; }
+		if (!$hldOk) { header('location: 404?'); exit; }
+		include 'includes/holiday.php';
+		exit;
+	}
+
 	// Family Details for Parental is gated by the `pfam` access right (==2).
 	// Missing column = migration not run = no access.
 	if (isset($_GET['parentalfamilydetails'])) {
@@ -298,9 +315,6 @@ if (session_status() === PHP_SESSION_NONE) { session_start(); }
 		}
 		else if (isset($_GET['otfsm'])){
 				include_once 'includes/otfsm.php';
-		}
-		else if (isset($_GET['holiday'])){
-				include_once 'includes/holiday.php';
 		}
 		else if (isset($_GET['gpreiod'])){
 				include_once 'includes/gperiod.php';
