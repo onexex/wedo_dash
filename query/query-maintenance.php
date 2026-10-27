@@ -118,26 +118,6 @@
 		   $stmt->execute(); 
 		}
 	}
-	if (isset($_GET['addholidaylogger'])){
-		include 'w_conn.php';
-		try{
-		$pdo = new PDO("mysql:host=$servername;dbname=$db", $username,$password);
-		$pdo->setAttribute(PDO::ATTR_ERRMODE, PDO::ERRMODE_EXCEPTION);
-		   }
-		catch(PDOException $e)
-		   {
-		die("ERROR: Could not connect. " . $e->getMessage());
-		   }
-
-		    $sql = "INSERT INTO  holidays (Hdate,Htype,Hdescription,HCompID,HOffsetEmpID) VALUES (:hld,:hlt,:dsc,:cid,:id)";
-		   $stmt = $pdo->prepare($sql);
-		   $stmt->bindParam(':hld', $_POST['hldate']);
-		   $stmt->bindParam(':hlt', $_POST['hldtype']);
-		   $stmt->bindParam(':dsc', $_POST['desc']);
-		   $stmt->bindParam(':cid', $_SESSION['CompID']);
-		   $stmt->bindParam(':id', $_SESSION['id']);
-		   $stmt->execute(); 
-	}
 	if (isset($_GET['typeofleave'])){
 		include 'w_conn.php';
 		try{

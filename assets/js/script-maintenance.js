@@ -85,24 +85,6 @@ $(document).ready(function(){
 					
 				}
 		});
-		$(".btnholiday").click(function(){
-				var data=$(".frmholiday").serialize();
-
-				$.ajax({
-                          url:'query/query-maintenance.php?addholidaylogger', 
-                          type:'post',
-                          data:data,
-
-                          success:function(qwe){
-                    
-                          			$('#newform').modal('toggle');
-                          			$('#modalWarning').modal('toggle');
-     								$('#modalWarning .alert').html("Successfully Saved");	
-     								location.reload();
-                          }	
-                });
-		});
-
 	  $('input[type="checkbox"]').click(function(){
 	          if($(this).is(":checked")){
 	           $("#notallowed").append(" " + $(this).val());
