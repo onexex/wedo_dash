@@ -7,7 +7,9 @@
 
    Gated by the `dbbackup` access right (includes/db-backup-lib.php) — checked
    here, the page is not the guard. Built and gzipped on the fly straight to
-   the browser: nothing is written to disk. Every download goes to dars.
+   the browser, and the same bytes are kept in uploads/backups/ (the last
+   dbb_keep() of them) so the page can offer the file again later. Every
+   download goes to dars.
    ========================================================================== */
 if (session_status() === PHP_SESSION_NONE) { session_start(); }
 date_default_timezone_set("Asia/Manila");
@@ -54,11 +56,18 @@ try {
     dbb_fail(500, 'Database unavailable.');
 }
 
-$file = dbb_filename($db);
+$dir  = dbb_dir();
+$file = dbb_unused_name(dbb_filename($db), $dir);
 dbb_log($pdo, $me, DBB_LOG_PREFIX . " downloaded: $file");
 
-// stream: no time limit, no PHP/zlib output buffering in the way
+// the kept copy is written as .part and renamed once the dump is complete
+$part = "$dir/$file.part";
+$keep = @fopen($part, 'xb');   // false: folder not writable — still stream the download
+
+// stream: no time limit, no PHP/zlib output buffering in the way; the server
+// copy finishes even if the browser gives up part-way
 @set_time_limit(0);
+@ignore_user_abort(true);
 @ini_set('zlib.output_compression', 'Off');
 while (ob_get_level() > 0) { ob_end_clean(); }
 
@@ -72,21 +81,37 @@ if ($nonce !== '') { setcookie('dbb_dl', substr($nonce, 0, 32), ['path' => '/', 
 
 $gz  = deflate_init(ZLIB_ENCODING_GZIP, ['level' => 6]);
 $buf = '';
-$write = function (string $chunk) use ($gz, &$buf) {
+$out = function (string $bytes) use ($keep) {
+    echo $bytes;
+    if ($keep) { fwrite($keep, $bytes); }
+};
+$write = function (string $chunk) use ($gz, &$buf, $out) {
     $buf .= $chunk;
     if (strlen($buf) >= 262144) {   // compress + send in ~256 KB steps
-        echo deflate_add($gz, $buf, ZLIB_NO_FLUSH);
+        $out(deflate_add($gz, $buf, ZLIB_NO_FLUSH));
         $buf = '';
         flush();
     }
 };
 
+$ok = true;
 try {
     $done = dbb_dump($dump, $write, $db);
 } catch (Throwable $e) {
     // headers are gone already: say so inside the file, which then has no "Dump completed" line
+    $ok = false;
     $write("\n-- !!! BACKUP INCOMPLETE — the database reported an error. Do not use this file.\n");
     try { dbb_log($pdo, $me, DBB_LOG_PREFIX . " FAILED: $file"); } catch (Throwable $ignored) {}
 }
-echo deflate_add($gz, $buf, ZLIB_FINISH);
+$out(deflate_add($gz, $buf, ZLIB_FINISH));
 flush();
+
+if ($keep) {
+    fclose($keep);
+    if ($ok) {
+        @rename($part, "$dir/$file");   // a complete backup, now re-downloadable from the page
+        dbb_prune($dir);
+    } else {
+        @unlink($part);                 // an incomplete one is never offered again
+    }
+}

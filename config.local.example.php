@@ -35,6 +35,10 @@
  *                   e.g. https://wedoinc.ph/dashboard (default: the current host)
  * Env vars BREVO_API_KEY / MAIL_FROM / MAIL_FROM_NAME / MAIL_REPLY_TO / SITE_URL
  * win over these. Leave the key out and no email is sent (nothing else changes).
+ *
+ * Database Backup (Maintenance, see includes/db-backup-lib.php): the last
+ * 'backup_keep' backups (default 10) stay in uploads/backups/ so they can be
+ * downloaded again from the page. Env var WEDO_BACKUP_KEEP wins over this.
  * -------------------------------------------------------------------------- */
 return [
     'host' => 'localhost',
@@ -48,4 +52,5 @@ return [
     // 'mail_from'      => 'careers@wedoinc.ph',
     // 'mail_from_name' => 'WeDo BPO Inc.',
     // 'mail_reply_to'  => 'hr@wedoinc.ph',
+    // 'backup_keep' => 10,               // kept database backups (uploads/backups/)
 ];
