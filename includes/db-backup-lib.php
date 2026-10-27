@@ -9,15 +9,24 @@
  *
  * Pure PHP/PDO (no mysqldump / exec, which GoDaddy shared hosting doesn't
  * allow). Rows are read unbuffered and gzipped on the fly straight to the
- * browser, so big tables never sit in memory and nothing is written to disk.
+ * browser, so big tables never sit in memory. The same bytes are also kept in
+ * uploads/backups/ (deny-all .htaccess, served only through
+ * query/dbbackup-file.php to holders of the right), the last DBB_KEEP of them,
+ * so a backup made days ago can be downloaded again from the page.
+ * config.local.php 'backup_keep' / env WEDO_BACKUP_KEEP changes how many are
+ * kept; env WEDO_BACKUP_DIR moves the folder (tests).
  * The file restores with phpMyAdmin > Import or `mysql db < file.sql`.
  *
- * Used by: dbbackup.php (the page), query/dbbackup-download.php (the download)
+ * Used by: dbbackup.php (the page), query/dbbackup-download.php (make + download),
+ *          query/dbbackup-file.php (download a kept copy)
  * ========================================================================== */
+
+require_once __DIR__ . '/bot-guard.php';   // wd_local_config()
 
 const DBB_INSERT_ROWS  = 500;       // rows per INSERT statement ...
 const DBB_INSERT_BYTES = 262144;    // ... or ~256 KB, whichever comes first (well under a 1 MB max_allowed_packet)
 const DBB_LOG_PREFIX   = 'Database backup';
+const DBB_KEEP         = 10;        // kept copies on the server (older ones are deleted after each backup)
 
 /** Whether $me holds the `dbbackup` right. False until the migration has run. */
 function dbb_can_backup(PDO $pdo, string $me): bool
@@ -67,17 +76,110 @@ function dbb_summary(PDO $pdo): array
     return ['tables' => (int) $r['tables'], 'bytes' => (int) $r['bytes'], 'rows' => (int) $r['approx_rows']];
 }
 
-/** Recent backups from the activity log, newest first. */
-function dbb_recent(PDO $pdo, int $limit = 10): array
+/**
+ * Recent backups from the activity log, newest first: the ones made ("downloaded:"
+ * and "FAILED:" lines), not re-downloads of a kept copy. Each row also says
+ * whether its file is still on the server ('file' = name, 'kept' = bool, 'bytes').
+ */
+function dbb_recent(PDO $pdo, int $limit = 10, ?string $dir = null): array
 {
     $st = $pdo->prepare("SELECT d.EMPID, d.EmpActivity, d.DarDateTime,
                                 TRIM(CONCAT(COALESCE(e.EmpFN, ''), ' ', COALESCE(e.EmpLN, ''))) AS name
                            FROM dars d LEFT JOIN employees e ON e.EmpID = d.EMPID
-                          WHERE d.EmpActivity LIKE :p
+                          WHERE d.EmpActivity LIKE :made OR d.EmpActivity LIKE :failed
                           ORDER BY d.DarDateTime DESC, d.DARSID DESC
                           LIMIT " . max(1, $limit));
-    $st->execute([':p' => DBB_LOG_PREFIX . '%']);
-    return $st->fetchAll(PDO::FETCH_ASSOC);
+    $st->execute([':made' => DBB_LOG_PREFIX . ' downloaded:%', ':failed' => DBB_LOG_PREFIX . ' FAILED:%']);
+    $rows = $st->fetchAll(PDO::FETCH_ASSOC);
+    $dir  = $dir ?? dbb_dir();
+    foreach ($rows as &$r) {
+        $r['failed'] = stripos($r['EmpActivity'], 'FAILED') !== false;
+        $r['file']   = trim((string) preg_replace('/^.*?:\s*/', '', $r['EmpActivity']));
+        $path        = dbb_file_path($r['file'], $dir);
+        $r['kept']   = !$r['failed'] && $path !== null;
+        $r['bytes']  = $r['kept'] ? (int) filesize($path) : 0;
+    }
+    unset($r);
+    return $rows;
+}
+
+/* ------------------------------------------------------------- kept copies */
+
+/** uploads/backups/ (env WEDO_BACKUP_DIR wins), created with a deny-all .htaccess on first use. */
+function dbb_dir(?string $dir = null): string
+{
+    $env = getenv('WEDO_BACKUP_DIR');
+    $dir = $dir ?? (($env !== false && $env !== '') ? $env : dirname(__DIR__) . '/uploads/backups');
+    if (!is_dir($dir)) { @mkdir($dir, 0770, true); }
+    if (is_dir($dir) && !is_file($dir . '/.htaccess')) {
+        @file_put_contents($dir . '/.htaccess',
+            "# Database backups: served only through query/dbbackup-file.php (holders of the dbbackup right)\n"
+            . "<IfModule mod_authz_core.c>\n  Require all denied\n</IfModule>\n"
+            . "<IfModule !mod_authz_core.c>\n  Order allow,deny\n  Deny from all\n</IfModule>\n");
+        @file_put_contents($dir . '/index.html', '');
+    }
+    return $dir;
+}
+
+/** How many copies to keep: env WEDO_BACKUP_KEEP, else config.local.php 'backup_keep', else DBB_KEEP. */
+function dbb_keep(): int
+{
+    $env = getenv('WEDO_BACKUP_KEEP');
+    $n   = ($env !== false && $env !== '') ? $env : (wd_local_config()['backup_keep'] ?? DBB_KEEP);
+    return max(1, (int) $n);
+}
+
+/** A backup file name as dbb_filename() makes it (an optional -2, -3 … suffix when two land in the same second). */
+function dbb_valid_name(string $name): bool
+{
+    return (bool) preg_match('/^[A-Za-z0-9_-]+-backup-\d{4}-\d\d-\d\d_\d{6}(-\d+)?\.sql\.gz$/', $name);
+}
+
+/** Full path of a kept copy, or null when the name is not one of ours or the file is gone. */
+function dbb_file_path(string $name, ?string $dir = null): ?string
+{
+    if (!dbb_valid_name($name)) { return null; }
+    $path = ($dir ?? dbb_dir()) . '/' . $name;
+    return is_file($path) ? $path : null;
+}
+
+/** $name, or $name-2, -3 … : the first that is not already in the folder. */
+function dbb_unused_name(string $name, string $dir): string
+{
+    $try = $name;
+    for ($i = 2; is_file("$dir/$try") || is_file("$dir/$try.part"); $i++) {
+        $try = preg_replace('/\.sql\.gz$/', "-$i.sql.gz", $name);
+    }
+    return $try;
+}
+
+/** Kept copies, newest first: [['name' => .., 'bytes' => .., 'mtime' => ..], ...] */
+function dbb_kept(?string $dir = null): array
+{
+    $dir = $dir ?? dbb_dir();
+    $out = [];
+    foreach (glob($dir . '/*.sql.gz') ?: [] as $f) {
+        $name = basename($f);
+        if (!dbb_valid_name($name)) { continue; }
+        $out[] = ['name' => $name, 'bytes' => (int) filesize($f), 'mtime' => (int) filemtime($f)];
+    }
+    usort($out, fn($a, $b) => [$b['mtime'], $b['name']] <=> [$a['mtime'], $a['name']]);
+    return $out;
+}
+
+/** Delete every kept copy beyond the newest $keep (and any stale .part left by a crash). Returns the names deleted. */
+function dbb_prune(?string $dir = null, ?int $keep = null): array
+{
+    $dir  = $dir ?? dbb_dir();
+    $keep = $keep ?? dbb_keep();
+    $gone = [];
+    foreach (array_slice(dbb_kept($dir), $keep) as $old) {
+        if (@unlink($dir . '/' . $old['name'])) { $gone[] = $old['name']; }
+    }
+    foreach (glob($dir . '/*.sql.gz.part') ?: [] as $part) {
+        if (filemtime($part) < time() - 86400) { @unlink($part); }
+    }
+    return $gone;
 }
 
 /** Write one line to the activity log (dars). */

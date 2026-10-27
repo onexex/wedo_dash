@@ -1,9 +1,11 @@
 <?php
 /* ==========================================================================
    dbbackup.php  —  Maintenance > Database Backup.
-   Download the whole WeDo database (structure + data) as a .sql.gz file.
+   Download the whole WeDo database (structure + data) as a .sql.gz file, and
+   download again any of the last few backups kept on the server.
    Gated by the `dbbackup` access right; the dump itself is built by
-   includes/db-backup-lib.php and streamed by query/dbbackup-download.php.
+   includes/db-backup-lib.php and streamed by query/dbbackup-download.php,
+   kept copies are served by query/dbbackup-file.php.
    ========================================================================== */
 if (session_status() === PHP_SESSION_NONE) { session_start(); }
 date_default_timezone_set("Asia/Manila");
@@ -20,7 +22,8 @@ try {
 if (!dbb_can_backup($dbbpdo, (string) $_SESSION['id'])) { header('location: 404?'); exit(); }
 
 $summary = dbb_summary($dbbpdo);
-$recent  = dbb_recent($dbbpdo, 10);
+$keep    = dbb_keep();
+$recent  = dbb_recent($dbbpdo, max(10, $keep));
 $token   = dbb_csrf_token();
 $hasGz   = function_exists('deflate_init');
 $example = dbb_filename($db);   // before wd-header.php, which re-includes w_conn.php
@@ -71,6 +74,8 @@ $mb = function ($bytes) {
       .dbb-help ol{margin:6px 0 0;padding-left:20px}
       .dbb-empty{text-align:center;color:var(--text-3);padding:22px}
       .dbb-file{font-family:ui-monospace,SFMono-Regular,Consolas,monospace;font-size:12px;color:var(--text-2);word-break:break-all}
+      .dbb-gone{font-size:12px;color:var(--text-3);white-space:nowrap}
+      .wd-table td.dbb-dl{white-space:nowrap}
       @media (max-width:600px){ .dbb-hide-sm{display:none} .dbb-run .wd-btn{width:100%;justify-content:center} .dbb-run form{width:100%} }
     </style>
   </head>
@@ -92,6 +97,7 @@ $mb = function ($bytes) {
         <div>
           <b>This file holds everything:</b> salaries, government IDs, addresses, messages and password hashes.
           Keep it in a secure, private place (not email or a shared chat), and delete copies you no longer need.
+          The last <?php echo (int) $keep; ?> backups also stay on the server, out of the web’s reach, for people with this right to download again.
           Every download is recorded with your name.
         </div>
       </div>
@@ -134,22 +140,29 @@ $mb = function ($bytes) {
       <section class="wd-card" style="margin-top:16px">
         <div class="wd-card__head">
           <h3>Recent backups</h3>
-          <span class="wd-muted" style="font-size:12.5px">From the activity log</span>
+          <span class="wd-muted" style="font-size:12.5px">The last <?php echo (int) $keep; ?> stay on the server and can be downloaded again</span>
         </div>
         <div style="overflow-x:auto">
           <table class="wd-table">
-            <thead><tr><th>When</th><th>By</th><th class="dbb-hide-sm">File</th></tr></thead>
+            <thead><tr><th>When</th><th>By</th><th class="dbb-hide-sm">File</th><th>Download</th></tr></thead>
             <tbody>
             <?php if (!$recent): ?>
-              <tr><td colspan="3" class="dbb-empty">No backups yet.</td></tr>
+              <tr><td colspan="4" class="dbb-empty">No backups yet.</td></tr>
             <?php endif; ?>
-            <?php foreach ($recent as $r):
-              $failed = stripos($r['EmpActivity'], 'FAILED') !== false;
-              $fileName = trim((string) preg_replace('/^.*?:\s*/', '', $r['EmpActivity'])); ?>
+            <?php foreach ($recent as $r): ?>
               <tr>
                 <td><?php echo $r['DarDateTime'] ? $e(date('M j, Y g:i A', strtotime($r['DarDateTime']))) : '—'; ?></td>
-                <td><?php echo $e($r['name'] !== '' ? $r['name'] : $r['EMPID']); ?><?php if ($failed): ?> <span class="wd-pill wd-pill--danger">Failed</span><?php endif; ?></td>
-                <td class="dbb-hide-sm dbb-file"><?php echo $e($fileName); ?></td>
+                <td><?php echo $e($r['name'] !== '' ? $r['name'] : $r['EMPID']); ?><?php if ($r['failed']): ?> <span class="wd-pill wd-pill--danger">Failed</span><?php endif; ?></td>
+                <td class="dbb-hide-sm dbb-file"><?php echo $e($r['file']); ?></td>
+                <td class="dbb-dl">
+                  <?php if ($r['kept']): ?>
+                    <a class="wd-btn wd-btn--ghost wd-btn--sm" href="query/dbbackup-file.php?f=<?php echo rawurlencode($r['file']); ?>" download><i class="fa-solid fa-download"></i> <?php echo $e($mb($r['bytes'])); ?></a>
+                  <?php elseif ($r['failed']): ?>
+                    <span class="dbb-gone">Not kept</span>
+                  <?php else: ?>
+                    <span class="dbb-gone" title="Only the last <?php echo (int) $keep; ?> backups stay on the server">No longer on server</span>
+                  <?php endif; ?>
+                </td>
               </tr>
             <?php endforeach; ?>
             </tbody>

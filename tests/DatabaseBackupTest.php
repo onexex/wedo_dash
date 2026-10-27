@@ -7,14 +7,28 @@ use Wedo\Tests\Support\AppTestCase;
  * Maintenance > Database Backup: holders of the `dbbackup` access right
  * download the whole database as a gzipped SQL dump.
  *
- *   dbbackup.php                    the page (redirects away without the right)
- *   query/dbbackup-download.php     the download (401 / 403 / 400 / the .sql.gz)
- *   includes/db-backup-lib.php      who may back up, the pure-PDO dump
+ *   dbbackup.php                    the page (redirects away without the right; Download links for kept copies)
+ *   query/dbbackup-download.php     the download (401 / 403 / 400 / the .sql.gz), also kept in uploads/backups/
+ *   query/dbbackup-file.php         a kept copy again (401 / 403 / 404 / the .sql.gz)
+ *   includes/db-backup-lib.php      who may back up, the pure-PDO dump, the kept copies (last N)
+ *
+ * The kept copies go to a throwaway folder (env WEDO_BACKUP_DIR), never to the
+ * real uploads/backups/.
  */
 final class DatabaseBackupTest extends AppTestCase
 {
     private const TOKEN = 'backup-test-token';
     private const PROBE = 'zz_backup_probe';
+
+    private string $dir = '';
+
+    protected function setUp(): void
+    {
+        parent::setUp();
+        $this->dir = sys_get_temp_dir() . DIRECTORY_SEPARATOR . 'wedo-test-backups-' . bin2hex(random_bytes(4));
+        putenv('WEDO_BACKUP_DIR=' . $this->dir);
+        putenv('WEDO_BACKUP_KEEP');
+    }
 
     protected function tearDown(): void
     {
@@ -23,7 +37,22 @@ final class DatabaseBackupTest extends AppTestCase
         $db->exec("DROP VIEW IF EXISTS zz_backup_probe_v");
         $db->exec("DROP TABLE IF EXISTS " . self::PROBE);
         $db->exec("DROP DATABASE IF EXISTS `" . $this->restoreDb() . "`");
+        foreach (is_dir($this->dir) ? scandir($this->dir) : [] as $f) { if (is_file($this->dir . '/' . $f)) { @unlink($this->dir . '/' . $f); } }
+        @rmdir($this->dir);
+        putenv('WEDO_BACKUP_DIR');
+        putenv('WEDO_BACKUP_KEEP');
         parent::tearDown();
+    }
+
+    /** Names of the copies in the test folder, newest first. */
+    private function kept(): array
+    {
+        return array_map(fn($f) => basename($f), array_reverse(glob($this->dir . '/*.sql.gz') ?: []));
+    }
+
+    private function fetchKept(?array $session, string $name): array
+    {
+        return $this->request('query/dbbackup-file.php', ['f' => $name], [], $session);
     }
 
     private function as(string $id): array
@@ -119,11 +148,117 @@ final class DatabaseBackupTest extends AppTestCase
         $this->assertCount(1, $log);
         $this->assertSame(self::ADMIN, $log[0]['EMPID']);
         $this->assertMatchesRegularExpression('/^Database backup downloaded: wedo_test-backup-\d{4}-\d\d-\d\d_\d{6}\.sql\.gz$/', $log[0]['EmpActivity']);
+        $name = substr($log[0]['EmpActivity'], strlen('Database backup downloaded: '));
 
-        // the page lists it
+        // the same bytes are kept on the server, in a folder the web can't reach
+        $this->assertSame([$name], $this->kept());
+        $this->assertSame($res['body'], file_get_contents($this->dir . '/' . $name));
+        $this->assertSame([], glob($this->dir . '/*.part') ?: [], 'no leftover .part file');
+        $this->assertStringContainsString('Require all denied', (string) file_get_contents($this->dir . '/.htaccess'));
+
+        // the page lists it with a Download link
         $page = $this->request('dbbackup.php', [], [], $this->as(self::ADMIN))['body'];
         $this->assertStringContainsString('Ada Admin', $page);
         $this->assertStringNotContainsString('No backups yet', $page);
+        $x = $this->dom($page);
+        $link = $x->query("//table//a[contains(@href, 'query/dbbackup-file.php?f=')]")->item(0);
+        $this->assertNotNull($link, 'Download link');
+        $this->assertSame('query/dbbackup-file.php?f=' . rawurlencode($name), $link->getAttribute('href'));
+        $this->assertStringContainsString('KB', $link->textContent);
+    }
+
+    /** A kept copy downloads again, as the same bytes, only for holders of the right; the re-download is logged, not listed. */
+    public function testAKeptCopyDownloadsAgain(): void
+    {
+        $this->grant(self::ADMIN);
+        $made = $this->download($this->as(self::ADMIN));
+        [$name] = $this->kept();
+
+        $this->assertSame(401, $this->fetchKept(null, $name)['status']);
+        $this->assertSame(403, $this->fetchKept($this->as(self::EMP), $name)['status']);
+
+        $again = $this->fetchKept($this->as(self::ADMIN), $name);
+        $this->assertSame(200, $again['status'], substr($again['body'], 0, 300));
+        $this->assertSame($made['body'], $again['body']);
+        $this->assertIsString(gzdecode($again['body']));
+
+        $log = $this->backupLog();
+        $this->assertCount(2, $log);
+        $this->assertSame("Database backup re-downloaded: $name", $log[1]['EmpActivity']);
+
+        // the page shows the backup once (a re-download is not a new backup)
+        $page = $this->request('dbbackup.php', [], [], $this->as(self::ADMIN))['body'];
+        $this->assertSame(1, $this->dom($page)->query("//table//a[contains(@href, 'query/dbbackup-file.php?f=')]")->length);
+
+        // only our own file names, only from the folder: no paths, no other files
+        file_put_contents($this->dir . '/notes.txt', 'not a backup');
+        foreach (['../w_conn.php', '..\\w_conn.php', 'w_conn.php', 'notes.txt', '', 'x-backup-2026-01-01_000000.sql.gz', "$name.part"] as $bad) {
+            $this->assertSame(404, $this->fetchKept($this->as(self::ADMIN), $bad)['status'], $bad);
+        }
+    }
+
+    /** Only the newest N stay; the page says so for the ones that are gone. */
+    public function testKeepsOnlyTheLastN(): void
+    {
+        putenv('WEDO_BACKUP_KEEP=2');
+        $this->grant(self::ADMIN);
+        $db = self::db();
+        @mkdir($this->dir, 0770, true);
+        $old = [];
+        foreach ([3, 2] as $daysAgo) {   // two earlier backups, logged and kept
+            $at   = new \DateTimeImmutable("-$daysAgo days", new \DateTimeZone('Asia/Manila'));
+            $file = 'wedo_test-backup-' . $at->format('Y-m-d_His') . '.sql.gz';
+            file_put_contents($this->dir . '/' . $file, gzencode("-- old backup $daysAgo\n"));
+            touch($this->dir . '/' . $file, $at->getTimestamp());
+            $db->prepare("INSERT INTO dars (EmpID, EmpActivity, DarDateTime) VALUES (?, ?, ?)")
+               ->execute([self::ADMIN, "Database backup downloaded: $file", $at->format('Y-m-d H:i:s')]);
+            $old[] = $file;
+        }
+        file_put_contents($this->dir . '/stale.sql.gz.part', 'crashed');
+        touch($this->dir . '/stale.sql.gz.part', time() - 2 * 86400);
+
+        $this->assertSame(200, $this->download($this->as(self::ADMIN))['status']);
+
+        $kept = $this->kept();
+        $this->assertCount(2, $kept);
+        $this->assertContains($old[1], $kept, 'the newer old one stays');
+        $this->assertNotContains($old[0], $kept, 'the oldest is gone');
+        $this->assertFileDoesNotExist($this->dir . '/stale.sql.gz.part');
+
+        $page = $this->request('dbbackup.php', [], [], $this->as(self::ADMIN))['body'];
+        $this->assertNoPhpErrors($page);
+        $x = $this->dom($page);
+        $this->assertSame(3, $x->query("//table/tbody/tr")->length);
+        $this->assertSame(2, $x->query("//table//a[contains(@href, 'query/dbbackup-file.php?f=')]")->length);
+        $this->assertNotNull($x->query("//table//a[@href='query/dbbackup-file.php?f=" . rawurlencode($old[1]) . "']")->item(0));
+        $this->assertNull($x->query("//table//a[@href='query/dbbackup-file.php?f=" . rawurlencode($old[0]) . "']")->item(0));
+        $this->assertStringContainsString('No longer on server', $page);
+        $this->assertStringContainsString('The last 2 stay on the server', $page);
+        $this->assertSame(404, $this->fetchKept($this->as(self::ADMIN), $old[0])['status']);
+    }
+
+    /** A dump that fails part-way is streamed (marked INCOMPLETE) but never kept. */
+    public function testAFailedBackupIsNotKept(): void
+    {
+        $this->grant(self::ADMIN);
+        $db = self::db();
+        // a MERGE table over a table that doesn't exist: reading its rows fails mid-dump
+        $db->exec("CREATE TABLE " . self::PROBE . " (id INT) ENGINE=MERGE UNION=(zz_backup_probe_missing)");
+
+        $res = $this->download($this->as(self::ADMIN));
+        $this->assertSame(200, $res['status']);
+        $sql = gzdecode($res['body']);
+        $this->assertIsString($sql);
+        $this->assertStringContainsString('BACKUP INCOMPLETE', $sql);
+
+        $this->assertSame([], $this->kept());
+        $this->assertSame([], glob($this->dir . '/*.part') ?: []);
+        $log = $this->backupLog();
+        $this->assertCount(2, $log);
+        $this->assertStringStartsWith('Database backup FAILED:', $log[1]['EmpActivity']);
+        $page = $this->request('dbbackup.php', [], [], $this->as(self::ADMIN))['body'];
+        $this->assertStringContainsString('Not kept', $page);
+        $this->assertSame(0, $this->dom($page)->query("//table//a[contains(@href, 'query/dbbackup-file.php?f=')]")->length);
     }
 
     /** The dump restores into an empty database exactly: same rows, awkward values included. */
