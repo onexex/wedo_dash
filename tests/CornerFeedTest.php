@@ -132,6 +132,50 @@ final class CornerFeedTest extends AppTestCase
         $this->assertSame(0, (int) self::db()->query("SELECT COUNT(*) FROM annseen")->fetchColumn());
     }
 
+    // ------------------------------------------------------------ pop-up (every-page check-in)
+
+    private function checkIn(array $session, ?int $after): array
+    {
+        $get = ['action' => 'incoming'] + ($after === null ? [] : ['ca' => $after]);
+        $res = $this->request('query/Query-calls.php', $get, [], $session);
+        $this->assertSame(200, $res['status'], $res['body']);
+        return json_decode($res['body'], true);
+    }
+
+    public function testTheCheckInPopsUpEachNewPostOnceAndNeverOldOnesOrYourOwn(): void
+    {
+        $old = $this->announce(self::ADMIN, 'Posted before this browser ever checked in.');
+        $this->assertArrayNotHasKey('corner', $this->checkIn($this->asEmployee(), null), 'only when the page asks');
+
+        // first check-in: just the newest id, so nothing old pops up
+        $first = $this->checkIn($this->asEmployee(), -1);
+        $this->assertSame($old, $first['corner_top']);
+        $this->assertArrayNotHasKey('corner', $first);
+        $this->assertNull($this->checkIn($this->asEmployee(), $old)['corner']);
+
+        $new = $this->announce(self::ADMIN, "Free <b>pizza</b> in the pantry\nat 3 PM!");
+        $hit = $this->checkIn($this->asEmployee(), $old)['corner'];
+        $this->assertSame($new, $hit['aid']);
+        $this->assertSame('news', $hit['kind']);
+        $this->assertSame('Announcement from Ada Admin', $hit['title']);
+        $this->assertSame('Free pizza in the pantry at 3 PM!', $hit['text']);
+        $this->assertSame('corner', $hit['url']);
+
+        $this->assertNull($this->checkIn($this->asEmployee(), $new)['corner'], 'already shown');
+        $this->assertNull($this->checkIn($this->asAdmin(), $old)['corner'], 'not your own post');
+    }
+
+    public function testANewPollPopsUpWithAVoteLink(): void
+    {
+        self::db()->prepare("INSERT INTO announcements (EmpID, Title, ADesc, ADate) VALUES (?, 'Poll#42', 'New poll: Lunch on Friday?', ?)")
+            ->execute([self::ADMIN, date('Y-m-d H:i:s')]);
+        $hit = $this->checkIn($this->asEmployee(), 0)['corner'];
+        $this->assertSame('poll', $hit['kind']);
+        $this->assertSame('New poll from Ada Admin', $hit['title']);
+        $this->assertSame('Lunch on Friday?', $hit['text']);
+        $this->assertSame('corner#poll-42', $hit['url']);
+    }
+
     // ------------------------------------------------------------ paging
 
     public function testOlderPostsLoadAPageAtATime(): void
