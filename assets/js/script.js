@@ -287,9 +287,9 @@ $(document).ready(function(){
 var id =$("#rnum").val();
     id++;
 
-       var l = $('.relchk').prop('checked');
        var ic = $('.relice').prop('checked');
-        if (l==true){
+        // "Other — type it" takes the typed relationship instead of the option text
+        if ($('#rel').val() === '__other'){
           var rel = $('#relinput').val();
         }
         else{
@@ -331,6 +331,7 @@ var id =$("#rnum").val();
           // ready for the next person (the address stays: family members often share it)
           $("#famname, #famnumber, #relinput").val("");
           $("#rel").prop('selectedIndex', 0);
+          $("#relinput").css("display", "none");
           $('.relice').prop('checked', false);
           $(this).closest('.modal').modal('hide');
           if (typeof swal === 'function') {
@@ -342,15 +343,13 @@ var id =$("#rnum").val();
      $(".btn-ice").click(function(){
      
      });
-    $(".relchk").click(function(){
-        var l = $('.relchk').prop('checked');
-        if (l==true){
-          $("#relinput").css("display", "block")
-          $("#rel").css("display", "none")
+    // Family Details: show the free-text box only while "Other — type it" is picked
+    $("#rel").change(function(){
+        if ($(this).val() === '__other'){
+          $("#relinput").css("display", "block").focus();
         }
         else{
-          $("#rel").css("display", "block")
-          $("#relinput").css("display", "none")
+          $("#relinput").css("display", "none").val("");
         }
 
     });

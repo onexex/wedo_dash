@@ -98,7 +98,7 @@
     <link rel="stylesheet" href="assets/css/wedo-theme.css?v=<?php echo @filemtime('assets/css/wedo-theme.css'); ?>">
     <link rel="stylesheet" href="assets/css/employee-form.css?v=<?php echo filemtime(__DIR__ . '/assets/css/employee-form.css'); ?>">
 
-    <script src="assets/js/script.js"></script>
+    <script src="assets/js/script.js?v=<?php echo filemtime(__DIR__ . '/assets/js/script.js'); ?>"></script>
     <script src="assets/js/script-updateemployee.js?v=<?php echo filemtime(__DIR__ . '/assets/js/script-updateemployee.js'); ?>"></script>
 </head>
 <body>
@@ -734,11 +734,12 @@
                         <select class="form-control" id="rel" required name="Frel">
                             <option></option>
                             <?php
-                                $sql = mysqli_query($con, "SELECT * FROM frelationship");
+                                $sql = mysqli_query($con, "SELECT * FROM frelationship ORDER BY FRelDesc");
                                 while ($rrow = mysqli_fetch_array($sql)) { echo opt($rrow[0], $rrow[1]); }
                             ?>
+                            <option value="__other">Other &mdash; type it</option>
                         </select>
-                        <input type="text" style="display:none;margin-top:8px" id="relinput" placeholder="Relationship" class="form-control">
+                        <input type="text" style="display:none;margin-top:8px" id="relinput" maxlength="50" placeholder="Type the relationship, e.g. Stepson" class="form-control">
                     </div>
                     <div class="form-group">
                         <label for="famnumber">Contact Number</label>

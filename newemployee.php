@@ -42,7 +42,7 @@
     <!-- WeDo design system (loaded AFTER bootstrap so it wins) -->
     <link rel="stylesheet" href="assets/css/wedo-theme.css?v=<?php echo @filemtime('assets/css/wedo-theme.css'); ?>">
 
-    <script src="assets/js/script.js"></script>
+    <script src="assets/js/script.js?v=<?php echo filemtime(__DIR__ . '/assets/js/script.js'); ?>"></script>
     <script src="assets/js/script-newemployee.js"></script>
 
     <link rel="stylesheet" href="assets/css/employee-form.css?v=<?php echo filemtime(__DIR__ . '/assets/css/employee-form.css'); ?>">
@@ -567,22 +567,15 @@
                             <label>Relationship</label>
                             <select class="form-control" id="rel" required name="Frel">
                                 <option></option>
-                                <option value="16">Sister</option>
-                                <option value="16">Brother</option>
-                                <option value="16">Mother</option>
-                                <option value="16">Father</option>
-                                <option value="16">Cousin</option>
-                                <option value="16">Grandmother</option>
-                                <option value="16">Grandfather</option>
-                                <option value="16">Spouse</option>
                                 <?php
-                                    $sql = mysqli_query($con, "select * from fdetails");
+                                    $sql = mysqli_query($con, "select * from frelationship order by FRelDesc");
                                     while ($res = mysqli_fetch_array($sql)) {
                                         echo '<option value="' . htmlspecialchars($res[0]) . '">' . htmlspecialchars($res[1]) . '</option>';
                                     }
                                 ?>
+                                <option value="__other">Other &mdash; type it</option>
                             </select>
-                            <input type="text" style="display:none;margin-top:8px" id="relinput" placeholder="Relationship" class="form-control">
+                            <input type="text" style="display:none;margin-top:8px" id="relinput" maxlength="50" placeholder="Type the relationship, e.g. Stepson" class="form-control">
                         </div>
                         <div class="form-group">
                             <label>Contact Number</label>
