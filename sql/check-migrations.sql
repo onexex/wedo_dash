@@ -88,6 +88,8 @@ FROM (
          IF((SELECT COUNT(*) FROM information_schema.COLUMNS WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'accessrights' AND COLUMN_NAME = 'dbbackup') = 0, 'accessrights.dbbackup', '')
   UNION ALL SELECT '2026-10-20-applicants-screening-exam-files',
          IF((SELECT COUNT(*) FROM information_schema.TABLES WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'applicant_files') = 0, 'table applicant_files', '')
+  UNION ALL SELECT '2026-10-28-add-corner-polls',
+         IF((SELECT COUNT(*) FROM information_schema.TABLES WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME IN ('corner_polls','corner_poll_options','corner_poll_votes')) < 3, 'corner_polls tables', '')
   UNION ALL SELECT '2026-10-28-add-son-daughter-relationship',
          IF((SELECT COUNT(DISTINCT FRelDesc) FROM frelationship WHERE FRelDesc IN ('Son', 'Daughter')) < 2, 'frelationship Son / Daughter rows', '')
   UNION ALL SELECT 'security fix (remember-me hash, see wedo-security-fixes)',

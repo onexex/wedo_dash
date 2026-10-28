@@ -527,6 +527,37 @@ CREATE TABLE `condebitca` (
   `CA_Status` int(12) NOT NULL DEFAULT 1,
   PRIMARY KEY (`id`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
+CREATE TABLE `corner_polls` (
+  `PollID` int(11) NOT NULL AUTO_INCREMENT,
+  `EmpID` varchar(50) NOT NULL,
+  `Question` varchar(200) NOT NULL,
+  `Details` varchar(500) NOT NULL DEFAULT '',
+  `MultiChoice` tinyint(1) NOT NULL DEFAULT 0,
+  `AllowAdd` tinyint(1) NOT NULL DEFAULT 0,
+  `Anonymous` tinyint(1) NOT NULL DEFAULT 0,
+  `ClosesAt` datetime DEFAULT NULL,
+  `ClosedAt` datetime DEFAULT NULL,
+  `CreatedAt` datetime NOT NULL,
+  PRIMARY KEY (`PollID`),
+  KEY `ix_corner_polls_created` (`CreatedAt`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
+CREATE TABLE `corner_poll_options` (
+  `OptionID` int(11) NOT NULL AUTO_INCREMENT,
+  `PollID` int(11) NOT NULL,
+  `Label` varchar(120) NOT NULL,
+  `AddedBy` varchar(50) NOT NULL,
+  `SortOrder` int(11) NOT NULL DEFAULT 0,
+  PRIMARY KEY (`OptionID`),
+  KEY `ix_corner_poll_options_poll` (`PollID`,`SortOrder`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
+CREATE TABLE `corner_poll_votes` (
+  `PollID` int(11) NOT NULL,
+  `OptionID` int(11) NOT NULL,
+  `EmpID` varchar(50) NOT NULL,
+  `VotedAt` datetime NOT NULL,
+  PRIMARY KEY (`OptionID`,`EmpID`),
+  KEY `ix_corner_poll_votes_poll_emp` (`PollID`,`EmpID`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
 /*!40101 SET character_set_client = @saved_cs_client */;
 /*!40101 SET @saved_cs_client     = @@character_set_client */;
 /*!40101 SET character_set_client = utf8 */;
