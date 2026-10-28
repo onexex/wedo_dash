@@ -139,6 +139,10 @@ $others = [
     ['fa-pen-to-square', 'Update 201 Files', 'updte'],
     ['fa-bullhorn',      "GM'S Corner",      'gcorner'],
 ];
+// only once sql/2026-10-28-add-create-polls-access-right.sql has run (a missing column would read as ON)
+if (array_key_exists('cpoll', $row)) {
+    $others[] = ['fa-square-poll-horizontal', 'Create Corner polls', 'cpoll', 'Start polls in the Corner; everyone can vote'];
+}
 if (array_key_exists('aftersep', $row)) {
     $others[] = ['fa-user-clock', 'Sign in after separation', 'aftersep', 'Keeps signing in after resignation / termination, e.g. still prepares payroll'];
 }

@@ -138,3 +138,146 @@ function wd_corner_ago($datetime) {
     if (date('Y', $t) === date('Y')) { return date('M j', $t); }
     return date('M j, Y', $t);
 }
+
+/* ==========================================================================
+   Announcements feed (corner.php + query/corner-feed.php)
+   ========================================================================== */
+
+if (!defined('WD_CORNER_PAGE')) { define('WD_CORNER_PAGE', 15); }
+
+function wd_corner_csrf_token() {
+    if (empty($_SESSION['corner_csrf'])) { $_SESSION['corner_csrf'] = bin2hex(random_bytes(16)); }
+    return $_SESSION['corner_csrf'];
+}
+
+/* the author, or a super user, may edit / delete a post */
+function wd_corner_can_edit(array $r, $me) {
+    return (string) $r['EmpID'] === (string) $me || (($_SESSION['UserType'] ?? '') == 1);
+}
+
+/* "Juan Dela Cruz" from an auto-posted "Happy Birthday Juan Dela Cruz <i …>", else null */
+function wd_corner_bday_name(array $r) {
+    if ((string) $r['EmpID'] !== 'admin') { return null; }
+    return preg_match('/^Happy Birthday\s+(.+?)\s*(<i\b.*)?$/is', trim((string) $r['ADesc']), $m) ? trim(strip_tags($m[1])) : null;
+}
+
+/* One page of posts, newest first, older than $before (an aid) when given.
+   Returns [rows, hasMore]. is_new = recent, not mine, and not seen yet —
+   read it BEFORE wd_corner_mark_seen() runs. */
+function wd_corner_feed(PDO $pdo, $me, $before = 0, $limit = WD_CORNER_PAGE) {
+    $where = $before > 0 ? 'WHERE a.aid < ' . (int) $before : '';
+    $st = $pdo->prepare("SELECT a.aid, a.EmpID, a.Title, a.ADesc, a.ADate, e.EmpFN, e.EmpLN,
+            (SELECT p.EmpPPath  FROM empprofiles p WHERE p.EmpID = a.EmpID LIMIT 1) AS EmpPPath,
+            (SELECT p.EmpGender FROM empprofiles p WHERE p.EmpID = a.EmpID LIMIT 1) AS EmpGender,
+            (a.EmpID <> :me2 AND a.ADate >= (NOW() - INTERVAL " . (int) WD_CORNER_NEW_DAYS . " DAY)
+              AND NOT EXISTS (SELECT 1 FROM annseen s WHERE s.aid = a.aid AND s.EmpID = :me)) AS is_new
+        FROM announcements a
+        INNER JOIN employees e ON e.EmpID = a.EmpID
+        $where
+        ORDER BY a.aid DESC
+        LIMIT " . ((int) $limit + 1));
+    $st->execute([':me' => $me, ':me2' => $me]);
+    $rows = $st->fetchAll(PDO::FETCH_ASSOC);
+    $more = count($rows) > $limit;
+    return [array_slice($rows, 0, $limit), $more];
+}
+
+/* Feed markup. Birthday auto-posts of the same day collapse into one card. */
+function wd_corner_feed_html(array $rows, $me, $root) {
+    $h = '';
+    $n = count($rows);
+    for ($i = 0; $i < $n; $i++) {
+        $r = $rows[$i];
+        $bday = wd_corner_bday_name($r);
+        if ($bday !== null) {
+            $day = substr($r['ADate'], 0, 10);
+            $names = [$bday]; $new = (int) $r['is_new'] === 1; $last = $r['aid'];
+            while ($i + 1 < $n && ($nb = wd_corner_bday_name($rows[$i + 1])) !== null && substr($rows[$i + 1]['ADate'], 0, 10) === $day) {
+                $i++; $names[] = $nb; $new = $new || (int) $rows[$i]['is_new'] === 1; $last = $rows[$i]['aid'];
+            }
+            $h .= wd_corner_bday_card(array_reverse($names), $r['ADate'], $new, $last);
+            continue;
+        }
+        $h .= wd_corner_post_card($r, $me, $root);
+    }
+    return $h;
+}
+
+function wd_corner_bday_card(array $names, $date, $isNew, $lastAid) {
+    $t = strtotime($date);
+    $isToday = date('Y-m-d', $t) === date('Y-m-d');
+    $chips = '';
+    foreach ($names as $nm) { $chips .= '<span class="cf-bday__name">' . htmlspecialchars($nm) . '</span>'; }
+    return '<article class="cf cf--bday' . ($isNew ? ' is-new' : '') . '" data-kind="bday" data-aid="' . (int) $lastAid . '">'
+         . '<div class="cf-bday__icon" aria-hidden="true"><i class="fa-solid fa-cake-candles"></i></div>'
+         . '<div class="cf__main">'
+         .   '<div class="cf__meta"><span class="cf__author">' . ($isToday ? 'Birthdays today' : 'Birthdays') . '</span>'
+         .     ($isNew ? '<span class="cf__new">New</span>' : '')
+         .     '<time class="cf__time" datetime="' . date('c', $t) . '" title="' . htmlspecialchars(date('l, F j, Y', $t)) . '">'
+         .       htmlspecialchars($isToday ? 'Today' : wd_corner_ago($date)) . '</time></div>'
+         .   '<p class="cf-bday__text">Happy birthday! &#127881; Wish ' . (count($names) === 1 ? 'them' : 'them all') . ' a great one.</p>'
+         .   '<div class="cf-bday__names">' . $chips . '</div>'
+         . '</div></article>';
+}
+
+function wd_corner_post_card(array $r, $me, $root) {
+    $author = ($r['EmpFN'] === 'admin') ? 'WeDo Family' : trim($r['EmpFN'] . ' ' . $r['EmpLN']);
+    $t      = strtotime($r['ADate']);
+    $isNew  = (int) ($r['is_new'] ?? 0) === 1;
+    $title  = trim((string) $r['Title']);
+    $edit   = wd_corner_can_edit($r, $me);
+    $h = '<article class="cf' . ($isNew ? ' is-new' : '') . '" data-kind="news" data-aid="' . (int) $r['aid'] . '">'
+       . '<img class="cf__avatar" src="' . htmlspecialchars(wd_corner_avatar($r['EmpPPath'], $r['EmpGender'], $root)) . '" alt="" width="44" height="44" loading="lazy">'
+       . '<div class="cf__main">'
+       .   '<div class="cf__meta">'
+       .     '<span class="cf__author">' . htmlspecialchars($author) . '</span>'
+       .     ($isNew ? '<span class="cf__new">New</span>' : '')
+       .     '<time class="cf__time" datetime="' . date('c', $t) . '" title="' . htmlspecialchars(date('l, F j, Y · g:i A', $t)) . '">'
+       .       htmlspecialchars(wd_corner_ago($r['ADate'])) . '</time>';
+    if ($edit) {
+        $h .= '<div class="cf__menu">'
+            . '<button type="button" class="cf__menubtn" aria-haspopup="true" aria-expanded="false" aria-label="Post options"><i class="fa-solid fa-ellipsis"></i></button>'
+            . '<div class="cf__menulist" role="menu" hidden>'
+            . '<button type="button" role="menuitem" data-act="edit"><i class="fa-solid fa-pen"></i> Edit</button>'
+            . '<button type="button" role="menuitem" data-act="delete" class="is-danger"><i class="fa-solid fa-trash-can"></i> Delete</button>'
+            . '</div></div>';
+    }
+    $h .=   '</div>'
+       .   (strcasecmp($title, 'Announcement') !== 0 && $title !== '' ? '<h4 class="cf__title">' . htmlspecialchars($title) . '</h4>' : '')
+       .   '<div class="cf__body">' . nl2br(wd_announcement_body($r['ADesc'])) . '</div>'
+       .   '<button type="button" class="cf__more" hidden>See more</button>'
+       .   ($edit ? '<textarea class="cf__src" hidden>' . htmlspecialchars($r['ADesc']) . '</textarea>' : '')
+       . '</div></article>';
+    return $h;
+}
+
+/* Active employees in $compId whose birthday is today (Feb 29 birthdays on
+   Mar 1 in non-leap years, like the calendar). [['id','name','me'], ...] */
+function wd_corner_birthdays_today(PDO $pdo, $compId, $me) {
+    date_default_timezone_set("Asia/Manila");
+    if ((string) $compId === '') { return []; }
+    $m = (int) date('n'); $d = (int) date('j');
+    $leapDay = ($m === 3 && $d === 1 && !checkdate(2, 29, (int) date('Y'))) ? 1 : 0;
+    $st = $pdo->prepare("SELECT e.EmpID, e.EmpFN, e.EmpLN FROM employees e
+        INNER JOIN empdetails dt ON dt.EmpID = e.EmpID
+        INNER JOIN empprofiles p ON p.EmpID = e.EmpID
+        WHERE e.EmpStatusID = 1 AND dt.EmpCompID = :cid
+          AND ((MONTH(p.EmpDOB) = :m AND DAY(p.EmpDOB) = :d) OR (:leap = 1 AND MONTH(p.EmpDOB) = 2 AND DAY(p.EmpDOB) = 29))
+        ORDER BY e.EmpFN, e.EmpLN");
+    $st->execute([':cid' => $compId, ':m' => $m, ':d' => $d, ':leap' => $leapDay]);
+    $out = [];
+    foreach ($st->fetchAll(PDO::FETCH_ASSOC) as $r) {
+        $out[] = ['id' => $r['EmpID'], 'name' => trim($r['EmpFN'] . ' ' . $r['EmpLN']), 'me' => (string) $r['EmpID'] === (string) $me];
+    }
+    return $out;
+}
+
+/* The company's next holiday from today on: ['date' => Y-m-d, 'name' => …] or null */
+function wd_corner_next_holiday(PDO $pdo, $compId) {
+    date_default_timezone_set("Asia/Manila");
+    if ((string) $compId === '') { return null; }
+    $st = $pdo->prepare("SELECT Hdate, Hdescription FROM holidays WHERE HCompID = :cid AND Hdate >= :today ORDER BY Hdate LIMIT 1");
+    $st->execute([':cid' => $compId, ':today' => date('Y-m-d')]);
+    $r = $st->fetch(PDO::FETCH_ASSOC);
+    return $r ? ['date' => $r['Hdate'], 'name' => $r['Hdescription']] : null;
+}

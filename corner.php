@@ -65,73 +65,87 @@
 
   }
   if (!isset($_SESSION['id']) || $_SESSION['id']=="0") { header ('location: login'); exit; }   // the WeDoID cookie did not sign anyone in
-  if (isset($_GET['addannoun'])){
-      include 'w_conn.php';
-      if (isset($_SESSION['id']) && $_SESSION['id']!="0"){}
-      else{ header ('location: login.php'); exit; }
-  try{
-    $pdo = new PDO("mysql:host=$servername;dbname=$db", $username,$password);
+  require_once 'includes/corner-lib.php';
+  date_default_timezone_set("Asia/Manila");
+
+/* Older form handlers, kept for pages that still post here; the Corner itself
+   now uses query/corner-feed.php. Both check who may post / edit. */
+if (isset($_GET['addannoun'])) {
+    if (!wd_corner_can_post()) { http_response_code(403); exit; }
+    include 'w_conn.php';
+    $pdo = new PDO("mysql:host=$servername;dbname=$db", $username, $password);
     $pdo->setAttribute(PDO::ATTR_ERRMODE, PDO::ERRMODE_EXCEPTION);
-       }
-    catch(PDOException $e)
-       {
-    die("ERROR: Could not connect. " . $e->getMessage());
-       }
-         date_default_timezone_set("Asia/Manila");
-         $today = date("Y-m-d H:i:s");
-       $ann='Announcement';
-        $sql = "INSERT INTO announcements (EmpID,Title,ADesc,ADate)
-          VALUES (:id,:AnnT,:announ,:dtte)";
-           $stmt = $pdo->prepare($sql);
-           $stmt->bindParam(':id' ,$_SESSION['id']);
-           $stmt->bindParam(':AnnT' ,$ann);
-           $stmt->bindParam(':announ' ,$_POST['announ']);
-             $stmt->bindParam(':dtte' ,$today);
-           $stmt->execute();
-
-           // mobile push: the author's company, on the app
-           require_once __DIR__ . '/includes/push-lib.php';
-           push_announcement($pdo, (string) $_SESSION['id'], (string) $_POST['announ']);
-       return;
+    $pdo->prepare("INSERT INTO announcements (EmpID, Title, ADesc, ADate) VALUES (?, 'Announcement', ?, ?)")
+        ->execute([$_SESSION['id'], (string) ($_POST['announ'] ?? ''), date("Y-m-d H:i:s")]);
+    // mobile push: the author's company, on the app
+    require_once __DIR__ . '/includes/push-lib.php';
+    push_announcement($pdo, (string) $_SESSION['id'], (string) ($_POST['announ'] ?? ''));
+    return;
 }
-
-if (isset($_GET['updateann'])){
-      date_default_timezone_set("Asia/Manila");
-     include 'w_conn.php';
-      try{
-    $pdo = new PDO("mysql:host=$servername;dbname=$db", $username,$password);
+if (isset($_GET['updateann'])) {
+    include 'w_conn.php';
+    $pdo = new PDO("mysql:host=$servername;dbname=$db", $username, $password);
     $pdo->setAttribute(PDO::ATTR_ERRMODE, PDO::ERRMODE_EXCEPTION);
-       }
-    catch(PDOException $e)
-       {
-    die("ERROR: Could not connect. " . $e->getMessage());
-       }
-        $sql = "UPDATE announcements SET ADesc=:announ  WHERE aid=:id";
-           $stmt = $pdo->prepare($sql);
-           $stmt->bindParam(':id' ,$_GET['updateann']);
-           $stmt->bindParam(':announ' ,$_POST['announ']);
-           $stmt->execute();
-           header("location: corner");
+    $own = $pdo->prepare("SELECT EmpID FROM announcements WHERE aid = ?");
+    $own->execute([(int) $_GET['updateann']]);
+    $owner = $own->fetchColumn();
+    if ($owner === false || !wd_corner_can_edit(['EmpID' => $owner], $_SESSION['id'])) { http_response_code(403); exit; }
+    $pdo->prepare("UPDATE announcements SET ADesc = ? WHERE aid = ?")->execute([(string) ($_POST['announ'] ?? ''), (int) $_GET['updateann']]);
+    header("location: corner");
+    exit;
 }
 
-/* Opening the Corner marks every recent announcement this user hasn't seen
-   as seen, which clears the unseen badges (sidebar + floating bubble). Runs
-   only on a normal page load (the handlers above exit on AJAX/redirect). */
-require_once 'includes/corner-lib.php';
-if (isset($_SESSION['id']) && $_SESSION['id'] != "0") {
-    try {
-        include 'w_conn.php';
-        $seenPdo = new PDO("mysql:host=$servername;dbname=$db", $username, $password);
-        $seenPdo->setAttribute(PDO::ATTR_ERRMODE, PDO::ERRMODE_EXCEPTION);
-        wd_corner_mark_seen($seenPdo, $_SESSION['id']);
-    } catch (Exception $e) { /* non-fatal: badge simply persists until next view */ }
+include 'w_conn.php';
+try {
+    $pdo = new PDO("mysql:host=$servername;dbname=$db", $username, $password);
+    $pdo->setAttribute(PDO::ATTR_ERRMODE, PDO::ERRMODE_EXCEPTION);
+} catch (PDOException $e) {
+    die("ERROR: Could not connect. " . $e->getMessage());
 }
+$me     = (string) $_SESSION['id'];
+$compId = (string) ($_SESSION['CompID'] ?? '');
+
+/* first page of the feed — read BEFORE marking seen so unseen posts get "New".
+   Opening the Corner then marks recent announcements seen, which clears the
+   badges (sidebar + floating bubble). */
+[$feedRows, $feedMore] = wd_corner_feed($pdo, $me);
+try { wd_corner_mark_seen($pdo, $me); } catch (Exception $e) { /* badge simply persists until next view */ }
+
+$meRow = $pdo->prepare("SELECT e.EmpFN, p.EmpPPath, p.EmpGender FROM employees e LEFT JOIN empprofiles p ON p.EmpID = e.EmpID WHERE e.EmpID = ? LIMIT 1");
+$meRow->execute([$me]);
+$meRow  = $meRow->fetch(PDO::FETCH_ASSOC) ?: ['EmpFN' => '', 'EmpPPath' => '', 'EmpGender' => ''];
+$first  = $meRow['EmpFN'] === 'admin' ? '' : trim((string) $meRow['EmpFN']);
+$hour   = (int) date('G');
+$greet  = $hour < 12 ? 'Good morning' : ($hour < 18 ? 'Good afternoon' : 'Good evening');
+$canPost = wd_corner_can_post();
+
+/* ---- polls (only once sql/2026-10-28-add-corner-polls.sql has run) ---- */
+require_once 'includes/corner-polls-lib.php';
+$pollsOn = false; $canPoll = false; $openPolls = []; $closedPolls = [];
+try {
+    $pollPdo = new PDO("mysql:host=$servername;dbname=$db;charset=utf8mb4", $username, $password);
+    $pollPdo->setAttribute(PDO::ATTR_ERRMODE, PDO::ERRMODE_EXCEPTION);
+    $pollsOn = wd_polls_ready($pollPdo);
+    if ($pollsOn) {
+        $canPoll     = wd_poll_can_create($pollPdo, $me);
+        $openPolls   = wd_polls_load($pollPdo, $me, 'open');
+        $closedPolls = wd_polls_load($pollPdo, $me, 'closed', 5);
+    }
+} catch (PDOException $e) { $pollsOn = false; }
+$showPolls = $pollsOn && ($openPolls || $closedPolls || $canPoll);
+$unvoted   = count(array_filter($openPolls, function ($p) { return !$p['mine']; }));
+
+/* ---- today strip ---- */
+$bdays   = wd_corner_birthdays_today($pdo, $compId, $me);
+$holiday = wd_corner_next_holiday($pdo, $compId);
+$myBday  = (bool) array_filter($bdays, function ($b) { return $b['me']; });
+$title   = ($_SESSION['CompanyName'] ?? '') !== '' ? $_SESSION['CompanyName'] . ' Corner' : 'WeDo Corner';
 ?>
 <!DOCTYPE html>
 <html lang="en">
 
 <head>
-    <title><?php if ($_SESSION['CompanyName']==""){ echo "Dashboard"; } else { echo $_SESSION['CompanyName'] . " Corner"; } ?></title>
+    <title><?php echo htmlspecialchars($title); ?></title>
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
 
@@ -144,48 +158,31 @@ if (isset($_SESSION['id']) && $_SESSION['id'] != "0") {
     <!-- WeDo design system (loaded AFTER bootstrap so it wins) -->
     <link rel="stylesheet" href="assets/css/wedo-theme.css?v=<?php echo @filemtime('assets/css/wedo-theme.css'); ?>">
     <link rel="stylesheet" type="text/css" href="assets/css/wedo-calendar.css?v=<?php echo @filemtime(__DIR__ . '/assets/css/wedo-calendar.css'); ?>">
-
+    <link rel="stylesheet" href="assets/css/corner-feed.css?v=<?php echo @filemtime(__DIR__ . '/assets/css/corner-feed.css'); ?>">
     <link rel="stylesheet" href="assets/css/corner-polls.css?v=<?php echo @filemtime(__DIR__ . '/assets/css/corner-polls.css'); ?>">
 
     <script type="text/javascript" src="assets/js/script.js"></script>
+    <script src="assets/js/corner-feed.js?v=<?php echo @filemtime(__DIR__ . '/assets/js/corner-feed.js'); ?>"></script>
     <script src="assets/js/corner-polls.js?v=<?php echo @filemtime(__DIR__ . '/assets/js/corner-polls.js'); ?>"></script>
 
     <style>
       .corner-grid{display:grid;grid-template-columns:minmax(0,1fr) 380px;gap:18px;align-items:start}
       .corner-main{min-width:0}
-      #cornerPolls{overflow:visible}   /* the poll menu may hang past the card's edge */
+      #cornerPolls,#cornerFeed{overflow:visible}   /* post / poll menus may hang past a card's edge */
       @media (max-width:992px){.corner-grid{grid-template-columns:1fr}}
       .corner-card__body{padding:16px 18px}
       .corner-grid .wd-card{min-width:0}
       @media (min-width:993px){.corner-grid .wd-card--cal{position:sticky;top:calc(var(--topbar-h) + 16px)}}
-
-      .ann{display:flex;flex-direction:column;gap:12px;max-height:640px;overflow-y:auto;padding-right:4px}
-      .cn{background:var(--surface-2);border:1px solid var(--border);border-radius:var(--radius-lg);padding:14px}
-      .cn__top{display:flex;gap:12px;align-items:flex-start}
-      .cn .pci-mid{width:54px;height:54px;border-radius:50%;background-position:center;background-size:cover;flex:0 0 54px;background-color:var(--surface)}
-      .cn__title{display:flex;align-items:center;gap:8px;font-weight:700;color:var(--text);margin:0 0 2px;font-size:15px;line-height:1.3}
-      .cn__title .fa-bullhorn{color:var(--brand)}
-      .cn__author{color:var(--text-3);font-size:12px;margin:0}
-      .cn__body{color:var(--text-2);margin:10px 0 8px;white-space:pre-wrap;word-break:break-word;font-size:14px}
-      .cn__cake{color:var(--brand);margin-left:4px}
-      .cn__date{color:var(--text-3);font-size:12px;margin:0;display:flex;align-items:center;gap:6px}
-      .cn__edit{margin-left:auto;color:var(--text-3);cursor:pointer;flex:0 0 auto}
-      .cn__edit:hover{color:var(--brand)}
-      .ann-empty{color:var(--text-3);text-align:center;padding:30px 10px}
 
       .corner-legend{display:flex;gap:12px;align-items:center;flex-wrap:wrap}
       .corner-legend span{display:inline-flex;align-items:center;gap:6px;color:var(--text-2);font-size:12px}
       .corner-legend i{width:14px;height:14px;border-radius:3px;display:inline-block}
 
       .popover{display:inline-block !important}
-      #modalWarning .modal-body{text-align:center}
-      #modalWarning .fa-circle-exclamation{font-size:50px;margin-bottom:10px;color:#d1c156}
     </style>
 
     <script type="text/javascript">
       $(document).ready(function () {
-
-        $('#myModal').on('shown.bs.modal', function () { $('#desc').focus(); });
 
         // Any day cell click (or Enter/Space) → select it and show that day's
         // detail (holiday + birthdays), pre-rendered by PHP as a <template>
@@ -235,40 +232,6 @@ if (isset($_SESSION['id']) && $_SESSION['id'] != "0") {
             complete: function () { calRequest = null; }
           });
         }
-
-        // Post a new announcement
-        $(".btnsaveann").click(function () {
-          if ($("#desc").val().length < 6) {
-            alert("Please input Announcement more than 8 letters.");
-            return;
-          }
-          var data = $(".addfrmannouncement").serialize();
-          $(this).text("Saving Data ..");
-          document.getElementById("saveAnn").disabled = true;
-          $.ajax({
-            url: 'corner.php?addannoun',
-            type: 'post',
-            data: data,
-            success: function () { location.reload(); }
-          });
-        });
-
-        // Read more / read less
-        $(document).on("click", ".ann .btnrdmore", function () {
-          var tid = $(this).attr("id");
-          if ($(this).hasClass("cmore")) {
-            $.ajax({ url: 'query/Query-IUCorner.php', type: 'post', data: { idn: tid } });
-            $("#rdv" + tid).css("display", "none");
-            $("#rdmore" + tid).fadeIn(200);
-            $("#dtmore" + tid).css("display", "block");
-            $(this).text("Read Less..").removeClass("cmore").addClass("cless");
-          } else {
-            $("#rdv" + tid).css("display", "block");
-            $("#rdmore" + tid).css("display", "none");
-            $("#dtmore" + tid).css("display", "none");
-            $(this).text("Read More..").removeClass("cless").addClass("cmore");
-          }
-        });
       });
     </script>
 </head>
@@ -278,50 +241,87 @@ if (isset($_SESSION['id']) && $_SESSION['id'] != "0") {
 
     <div class="wd-pagehead">
         <div>
-            <h1><?php echo htmlspecialchars(($_SESSION['CompanyName'] ?: 'WeDo') . ' Corner'); ?></h1>
-            <p>Company announcements and calendar &mdash; <?php echo date('l, F j, Y'); ?></p>
+            <h1><?php echo htmlspecialchars($title); ?></h1>
+            <p><?php echo htmlspecialchars($greet . ($first !== '' ? ', ' . $first : '')); ?> &middot; <?php echo date('l, F j, Y'); ?></p>
         </div>
-        <?php if (wd_corner_can_post()): ?>
-        <button type="button" class="wd-btn wd-btn--primary" data-toggle="modal" data-target="#myModal"><i class="fa-solid fa-plus"></i> Add announcement</button>
-        <?php endif; ?>
     </div>
 
-    <?php
-        /* ---- polls (only once sql/2026-10-28-add-corner-polls.sql has run) ---- */
-        require_once 'includes/corner-polls-lib.php';
-        $pollsOn = false;
-        try {
-            include 'w_conn.php';
-            $pollPdo = new PDO("mysql:host=$servername;dbname=$db;charset=utf8mb4", $username, $password);
-            $pollPdo->setAttribute(PDO::ATTR_ERRMODE, PDO::ERRMODE_EXCEPTION);
-            $pollsOn = wd_polls_ready($pollPdo);
-        } catch (PDOException $e) { $pollsOn = false; }
-        if ($pollsOn) {
-            $openPolls   = wd_polls_load($pollPdo, $_SESSION['id'], 'open');
-            $closedPolls = wd_polls_load($pollPdo, $_SESSION['id'], 'closed', 5);
-        }
-    ?>
+    <!-- ===== Today ===== -->
+    <div class="ct-strip">
+        <div class="ct-tile ct-tile--bday<?php echo $myBday ? ' is-me' : ''; ?>">
+            <span class="ct-tile__icon"><i class="fa-solid fa-cake-candles"></i></span>
+            <div class="ct-tile__main">
+                <span class="ct-tile__label">Birthdays today</span>
+                <?php if ($myBday): ?>
+                    <b class="ct-tile__value">Happy birthday to you! &#127881;</b>
+                <?php elseif ($bdays): ?>
+                    <b class="ct-tile__value"><?php
+                        $shown = array_slice($bdays, 0, 2);
+                        echo htmlspecialchars(implode(', ', array_column($shown, 'name')));
+                        if (count($bdays) > 2) { echo ' +' . (count($bdays) - 2); }
+                    ?></b>
+                    <span class="ct-tile__sub">
+                        <?php foreach ($shown as $b): ?>
+                        <a href="messages?with=<?php echo rawurlencode($b['id']); ?>"><i class="fa-regular fa-comment"></i> Greet <?php echo htmlspecialchars(strtok($b['name'], ' ')); ?></a>
+                        <?php endforeach; ?>
+                    </span>
+                <?php else: ?>
+                    <b class="ct-tile__value is-muted">None today</b>
+                <?php endif; ?>
+            </div>
+        </div>
+
+        <div class="ct-tile ct-tile--holiday">
+            <span class="ct-tile__icon"><i class="fa-solid fa-umbrella-beach"></i></span>
+            <div class="ct-tile__main">
+                <span class="ct-tile__label">Next holiday</span>
+                <?php if ($holiday):
+                    $days = (int) round((strtotime($holiday['date']) - strtotime(date('Y-m-d'))) / 86400); ?>
+                    <b class="ct-tile__value"><?php echo htmlspecialchars($holiday['name']); ?></b>
+                    <span class="ct-tile__sub"><?php echo date('D, M j', strtotime($holiday['date'])); ?> &middot;
+                        <?php echo $days === 0 ? 'today' : ($days === 1 ? 'tomorrow' : 'in ' . $days . ' days'); ?></span>
+                <?php else: ?>
+                    <b class="ct-tile__value is-muted">None scheduled</b>
+                <?php endif; ?>
+            </div>
+        </div>
+
+        <?php if ($pollsOn): ?>
+        <a class="ct-tile ct-tile--polls" href="#cornerPolls">
+            <span class="ct-tile__icon"><i class="fa-solid fa-square-poll-horizontal"></i></span>
+            <div class="ct-tile__main">
+                <span class="ct-tile__label">Polls</span>
+                <b class="ct-tile__value<?php echo $openPolls ? '' : ' is-muted'; ?>"><?php echo $openPolls ? count($openPolls) . ' open' : 'None open'; ?></b>
+                <?php if ($unvoted): ?>
+                <span class="ct-tile__sub ct-tile__sub--alert"><?php echo $unvoted; ?> waiting for your vote</span>
+                <?php elseif ($openPolls): ?>
+                <span class="ct-tile__sub">You've voted on all of them</span>
+                <?php endif; ?>
+            </div>
+        </a>
+        <?php endif; ?>
+    </div>
 
     <div class="corner-grid">
       <div class="corner-main">
 
-        <?php if ($pollsOn): ?>
+        <?php if ($showPolls): ?>
         <!-- ===== Polls ===== -->
         <section class="wd-card" id="cornerPolls">
             <div class="wd-card__head">
                 <h3>Polls</h3>
-                <?php if (wd_corner_can_post()): ?>
+                <?php if ($canPoll): ?>
                 <button type="button" class="wd-btn wd-btn--ghost wd-btn--sm" data-toggle="modal" data-target="#pollModal"><i class="fa-solid fa-square-poll-horizontal"></i> New poll</button>
                 <?php endif; ?>
             </div>
             <div class="corner-card__body">
                 <div class="cp-list" id="cpOpen">
-                    <?php foreach ($openPolls as $p) { echo wd_poll_card($p, $_SESSION['id']); } ?>
+                    <?php foreach ($openPolls as $p) { echo wd_poll_card($p, $me); } ?>
                 </div>
                 <div class="cp-empty" id="cpEmpty"<?php echo $openPolls ? ' hidden' : ''; ?>>
                     <div class="cp-empty__icon"><i class="fa-solid fa-square-poll-horizontal"></i></div>
                     <b>No open polls right now</b>
-                    <?php if (wd_corner_can_post()): ?>
+                    <?php if ($canPoll): ?>
                     <span>Ask everyone where to eat, where to go, or which day works.</span>
                     <button type="button" class="wd-btn wd-btn--primary wd-btn--sm" style="margin-top:8px" data-toggle="modal" data-target="#pollModal"><i class="fa-solid fa-plus"></i> Start a poll</button>
                     <?php else: ?>
@@ -332,7 +332,7 @@ if (isset($_SESSION['id']) && $_SESSION['id'] != "0") {
                 <details class="cp-closed">
                     <summary><i class="fa-solid fa-chevron-right"></i> Recently closed (<?php echo count($closedPolls); ?>)</summary>
                     <div class="cp-list">
-                        <?php foreach ($closedPolls as $p) { echo wd_poll_card($p, $_SESSION['id']); } ?>
+                        <?php foreach ($closedPolls as $p) { echo wd_poll_card($p, $me); } ?>
                     </div>
                 </details>
                 <?php endif; ?>
@@ -341,105 +341,47 @@ if (isset($_SESSION['id']) && $_SESSION['id'] != "0") {
         <?php endif; ?>
 
         <!-- ===== Announcements ===== -->
-        <section class="wd-card">
-            <div class="wd-card__head"><h3>Announcements</h3></div>
-            <div class="ann corner-card__body">
-                <?php
-                    try{
-                        include 'w_conn.php';
-                        $pdo = new PDO("mysql:host=$servername;dbname=$db", $username,$password);
-                        $pdo->setAttribute(PDO::ATTR_ERRMODE, PDO::ERRMODE_EXCEPTION);
-                    }
-                    catch(PDOException $e)
-                    {
-                        die("ERROR: Could not connect. " . $e->getMessage());
-                    }
-                    $id=$_SESSION['id'];
-                    $statement = $pdo->prepare("select * from announcements inner join employees on announcements.EmpID=employees.EmpID   order by ADate desc");
-                    $statement->execute();
-                    $annCount = $statement->rowCount();
-
-                    while ($row2 = $statement->fetch()){
-                        $st = $pdo->prepare("select * from empprofiles where EmpID=:id");
-                        $st->bindParam(':id' , $row2['EmpID']);
-                        $st->execute();
-
-                        $count=$st->rowCount();
-                        $row=$st->fetch();
-                        if ($count<1){
-                            $path="assets/images/profiles/default.png";
-                            $url = "'assets/images/profiles/default.png'";
-                        }else{
-                            $path="assets/images/profiles/default.png";
-                            try{
-                                if ($row['EmpPPath']==""){
-                                    $path="assets/images/profiles/default.png";
-                                    $url= 'assets/images/profiles/default.png';
-                                }else{
-                                    $path=$row['EmpPPath'];
-                                    $url=  $row['EmpPPath'];
-                                }
-                            }
-                            catch(Exception $e) {
-                                $path="assets/images/profiles/default.png";
-                                $url = "'assets/images/profiles/default.png'";
-                            }
-                        }
-                ?>
-                <!-- announcement -->
-                <div class="cn">
-                    <div class="cn__top">
-                        <div class="pci-mid" style="background-image: url('<?php if(file_exists($url)){ echo $url; }else{ if ($row['EmpGender']=="Male"){ echo "assets/images/profiles/man_d.jpg"; }else{ echo "assets/images/profiles/woman_d.jpg"; } } ?>');"></div>
-                        <div style="flex:1;min-width:0">
-                            <h5 class="cn__title">
-                                <i class="fa-solid fa-bullhorn" aria-hidden="true"></i>
-                                <span style="flex:1;min-width:0"><?php echo htmlspecialchars($row2['Title']); ?></span>
-                                <?php if ($_SESSION['id']==$row2['EmpID']): ?>
-                                <a class="cn__edit" data-toggle="modal" data-target="#myModal<?php echo $row2[0]; ?>" title="Edit this announcement"><i class="fa-solid fa-pen-to-square" aria-hidden="true"></i></a>
-                                <?php endif; ?>
-                            </h5>
-                            <p class="cn__author"><?php
-                                if ($row2['EmpFN']=="admin") { echo "WeDo Family"; }
-                                else { echo htmlspecialchars($row2['EmpFN'] . " " . $row2['EmpLN']); }
-                            ?></p>
-                        </div>
-                    </div>
-
-                    <div class="cn__body" id="rdv<?php echo $row2[0]; ?>"><?php echo nl2br(wd_announcement_body($row2['ADesc'])); ?></div>
-                    <p class="cn__date"><i class="fa-regular fa-clock" aria-hidden="true"></i> <?php echo date("F d, Y h:i:s A", strtotime($row2['ADate'])); ?></p>
-
-                    <!-- Edit announcement modal -->
-                    <div class="modal" id="myModal<?php echo $row2[0]; ?>">
-                        <div class="modal-dialog">
-                            <div class="modal-content">
-                                <div class="modal-header" style="background-color:#f93627;color:#fff">
-                                    <button type="button" class="close" data-dismiss="modal" style="color:#fff;opacity:1">&times;</button>
-                                    <h4 class="modal-title">Edit announcement</h4>
-                                </div>
-                                <div class="modal-body">
-                                    <form method="post" action="?updateann=<?php echo $row2[0]; ?>" class="frmannouncement">
-                                        <div class="form-group">
-                                            <label>Description:</label>
-                                            <textarea class="form-control" required="required" rows="5" name="announ"><?php echo htmlspecialchars($row2['ADesc']); ?></textarea>
-                                        </div>
-                                        <button class="wd-btn wd-btn--primary btnupdating" style="width:100%;justify-content:center">Update</button>
-                                    </form>
-                                </div>
-                                <div class="modal-footer">
-                                    <button type="button" class="wd-btn wd-btn--ghost" data-dismiss="modal">Close</button>
-                                </div>
-                            </div>
-                        </div>
-                    </div>
-                    <!-- end edit modal -->
+        <section class="wd-card" id="cornerFeed">
+            <div class="wd-card__head">
+                <h3>Announcements</h3>
+                <div class="cf-filters" role="group" aria-label="Show">
+                    <button type="button" data-filter="all" aria-pressed="true">All</button>
+                    <button type="button" data-filter="news" aria-pressed="false">News</button>
+                    <button type="button" data-filter="bday" aria-pressed="false"><i class="fa-solid fa-cake-candles"></i> Birthdays</button>
                 </div>
-                <!-- end announcement -->
-                <?php
-                    }
-                    if ($annCount < 1) {
-                        echo '<div class="ann-empty"><i class="fa-solid fa-bullhorn" style="font-size:28px;display:block;margin-bottom:8px;opacity:.5"></i>No announcements yet.</div>';
-                    }
-                ?>
+            </div>
+            <div class="corner-card__body">
+                <?php if ($canPost): ?>
+                <form class="cf-compose" id="cfCompose" autocomplete="off">
+                    <img class="cf__avatar" src="<?php echo htmlspecialchars(wd_corner_avatar($meRow['EmpPPath'], $meRow['EmpGender'], __DIR__)); ?>" alt="" width="44" height="44">
+                    <div class="cf-compose__main">
+                        <input type="text" class="cf-compose__title" maxlength="100" placeholder="Title (optional)" aria-label="Title (optional)">
+                        <textarea class="cf-compose__body" rows="1" maxlength="1000" aria-label="Announcement"
+                                  placeholder="Share news with everyone<?php echo $first !== '' ? ', ' . htmlspecialchars($first) : ''; ?>&hellip;"></textarea>
+                        <div class="cf-compose__bar">
+                            <span class="cf-compose__hint"><kbd>Ctrl</kbd> + <kbd>Enter</kbd> to post &middot; app users get a notification</span>
+                            <span class="cf-compose__count">0/1000</span>
+                            <button type="button" class="wd-btn wd-btn--ghost wd-btn--sm cf-compose__cancel">Cancel</button>
+                            <button type="submit" class="wd-btn wd-btn--primary wd-btn--sm cf-compose__post" disabled><i class="fa-solid fa-paper-plane"></i> Post</button>
+                        </div>
+                    </div>
+                </form>
+                <?php endif; ?>
+
+                <div class="cf-list" id="cfList"><?php echo wd_corner_feed_html($feedRows, $me, __DIR__); ?></div>
+
+                <div class="cf-empty" id="cfEmpty"<?php echo $feedRows ? ' hidden' : ''; ?>>
+                    <div class="cf-empty__icon"><i class="fa-solid fa-bullhorn"></i></div>
+                    <b>No announcements yet</b>
+                    <span><?php echo $canPost ? 'Share the first bit of company news above.' : 'Company news will show up here.'; ?></span>
+                </div>
+                <p class="cf-filterempty" id="cfFilterEmpty" hidden>Nothing here in the posts loaded so far.</p>
+
+                <?php if ($feedMore): $lastRow = end($feedRows); ?>
+                <button type="button" class="cf-older" id="cfOlder" data-before="<?php echo (int) $lastRow['aid']; ?>">
+                    <i class="fa-solid fa-clock-rotate-left"></i> Show older posts
+                </button>
+                <?php endif; ?>
             </div>
         </section>
       </div>
@@ -466,51 +408,13 @@ if (isset($_SESSION['id']) && $_SESSION['id'] != "0") {
 
     <?php include 'includes/wd-footer.php'; ?>
 
-    <!-- ===== Add announcement modal ===== -->
-    <div class="modal" id="myModal">
-        <div class="modal-dialog">
-            <div class="modal-content">
-                <div class="modal-header" style="background-color:#f93627;color:#fff">
-                    <button type="button" class="close" data-dismiss="modal" style="color:#fff;opacity:1">&times;</button>
-                    <h4 class="modal-title">New announcement</h4>
-                </div>
-                <div class="modal-body">
-                    <form method="post" class="addfrmannouncement">
-                        <div class="form-group">
-                            <label for="desc">Announcement:</label>
-                            <textarea class="form-control" minlength="6" required="required" rows="5" name="announ" id="desc"></textarea>
-                        </div>
-                        <button id="saveAnn" type="button" class="wd-btn wd-btn--primary btnsaveann" style="width:100%;justify-content:center">Save</button>
-                    </form>
-                </div>
-                <div class="modal-footer">
-                    <button type="button" class="wd-btn wd-btn--ghost" data-dismiss="modal">Close</button>
-                </div>
-            </div>
-        </div>
-    </div>
-
-    <!-- ===== Warning modal ===== -->
-    <div class="modal" id="modalWarning">
-        <div class="modal-dialog modal-dialog-centered">
-            <div class="modal-content">
-                <div class="modal-header" style="padding:7px 8px;border:none">
-                    <button type="button" class="close" data-dismiss="modal">&times;</button>
-                </div>
-                <div class="modal-body">
-                    <i class="fa-solid fa-circle-exclamation" aria-hidden="true"></i>
-                    <div class="alert alert-danger"></div>
-                </div>
-            </div>
-        </div>
-    </div>
-    <!-- modal end -->
+    <div class="cp-toast" id="cfToast" role="status" aria-live="polite"></div>
+    <script>window.WD_FEED = { api: "query/corner-feed.php", token: <?php echo json_encode(wd_corner_csrf_token()); ?> };</script>
 
     <?php if ($pollsOn): ?>
     <div class="cp-toast" id="cpToast" role="status" aria-live="polite"></div>
     <script>window.WD_POLLS = { api: "query/corner-polls.php", token: <?php echo json_encode(wd_poll_csrf_token()); ?> };</script>
-
-    <?php if (wd_corner_can_post()): ?>
+    <?php if ($canPoll): ?>
     <!-- ===== New poll ===== -->
     <div class="modal fade" id="pollModal" tabindex="-1" role="dialog" aria-labelledby="pmTitle">
         <div class="modal-dialog" role="document">

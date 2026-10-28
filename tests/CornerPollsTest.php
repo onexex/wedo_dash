@@ -6,7 +6,7 @@ use Wedo\Tests\Support\AppTestCase;
 /**
  * Corner polls: corner.php (the Polls card + "New poll" dialog),
  * query/corner-polls.php (JSON API), includes/corner-polls-lib.php.
- * Posters (wd_corner_can_post) start polls; every employee votes.
+ * Super users and the "Create Corner polls" right (cpoll) start polls; every employee votes.
  */
 final class CornerPollsTest extends AppTestCase
 {
@@ -53,8 +53,12 @@ final class CornerPollsTest extends AppTestCase
         $this->assertStringContainsString('id="cornerPolls"', $admin);
         $this->assertStringContainsString('id="pollModal"', $admin);
 
+        // employees only get the card when there is something to vote on (or look back at)
         $emp = $this->request('corner.php', [], [], $this->asEmployee())['body'];
         $this->assertNoPhpErrors($emp);
+        $this->assertStringNotContainsString('id="cornerPolls"', $emp);
+        $this->create();
+        $emp = $this->request('corner.php', [], [], $this->asEmployee())['body'];
         $this->assertStringContainsString('id="cornerPolls"', $emp);
         $this->assertStringNotContainsString('id="pollModal"', $emp);
     }
@@ -76,6 +80,20 @@ final class CornerPollsTest extends AppTestCase
         $this->assertSame(403, $this->api('create', $poll, $this->employee())['status']);
         $this->assertSame(403, $this->api('create', $poll, $this->admin(), false)['status']);
         $this->assertSame(0, (int) self::db()->query("SELECT COUNT(*) FROM corner_polls")->fetchColumn());
+    }
+
+    /** Access Rights > Others > "Create Corner polls" lets a regular employee start polls. */
+    public function testTheCreatePollsAccessRightLetsAnEmployeeStartPolls(): void
+    {
+        $switch = $this->request('searchaccessrights.php', ['q' => self::EMP], [], $this->asAdmin())['body'];
+        $this->assertStringContainsString('id="cpoll"', $switch);
+        $this->assertSame(200, $this->request('updateaccess.php', ['empid' => self::EMP, 'mponoff' => 'ON', 'term' => 'cpoll'], [], $this->asAdmin())['status']);
+
+        $page = $this->request('corner.php', [], [], $this->asEmployee())['body'];
+        $this->assertStringContainsString('id="pollModal"', $page);
+        $r = $this->api('create', ['question' => 'Snacks for the meeting?', 'options' => ['Chips', 'Fruit'], 'closes' => 'none'], $this->employee());
+        $this->assertSame(200, $r['status'], json_encode($r['json']));
+        $this->assertSame(self::EMP, $this->row("SELECT EmpID FROM corner_polls WHERE PollID = ?", [$r['json']['id']])['EmpID']);
     }
 
     public function testCreateNeedsAQuestionAndTwoDifferentOptions(): void
