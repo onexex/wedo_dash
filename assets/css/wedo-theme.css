@@ -55,6 +55,8 @@ a{color:var(--brand);text-decoration:none}
   padding:14px 12px 12px;display:flex;flex-direction:column;gap:2px;height:100vh;overflow:hidden;
   transition:margin-left .2s ease,width .2s ease,flex-basis .2s ease}
 .wd-app.is-collapsed .wd-sidebar{margin-left:calc(-1 * var(--sidebar-w))}
+/* desktop has no hamburger, so a menu hidden at phone width must come back when the window widens */
+@media (min-width:901px){ .wd-app.is-collapsed .wd-sidebar{margin-left:0} }
 .wd-sidebar > *{flex-shrink:0}
 /* Lucide line icons (assets/icons/wd-nav.svg) */
 .wd-sidebar .wd-i{width:16px;height:16px;flex:0 0 16px;fill:none;stroke:currentColor;stroke-width:1.9;
@@ -323,8 +325,10 @@ a{color:var(--brand);text-decoration:none}
 .wd-clock__sec{font-size:14px;opacity:.55}
 
 /* ---------- Responsive ---------- */
-.wd-menu-toggle{display:inline-flex}
+/* hamburger is the small-screen toggle; on desktop the sidebar's own rail button does that job */
+.wd-menu-toggle{display:none}
 @media(max-width:900px){
+  .wd-menu-toggle{display:inline-flex}
   .wd-sidebar{position:absolute;top:0;left:0;z-index:40;box-shadow:2px 0 14px rgba(0,0,0,.25)}
 }
 @media(max-width:620px){.wd-clock{display:none}.wd-user__name,.wd-user__role{display:none}}
