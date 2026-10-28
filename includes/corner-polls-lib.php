@@ -7,8 +7,8 @@
      corner_poll_options  its choices, in SortOrder
      corner_poll_votes    one row per person per chosen option
 
-   Anyone who may post announcements starts polls (wd_corner_can_post);
-   every signed-in employee votes. A poll's author and super users may close
+   Super users and holders of the "Create Corner polls" access right start
+   polls (wd_poll_can_create); every signed-in employee votes. A poll's author and super users may close
    or delete it. Results show once you have voted, once the poll is closed,
    and always to the people who manage it. Anonymous polls never send voter
    names to the browser.
@@ -54,6 +54,20 @@ function wd_poll_clean($s, $multiline = false) {
 function wd_poll_is_open(array $p) {
     if (!empty($p['ClosedAt'])) { return false; }
     return empty($p['ClosesAt']) || strtotime($p['ClosesAt']) > time();
+}
+
+/* May $me start polls? Super users always; everyone else needs the "Create
+   Corner polls" access right (accessrights.cpoll = 2). Before
+   sql/2026-10-28-add-create-polls-access-right.sql runs, the Corner posters. */
+function wd_poll_can_create(PDO $pdo, $me) {
+    if (($_SESSION['UserType'] ?? '') == 1) { return true; }
+    try {
+        $st = $pdo->prepare("SELECT cpoll FROM accessrights WHERE EmpID = ?");
+        $st->execute([$me]);
+        return (int) $st->fetchColumn() === 2;
+    } catch (PDOException $e) {
+        return wd_corner_can_post();   // the column isn't there yet
+    }
 }
 
 function wd_poll_can_manage(array $p, $me) {

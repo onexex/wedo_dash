@@ -5,7 +5,7 @@
 
    GET  action=cards&ids=1,2,3                    {cards:{id:html}} (live refresh; deleted polls come back as "")
    POST action=create&token&question&details&options[]&multi&allow_add&anonymous&closes[&closes_at]
-                                                  start a poll (people who may post to the Corner)
+                                                  start a poll (super users + the "Create Corner polls" right)
    POST action=vote&id&option&token               pick / un-pick an option
    POST action=add_option&id&label&token          suggest an option (it also gets your vote)
    POST action=close&id&token                     stop voting   (poll author or super user)
@@ -37,7 +37,6 @@ include 'w_conn.php';
 require_once __DIR__ . '/../includes/corner-polls-lib.php';
 
 $me      = (string) $_SESSION['id'];
-$canPost = wd_corner_can_post();
 $tokenOk = hash_equals(wd_poll_csrf_token(), (string) ($_POST['token'] ?? ''));
 session_write_close();   // $_SESSION stays readable (wd_poll_can_manage) without holding the lock
 
@@ -73,7 +72,7 @@ if (!$tokenOk) { poll_out(403, ['status' => 'error', 'msg' => 'This page is out 
 
 switch ($action) {
     case 'create':
-        if (!$canPost) { poll_out(403, ['status' => 'error', 'msg' => 'Only people who post Corner announcements can start a poll.']); }
+        if (!wd_poll_can_create($pdo, $me)) { poll_out(403, ['status' => 'error', 'msg' => 'Starting polls needs the "Create Corner polls" access right.']); }
         $newId = 0;
         $err = wd_poll_create($pdo, $me, $_POST, $newId);
         if ($err !== null) { poll_out(422, ['status' => 'error', 'msg' => $err]); }

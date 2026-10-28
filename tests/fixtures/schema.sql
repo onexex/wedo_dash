@@ -64,6 +64,7 @@ CREATE TABLE `accessrights` (
   `msgaudit` int(11) NOT NULL DEFAULT 1,
   `aftersep` int(11) NOT NULL DEFAULT 1,
   `dbbackup` int(11) NOT NULL DEFAULT 1,
+  `cpoll` int(11) NOT NULL DEFAULT 1,
   `fdetls` int(11) NOT NULL DEFAULT 1,
   `nwblogs` int(11) NOT NULL DEFAULT 1,
   `notif` int(11) NOT NULL DEFAULT 2,
