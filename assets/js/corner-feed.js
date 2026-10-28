@@ -179,6 +179,23 @@ $(function () {
         if (e.key === "Escape") { $(this).closest(".cf__edit").find('[data-ed="cancel"]').trigger("click"); }
     });
 
+    /* ---------- "Vote now" on a poll's announcement (also corner#poll-N from Notifications) ---------- */
+    function goToPoll(id) {
+        var $p = $("#poll-" + id);
+        if (!$p.length) { toast("This poll was removed.", true); return; }
+        $p.closest("details").prop("open", true);
+        $p[0].scrollIntoView({ behavior: "smooth", block: "center" });
+        $p.removeClass("is-spot");
+        void $p[0].offsetWidth;
+        $p.addClass("is-spot");
+    }
+    $feed.on("click", ".cf-poll__go", function (e) {
+        e.preventDefault();
+        goToPoll($(this).attr("data-poll"));
+    });
+    var hash = /^#poll-(\d+)$/.exec(location.hash);
+    if (hash) { setTimeout(function () { goToPoll(hash[1]); }, 150); }
+
     /* ---------- older posts ---------- */
     $feed.on("click", "#cfOlder", function () {
         var $b = $(this).prop("disabled", true);

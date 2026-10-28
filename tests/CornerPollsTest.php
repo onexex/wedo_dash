@@ -96,6 +96,35 @@ final class CornerPollsTest extends AppTestCase
         $this->assertSame(self::EMP, $this->row("SELECT EmpID FROM corner_polls WHERE PollID = ?", [$r['json']['id']])['EmpID']);
     }
 
+    /** A new poll reaches people like an announcement: bell, Notifications page, Corner feed (and the phone). */
+    public function testANewPollNotifiesEveryoneAndGoesAwayWithThePoll(): void
+    {
+        $quiet = $this->request('e201.php', [], [], $this->asEmployee())['body'];
+        $this->assertStringContainsString('title="0 notification(s)"', $quiet);
+
+        $id = $this->create(['question' => 'Pizza or 🍜 for Friday?']);
+        $ann = $this->row("SELECT Title, ADesc, EmpID FROM announcements");
+        $this->assertSame("Poll#$id", $ann['Title']);
+        $this->assertSame('New poll: Pizza or for Friday?', $ann['ADesc'], 'emoji left out: the announcements table is latin1');
+        $this->assertSame(self::ADMIN, $ann['EmpID']);
+
+        $this->assertStringContainsString('title="1 notification(s)"', $this->request('e201.php', [], [], $this->asEmployee())['body']);
+        $notes = $this->request('notifications.php', [], [], $this->asEmployee() + ['EmpISID' => self::ADMIN])['body'];
+        $this->assertNoPhpErrors($notes);
+        $this->assertStringContainsString('New poll from Ada Admin', $notes);
+        $this->assertStringContainsString('href="corner#poll-' . $id . '"', $notes);
+
+        $corner = $this->request('corner.php', [], [], $this->asEmployee())['body'];
+        $this->assertStringContainsString('class="cf cf--poll is-new"', $corner);
+        $this->assertStringContainsString('href="#poll-' . $id . '"', $corner);
+        $this->assertStringContainsString('id="poll-' . $id . '"', $corner);
+        $this->assertStringNotContainsString('Poll#', $corner, 'the marker title is never shown');
+
+        $this->api('delete', ['id' => $id], $this->admin());
+        $this->assertSame(0, (int) self::db()->query("SELECT COUNT(*) FROM announcements")->fetchColumn());
+        $this->assertSame(0, (int) self::db()->query("SELECT COUNT(*) FROM annseen")->fetchColumn());
+    }
+
     public function testCreateNeedsAQuestionAndTwoDifferentOptions(): void
     {
         $r = $this->api('create', ['question' => 'Lunch?', 'options' => ['Pizza', ' pizza '], 'closes' => 'none'], $this->admin());
