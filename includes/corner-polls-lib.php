@@ -192,7 +192,23 @@ function wd_poll_create(PDO $pdo, $me, array $in, &$newId = null) {
         $pdo->rollBack();
         throw $e;
     }
+    wd_poll_announce($pdo, $me, $newId, $q, $now);
     return null;
+}
+
+/* Every notification surface (bell, Notifications page, Corner badge and
+   bubble, the app) is built from `announcements`, so a new poll also posts a
+   short one there. Title "Poll#<id>" marks it; the Corner feed shows it as a
+   "started a poll" card. The table is latin1: characters it can't hold (emoji)
+   are left out of that text. Never stops the poll itself from being created. */
+function wd_poll_announce(PDO $pdo, $me, $pollId, $question, $when) {
+    try {
+        $text = trim(preg_replace('/\s+/u', ' ', preg_replace('/[^\x{0000}-\x{00FF}]/u', '', (string) $question)));
+        $pdo->prepare("INSERT INTO announcements (EmpID, Title, ADesc, ADate) VALUES (?, ?, ?, ?)")
+            ->execute([$me, 'Poll#' . (int) $pollId, 'New poll: ' . ($text !== '' ? $text : 'vote in the Corner'), $when]);
+    } catch (PDOException $e) {
+        error_log('[wedo polls] announcement for poll ' . (int) $pollId . ': ' . $e->getMessage());
+    }
 }
 
 function wd_poll_row(PDO $pdo, $pollId) {
@@ -277,6 +293,9 @@ function wd_poll_delete(PDO $pdo, $me, $pollId) {
     foreach (['corner_poll_votes', 'corner_poll_options', 'corner_polls'] as $t) {
         $pdo->prepare("DELETE FROM `$t` WHERE PollID = ?")->execute([(int) $pollId]);
     }
+    // its "New poll" announcement goes too (bell, Notifications page, Corner feed)
+    $pdo->prepare("DELETE s FROM annseen s JOIN announcements a ON a.aid = s.aid WHERE a.Title = ?")->execute(['Poll#' . (int) $pollId]);
+    $pdo->prepare("DELETE FROM announcements WHERE Title = ?")->execute(['Poll#' . (int) $pollId]);
     $pdo->commit();
     return null;
 }
@@ -313,7 +332,7 @@ function wd_poll_card(array $p, $me) {
     $pid     = (int) $p['PollID'];
     $sig     = md5(json_encode([$open, $p['mine'], array_map(function ($o) { return [$o['Label'], $o['votes'], count($o['people'])]; }, $p['options']), wd_poll_status($p)]));
 
-    $h  = '<article class="cp' . ($open ? '' : ' is-closed') . ($reveal ? ' is-revealed' : '') . '" data-poll="' . $pid . '" data-sig="' . $sig . '">';
+    $h  = '<article id="poll-' . $pid . '" class="cp' . ($open ? '' : ' is-closed') . ($reveal ? ' is-revealed' : '') . '" data-poll="' . $pid . '" data-sig="' . $sig . '">';
     $h .= '<header class="cp__head">'
         . '<span class="cp__tag"><i class="fa-solid fa-square-poll-horizontal" aria-hidden="true"></i> Poll</span>'
         . '<span class="cp__status' . ($open ? ' is-open' : '') . '">' . wd_poll_h(wd_poll_status($p)) . '</span>';

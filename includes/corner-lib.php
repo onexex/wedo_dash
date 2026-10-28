@@ -182,12 +182,19 @@ function wd_corner_feed(PDO $pdo, $me, $before = 0, $limit = WD_CORNER_PAGE) {
     return [array_slice($rows, 0, $limit), $more];
 }
 
-/* Feed markup. Birthday auto-posts of the same day collapse into one card. */
+/* PollID from the "Poll#<id>" title a new poll's announcement carries (corner-polls-lib), else 0 */
+function wd_corner_poll_id($title) {
+    return preg_match('/^Poll#(\d+)$/', trim((string) $title), $m) ? (int) $m[1] : 0;
+}
+
+/* Feed markup. Birthday auto-posts of the same day collapse into one card;
+   a new poll's announcement becomes a "started a poll" card. */
 function wd_corner_feed_html(array $rows, $me, $root) {
     $h = '';
     $n = count($rows);
     for ($i = 0; $i < $n; $i++) {
         $r = $rows[$i];
+        if ($pid = wd_corner_poll_id($r['Title'])) { $h .= wd_corner_poll_teaser($r, $pid, $root); continue; }
         $bday = wd_corner_bday_name($r);
         if ($bday !== null) {
             $day = substr($r['ADate'], 0, 10);
@@ -280,4 +287,22 @@ function wd_corner_next_holiday(PDO $pdo, $compId) {
     $st->execute([':cid' => $compId, ':today' => date('Y-m-d')]);
     $r = $st->fetch(PDO::FETCH_ASSOC);
     return $r ? ['date' => $r['Hdate'], 'name' => $r['Hdescription']] : null;
+}
+
+function wd_corner_poll_teaser(array $r, $pollId, $root) {
+    $author = ($r['EmpFN'] === 'admin') ? 'WeDo Family' : trim($r['EmpFN'] . ' ' . $r['EmpLN']);
+    $t      = strtotime($r['ADate']);
+    $isNew  = (int) ($r['is_new'] ?? 0) === 1;
+    $q      = preg_replace('/^New poll:\s*/', '', (string) $r['ADesc']);
+    return '<article class="cf cf--poll' . ($isNew ? ' is-new' : '') . '" data-kind="news" data-aid="' . (int) $r['aid'] . '">'
+         . '<img class="cf__avatar" src="' . htmlspecialchars(wd_corner_avatar($r['EmpPPath'], $r['EmpGender'], $root)) . '" alt="" width="44" height="44" loading="lazy">'
+         . '<div class="cf__main">'
+         .   '<div class="cf__meta"><span class="cf__author">' . htmlspecialchars($author) . '</span>'
+         .     '<span class="cf-poll__did"><i class="fa-solid fa-square-poll-horizontal"></i> started a poll</span>'
+         .     ($isNew ? '<span class="cf__new">New</span>' : '')
+         .     '<time class="cf__time" datetime="' . date('c', $t) . '" title="' . htmlspecialchars(date('l, F j, Y · g:i A', $t)) . '">'
+         .       htmlspecialchars(wd_corner_ago($r['ADate'])) . '</time></div>'
+         .   '<div class="cf-poll__q">' . htmlspecialchars($q) . '</div>'
+         .   '<a class="cf-poll__go" href="#poll-' . (int) $pollId . '" data-poll="' . (int) $pollId . '">Vote now <i class="fa-solid fa-arrow-up"></i></a>'
+         . '</div></article>';
 }

@@ -90,8 +90,8 @@ foreach ($rows as $r) {
        .     '<time class="wdcb-post__time" datetime="' . htmlspecialchars(date('c', strtotime($r['ADate']))) . '" title="' . htmlspecialchars($full) . '">'
        .       htmlspecialchars(wd_corner_ago($r['ADate'])) . '</time>'
        .   '</div>'
-       // every post is titled "Announcement" today; only show a real title
-       .   (strcasecmp(trim($r['Title']), 'Announcement') !== 0 && trim($r['Title']) !== ''
+       // every post is titled "Announcement" today (a new poll's is "Poll#<id>"); only show a real title
+       .   (strcasecmp(trim($r['Title']), 'Announcement') !== 0 && trim($r['Title']) !== '' && !wd_corner_poll_id($r['Title'])
               ? '<div class="wdcb-post__title">' . htmlspecialchars($r['Title']) . '</div>' : '')
        .   '<div class="wdcb-post__body">' . nl2br(wd_announcement_body($r['ADesc'])) . '</div>'
        .   '<button type="button" class="wdcb-post__more" hidden>See more</button>'
