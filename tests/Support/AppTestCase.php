@@ -26,6 +26,7 @@ abstract class AppTestCase extends TestCase
         'emp_lifecycle_events', 'emp_separations', 'coe_requests', 'employment_verifications', 'amsarchive',
         'job_openings', 'applicants', 'applicant_education', 'applicant_family', 'applicant_events', 'applicant_files', 'login_attempts', 'tblsyslog',
         'earlyout', 'obshbd', 'hleavesbd', 'otattendancelog', 'leaves', 'payrol',
+        'corner_polls', 'corner_poll_options', 'corner_poll_votes',
     ];
 
     protected function setUp(): void

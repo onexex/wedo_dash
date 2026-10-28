@@ -8,6 +8,15 @@
    mark-as-seen all use the same 30 days, so opening either one clears both. */
 if (!defined('WD_CORNER_NEW_DAYS')) { define('WD_CORNER_NEW_DAYS', 30); }
 
+/* Who may post to the Corner (announcements and polls): super users plus a
+   few named accounts. */
+if (!function_exists('wd_corner_can_post')) {
+    function wd_corner_can_post() {
+        $id = (string) ($_SESSION['id'] ?? '');
+        return (($_SESSION['UserType'] ?? '') == 1) || in_array($id, ['WeDoinc-002', 'WeDoinc-006', 'WeDoinc-003'], true);
+    }
+}
+
 /* Announcement bodies are escaped so user-typed HTML stays inert. The one
    exception is the birthday cake icon that wd_post_birthday_greetings() embeds
    when it auto-posts "Happy Birthday" announcements; that exact tag is allowed

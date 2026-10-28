@@ -452,8 +452,8 @@ function push_incoming_call(PDO $pdo, string $me, array $invitees, ?int $groupId
               ['url' => 'messages?with=' . rawurlencode($with), 'kind' => 'call', 'tag' => 'call-' . $with]);
 }
 
-/** New WeDo Corner announcement: everyone in the author's company who has the app. */
-function push_announcement(PDO $pdo, string $authorId, string $text): void
+/** New WeDo Corner announcement (or poll, with its own title): everyone in the author's company who has the app. */
+function push_announcement(PDO $pdo, string $authorId, string $text, string $title = 'New announcement'): void
 {
     try {
         $st = $pdo->prepare("SELECT DISTINCT pd.EmpID FROM push_devices pd
@@ -461,7 +461,7 @@ function push_announcement(PDO $pdo, string $authorId, string $text): void
                              JOIN empdetails a ON a.EmpID = :me AND a.EmpCompID = d.EmpCompID
                              WHERE pd.EmpID <> :me2");
         $st->execute([':me' => $authorId, ':me2' => $authorId]);
-        push_send($pdo, $st->fetchAll(PDO::FETCH_COLUMN), 'New announcement',
+        push_send($pdo, $st->fetchAll(PDO::FETCH_COLUMN), $title,
                   trim(preg_replace('/\s+/', ' ', strip_tags($text))), ['url' => 'corner', 'tag' => 'corner']);
     } catch (Throwable $e) {
         error_log('[wedo push] announcement: ' . $e->getMessage());

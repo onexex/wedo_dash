@@ -145,10 +145,15 @@ if (isset($_SESSION['id']) && $_SESSION['id'] != "0") {
     <link rel="stylesheet" href="assets/css/wedo-theme.css?v=<?php echo @filemtime('assets/css/wedo-theme.css'); ?>">
     <link rel="stylesheet" type="text/css" href="assets/css/wedo-calendar.css?v=<?php echo @filemtime(__DIR__ . '/assets/css/wedo-calendar.css'); ?>">
 
+    <link rel="stylesheet" href="assets/css/corner-polls.css?v=<?php echo @filemtime(__DIR__ . '/assets/css/corner-polls.css'); ?>">
+
     <script type="text/javascript" src="assets/js/script.js"></script>
+    <script src="assets/js/corner-polls.js?v=<?php echo @filemtime(__DIR__ . '/assets/js/corner-polls.js'); ?>"></script>
 
     <style>
       .corner-grid{display:grid;grid-template-columns:minmax(0,1fr) 380px;gap:18px;align-items:start}
+      .corner-main{min-width:0}
+      #cornerPolls{overflow:visible}   /* the poll menu may hang past the card's edge */
       @media (max-width:992px){.corner-grid{grid-template-columns:1fr}}
       .corner-card__body{padding:16px 18px}
       .corner-grid .wd-card{min-width:0}
@@ -276,12 +281,64 @@ if (isset($_SESSION['id']) && $_SESSION['id'] != "0") {
             <h1><?php echo htmlspecialchars(($_SESSION['CompanyName'] ?: 'WeDo') . ' Corner'); ?></h1>
             <p>Company announcements and calendar &mdash; <?php echo date('l, F j, Y'); ?></p>
         </div>
-        <?php if ($_SESSION['UserType']==1 || $_SESSION['id']=="WeDoinc-002" || $_SESSION['id']=="WeDoinc-006" || $_SESSION['id']=="WeDoinc-003"): ?>
+        <?php if (wd_corner_can_post()): ?>
         <button type="button" class="wd-btn wd-btn--primary" data-toggle="modal" data-target="#myModal"><i class="fa-solid fa-plus"></i> Add announcement</button>
         <?php endif; ?>
     </div>
 
+    <?php
+        /* ---- polls (only once sql/2026-10-28-add-corner-polls.sql has run) ---- */
+        require_once 'includes/corner-polls-lib.php';
+        $pollsOn = false;
+        try {
+            include 'w_conn.php';
+            $pollPdo = new PDO("mysql:host=$servername;dbname=$db;charset=utf8mb4", $username, $password);
+            $pollPdo->setAttribute(PDO::ATTR_ERRMODE, PDO::ERRMODE_EXCEPTION);
+            $pollsOn = wd_polls_ready($pollPdo);
+        } catch (PDOException $e) { $pollsOn = false; }
+        if ($pollsOn) {
+            $openPolls   = wd_polls_load($pollPdo, $_SESSION['id'], 'open');
+            $closedPolls = wd_polls_load($pollPdo, $_SESSION['id'], 'closed', 5);
+        }
+    ?>
+
     <div class="corner-grid">
+      <div class="corner-main">
+
+        <?php if ($pollsOn): ?>
+        <!-- ===== Polls ===== -->
+        <section class="wd-card" id="cornerPolls">
+            <div class="wd-card__head">
+                <h3>Polls</h3>
+                <?php if (wd_corner_can_post()): ?>
+                <button type="button" class="wd-btn wd-btn--ghost wd-btn--sm" data-toggle="modal" data-target="#pollModal"><i class="fa-solid fa-square-poll-horizontal"></i> New poll</button>
+                <?php endif; ?>
+            </div>
+            <div class="corner-card__body">
+                <div class="cp-list" id="cpOpen">
+                    <?php foreach ($openPolls as $p) { echo wd_poll_card($p, $_SESSION['id']); } ?>
+                </div>
+                <div class="cp-empty" id="cpEmpty"<?php echo $openPolls ? ' hidden' : ''; ?>>
+                    <div class="cp-empty__icon"><i class="fa-solid fa-square-poll-horizontal"></i></div>
+                    <b>No open polls right now</b>
+                    <?php if (wd_corner_can_post()): ?>
+                    <span>Ask everyone where to eat, where to go, or which day works.</span>
+                    <button type="button" class="wd-btn wd-btn--primary wd-btn--sm" style="margin-top:8px" data-toggle="modal" data-target="#pollModal"><i class="fa-solid fa-plus"></i> Start a poll</button>
+                    <?php else: ?>
+                    <span>When someone asks the team something, you can vote here.</span>
+                    <?php endif; ?>
+                </div>
+                <?php if ($closedPolls): ?>
+                <details class="cp-closed">
+                    <summary><i class="fa-solid fa-chevron-right"></i> Recently closed (<?php echo count($closedPolls); ?>)</summary>
+                    <div class="cp-list">
+                        <?php foreach ($closedPolls as $p) { echo wd_poll_card($p, $_SESSION['id']); } ?>
+                    </div>
+                </details>
+                <?php endif; ?>
+            </div>
+        </section>
+        <?php endif; ?>
 
         <!-- ===== Announcements ===== -->
         <section class="wd-card">
@@ -385,6 +442,7 @@ if (isset($_SESSION['id']) && $_SESSION['id'] != "0") {
                 ?>
             </div>
         </section>
+      </div>
 
         <!-- ===== Calendar ===== -->
         <section class="wd-card wd-card--cal">
@@ -447,6 +505,85 @@ if (isset($_SESSION['id']) && $_SESSION['id'] != "0") {
         </div>
     </div>
     <!-- modal end -->
+
+    <?php if ($pollsOn): ?>
+    <div class="cp-toast" id="cpToast" role="status" aria-live="polite"></div>
+    <script>window.WD_POLLS = { api: "query/corner-polls.php", token: <?php echo json_encode(wd_poll_csrf_token()); ?> };</script>
+
+    <?php if (wd_corner_can_post()): ?>
+    <!-- ===== New poll ===== -->
+    <div class="modal fade" id="pollModal" tabindex="-1" role="dialog" aria-labelledby="pmTitle">
+        <div class="modal-dialog" role="document">
+            <div class="modal-content">
+                <form novalidate autocomplete="off">
+                    <div class="pm__head">
+                        <div class="pm__icon"><i class="fa-solid fa-square-poll-horizontal"></i></div>
+                        <div>
+                            <h4 id="pmTitle">New poll</h4>
+                            <p>Everyone can vote from the Corner; app users get a notification.</p>
+                        </div>
+                        <button type="button" class="pm__x" data-dismiss="modal" aria-label="Close"><i class="fa-solid fa-xmark"></i></button>
+                    </div>
+
+                    <div class="pm__body">
+                        <div class="pm__label" style="margin-top:4px">Quick start</div>
+                        <div class="pm__templates">
+                            <button type="button" class="pm__chip" data-tpl="lunch">🍱 Lunch</button>
+                            <button type="button" class="pm__chip" data-tpl="outing">📍 Team outing</button>
+                            <button type="button" class="pm__chip" data-tpl="day">📅 Pick a day</button>
+                            <button type="button" class="pm__chip" data-tpl="yesno">👍 Yes / No</button>
+                        </div>
+
+                        <label class="pm__label" for="pmQuestion">Question <small class="pm__count">0/200</small></label>
+                        <input type="text" class="wd-input pm__q" id="pmQuestion" maxlength="200" placeholder="e.g. Where should we eat on Friday?">
+                        <button type="button" class="pm__more"><i class="fa-solid fa-plus"></i> Add details</button>
+                        <div id="pmDetailsWrap" hidden>
+                            <label class="pm__label" for="pmDetails">Details <small>optional</small></label>
+                            <textarea class="wd-textarea" id="pmDetails" rows="2" maxlength="500" placeholder="Budget, time, anything people should know"></textarea>
+                        </div>
+
+                        <div class="pm__label">Options <small>2 to 10 &middot; Enter adds the next one</small></div>
+                        <div class="pm__opts"></div>
+                        <button type="button" class="pm__addopt"><i class="fa-solid fa-plus"></i> Add option</button>
+
+                        <div class="pm__label">Settings</div>
+                        <div class="pm__settings">
+                            <label class="pm__set"><i class="fa-solid fa-list-check"></i>
+                                <span><b>Allow multiple answers</b><small>People can pick more than one option</small></span>
+                                <input type="checkbox" id="pmMulti"><span class="pm__sw"></span></label>
+                            <label class="pm__set"><i class="fa-solid fa-lightbulb"></i>
+                                <span><b>Let people suggest options</b><small>Good for places and food ideas</small></span>
+                                <input type="checkbox" id="pmAllowAdd"><span class="pm__sw"></span></label>
+                            <label class="pm__set"><i class="fa-solid fa-user-secret"></i>
+                                <span><b>Anonymous voting</b><small>Show totals only, never who voted for what</small></span>
+                                <input type="checkbox" id="pmAnon"><span class="pm__sw"></span></label>
+                        </div>
+
+                        <div class="pm__label">Voting ends</div>
+                        <div class="pm__ends" role="radiogroup" aria-label="Voting ends">
+                            <input type="radio" name="closes" id="pmEndNone" value="none" checked><label for="pmEndNone">When I close it</label>
+                            <input type="radio" name="closes" id="pmEnd1" value="1d"><label for="pmEnd1">In 1 day</label>
+                            <input type="radio" name="closes" id="pmEnd3" value="3d"><label for="pmEnd3">In 3 days</label>
+                            <input type="radio" name="closes" id="pmEnd7" value="7d"><label for="pmEnd7">In 1 week</label>
+                            <input type="radio" name="closes" id="pmEndC" value="custom"><label for="pmEndC">Pick a time</label>
+                        </div>
+                        <div class="pm__custom" hidden>
+                            <input type="datetime-local" class="wd-input" id="pmClosesAt" aria-label="Voting ends at">
+                        </div>
+
+                        <p class="pm__err" role="alert" hidden></p>
+                    </div>
+
+                    <div class="pm__foot">
+                        <button type="button" class="wd-btn wd-btn--ghost" data-dismiss="modal">Cancel</button>
+                        <button type="submit" class="wd-btn wd-btn--primary pm__submit"><i class="fa-solid fa-paper-plane"></i> Post poll</button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+    <?php endif; ?>
+    <?php endif; ?>
 
 </body>
 </html>
