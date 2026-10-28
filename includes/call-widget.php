@@ -18,4 +18,6 @@ $wdcCfg  = ['api' => 'query/Query-calls.php', 'token' => msg_csrf_token(), 'me' 
 ?>
 <link rel="stylesheet" href="assets/css/wedo-call.css?v=<?php echo $wdcV('assets/css/wedo-call.css'); ?>">
 <script>window.WD_CALL = <?php echo json_encode($wdcCfg, JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT); ?>;</script>
+<!-- pop-up for a new Corner post / poll; answered by wedo-call.js's check-in, so it loads first -->
+<script src="assets/js/wedo-corner-alert.js?v=<?php echo $wdcV('assets/js/wedo-corner-alert.js'); ?>" defer></script>
 <script src="assets/js/wedo-call.js?v=<?php echo $wdcV('assets/js/wedo-call.js'); ?>" defer></script>

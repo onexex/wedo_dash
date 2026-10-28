@@ -306,3 +306,39 @@ function wd_corner_poll_teaser(array $r, $pollId, $root) {
          .   '<a class="cf-poll__go" href="#poll-' . (int) $pollId . '" data-poll="' . (int) $pollId . '">Vote now <i class="fa-solid fa-arrow-up"></i></a>'
          . '</div></article>';
 }
+
+/* Corner pop-up (assets/js/wedo-corner-alert.js, via the every-page check-in in
+   query/Query-calls.php). $after is the last post this browser was told about:
+   -1 = first check-in, answer only the newest id so old posts never pop up;
+   otherwise the newest post after it from the last day, not mine. Uses the
+   primary key only, so the 3-second check-in stays cheap. */
+function wd_corner_alert(PDO $pdo, $me, $after) {
+    date_default_timezone_set("Asia/Manila");
+    try {
+        if ($after < 0) {
+            return ['corner_top' => (int) $pdo->query("SELECT COALESCE(MAX(aid), 0) FROM announcements")->fetchColumn()];
+        }
+        $st = $pdo->prepare("SELECT a.aid, a.EmpID, a.Title, a.ADesc, e.EmpFN, e.EmpLN FROM announcements a
+            LEFT JOIN employees e ON e.EmpID = a.EmpID
+            WHERE a.aid > :after AND a.EmpID <> :me AND a.ADate >= :since
+            ORDER BY a.aid DESC LIMIT 1");
+        $st->execute([':after' => (int) $after, ':me' => $me, ':since' => date('Y-m-d H:i:s', time() - 86400)]);
+        $r = $st->fetch(PDO::FETCH_ASSOC);
+        if (!$r) { return ['corner' => null]; }
+        $poll = wd_corner_poll_id($r['Title']);
+        $bday = wd_corner_bday_name($r);
+        $who  = ($r['EmpFN'] === 'admin' || $r['EmpFN'] === null) ? 'WeDo Family' : trim($r['EmpFN'] . ' ' . $r['EmpLN']);
+        $text = trim(preg_replace('/\s+/', ' ', html_entity_decode(strip_tags((string) $r['ADesc']), ENT_QUOTES, 'UTF-8')));
+        if ($poll) { $text = preg_replace('/^New poll:\s*/', '', $text); }
+        if (mb_strlen($text) > 140) { $text = rtrim(mb_substr($text, 0, 137)) . '…'; }
+        return ['corner' => [
+            'aid'   => (int) $r['aid'],
+            'kind'  => $poll ? 'poll' : ($bday !== null ? 'bday' : 'news'),
+            'title' => $poll ? 'New poll from ' . $who : ($bday !== null ? 'Birthday today' : 'Announcement from ' . $who),
+            'text'  => $text,
+            'url'   => $poll ? 'corner#poll-' . $poll : 'corner',
+        ]];
+    } catch (Exception $e) {
+        return [];
+    }
+}

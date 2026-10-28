@@ -6,7 +6,8 @@
    GET  action=incoming[&hs=SIG]                 a call ringing for me right now (or null) + my unread
                                                  conversations (top-bar envelope badge); also marks me online.
                                                  With hs: the chat-heads signature, plus the heads
-                                                 themselves when it differs from SIG (msg-heads-lib.php)
+                                                 themselves when it differs from SIG (msg-heads-lib.php).
+                                                 With ca=AID: a new Corner post / poll after AID (corner-lib.php)
    GET  action=state&id=N&after=SIGID            call + members + signals addressed to me; keeps me "present"
    POST action=start&with=EmpID|grp:ID&token     call a person or a whole group
    POST action=join&id=N&token                   answer / join a group call late   (alias: answer)
@@ -46,6 +47,7 @@ wd_account_gate_api();
 require_once __DIR__ . '/../includes/msg-calls.php';
 require_once __DIR__ . '/../includes/msg-heads-lib.php';
 require_once __DIR__ . '/../includes/push-lib.php';
+require_once __DIR__ . '/../includes/corner-lib.php';
 
 $me       = (string) $_SESSION['id'];
 $userType = $_SESSION['UserType'] ?? '';
@@ -69,11 +71,13 @@ if ($action === 'incoming') { msg_touch($pdo, $me); }
 /** The check-in's message part: unread count for the envelope, and chat heads when the page shows them. */
 function call_inbox(PDO $pdo, string $me): array
 {
-    if (!isset($_GET['hs'])) { return ['unread' => msg_unread_threads($pdo, $me)]; }
+    // ca=AID: the Corner pop-up (assets/js/wedo-corner-alert.js) asks for a post newer than AID
+    $corner = isset($_GET['ca']) ? wd_corner_alert($pdo, $me, (int) $_GET['ca']) : [];
+    if (!isset($_GET['hs'])) { return ['unread' => msg_unread_threads($pdo, $me)] + $corner; }
     $s   = mh_state($pdo, $me, (string) $_GET['hs']);
     $out = ['unread' => $s['total'], 'hs' => $s['sig']];
     if ($s['heads'] !== null) { $out['heads'] = $s['heads']; }
-    return $out;
+    return $out + $corner;
 }
 
 if (!call_ready($pdo)) {
