@@ -1,10 +1,10 @@
 <?php
 /* ==========================================================================
    searchaccessrights.php  —  AJAX partial for accessrights.php
-   Returns the module/report/management/maintenance access rows for one
-   employee (?q=<EmpID>) as <tr> markup injected into #accr.
-   Buttons keep their exact "ON"/"OFF" text + id (= access column) + the
-   #acchange modal trigger, because accessrights.php's JS relies on them.
+   Returns the access sheet for one employee (?q=<EmpID>): one card per group
+   (Modules, Reports, ...) holding a switch per access column, injected into
+   #accr. Each switch keeps id = the access column, because accessrights.php
+   sends that id to updateaccess.php as `term`.
    ========================================================================== */
 if (session_status() === PHP_SESSION_NONE) { session_start(); }
 if (!isset($_SESSION['id']) || $_SESSION['id'] == "0") { header('location: login.php'); exit; }
@@ -26,127 +26,166 @@ $statement->bindParam(':id', $id);
 $statement->execute();
 $row = $statement->fetch();
 if (!$row) {
-    echo '<tr><td colspan="2" style="text-align:center;color:var(--text-3)">No access-rights record for this employee.</td></tr>';
+    echo '<div class="ar-empty"><i class="fa-solid fa-circle-exclamation"></i>'
+       . '<b>No access-rights record for this employee.</b></div>';
     return;
 }
 
-/* one access row: icon + label + ON/OFF toggle.
-   State mirrors the historical rule (stored value 1 == OFF, otherwise ON). */
-function ar_row($icon, $label, $key, $row) {
-    $isOff = isset($row[$key]) && $row[$key] == 1;
-    $state = $isOff ? 'off' : 'on';
-    $text  = $isOff ? 'OFF' : 'ON';
-    echo '<tr>'
-       . '<td><i class="fa-solid ' . $icon . '"></i> <span>' . $label . '</span></td>'
-       . '<td><button type="button" id="' . htmlspecialchars($key) . '"'
-       . ' class="ar-toggle ar-toggle--' . $state . '"'
-       . ' data-toggle="modal" data-target="#acchange">' . $text . '</button></td>'
-       . '</tr>';
-}
+$emp = $pdo->prepare("select EmpLN, EmpFN, EmpMN from employees where EmpID = :id");
+$emp->execute([':id' => $id]);
+$empRow  = $emp->fetch(PDO::FETCH_ASSOC) ?: [];
+$empName = trim(preg_replace('/\s+/', ' ', ($empRow['EmpFN'] ?? '') . ' ' . ($empRow['EmpMN'] ?? '') . ' ' . ($empRow['EmpLN'] ?? '')));
 
-/* section divider row */
-function ar_group($title) {
-    echo '<tr class="ar-grouprow"><td colspan="2">' . htmlspecialchars($title) . '</td></tr>';
-}
+function ar_h($s) { return htmlspecialchars((string) $s, ENT_QUOTES, 'UTF-8'); }
 
-/* ---- Modules ---- */
-ar_group('Modules');
-ar_row('fa-folder',          'Electronic 201 File',                'e201',          $row);
-ar_row('fa-calendar-check',  'Leave Credit Overview',              'lcreaditview',  $row);
-ar_row('fa-calendar-plus',   'Leave Credit Management',            'lcreditedit',   $row);
-ar_row('fa-calendar-check',  'Automated Leave Application System', 'alas',          $row);
-ar_row('fa-file',            'Check Register',                     'checkregister', $row);
-ar_row('fa-file-lines',      'Memo Generator',                     'memo',          $row);
-ar_row('fa-clock',           'Payroll Management System',          'payroll',       $row);
-ar_row('fa-money-bill-wave', 'Payslip',                            'payslipt',      $row);
-ar_row('fa-file-invoice-dollar', 'Debit Advise Module',            'debitadvise',   $row);
-ar_row('fa-box-archive',     'Archived Management System',         'ams',           $row);
-ar_row('fa-calendar-days',   'Employee Scheduling',                'EF',            $row);
-ar_row('fa-clock',           'Overtime OB System',                 'otob',          $row);
-ar_row('fa-briefcase',       'Official Business Trip Tracker',     'ob',            $row);
-ar_row('fa-plane',           'Send to OB Trip',                    'sob',           $row);
-ar_row('fa-business-time',   'Overtime Filing System',             'ot',            $row);
-ar_row('fa-calendar-minus',  'Early Out System',                   'eo',            $row);
-ar_row('fa-clipboard',       'New Blog',                           'nwblogs',       $row);
+/* rights that can do real damage when handed out: never bulk-switched, and
+   accessrights.php asks before changing them one at a time */
+$sensitive = ['arights', 'dbbackup', 'msgaudit', 'aftersep'];
 
-/* ---- Reports ---- */
-ar_group('Reports');
-ar_row('fa-chart-column', 'ALAS Viewer',                    'alasv',                 $row);
-ar_row('fa-chart-column', 'Attendance Viewer',              'lilov',                 $row);
-ar_row('fa-chart-column', 'Compliance Document Data',       'cddv',                  $row);
-ar_row('fa-chart-column', 'Daily Activity Viewer',          'darv',                  $row);
-ar_row('fa-chart-column', 'Early Out Viewer',               'eov',                   $row);
-ar_row('fa-chart-column', 'Employment Information',          'emv',                  $row);
-ar_row('fa-chart-column', 'Employee Alpha List Generator',  'alphav',                $row);
-ar_row('fa-chart-column', 'Official Business Viewer',       'obv',                   $row);
-ar_row('fa-chart-column', 'Overtime Viewer',                'atv',                   $row);
-ar_row('fa-chart-column', 'Personal Information',           'piv',                   $row);
-ar_row('fa-chart-column', '13th Month Attachment',          'access_13_attachement', $row);
-ar_row('fa-chart-column', 'YTD 13th Month Report',          'access_13',             $row);
-ar_row('fa-file-signature', 'COE: approve requests & issue for anyone', 'coefunction',    $row);
+/* [icon, label, column, hint] per group; columns added by later migrations are
+   only listed once they exist (a missing column would read as ON) */
+$groups = [];
 
-/* ---- Management ---- */
-ar_group('Management');
-ar_row('fa-lock',      'Access Rights',            'arights',    $row);
-ar_row('fa-lock',      'Booklet Management',       'bookletreg', $row);
-ar_row('fa-lock',      'Payee Registry',           'payeereg',   $row);
-ar_row('fa-user-plus', 'Enroll Employee',          'eemployee',  $row);
-ar_row('fa-file-pdf',  'Electronic 201 Document',  'e201d',      $row);
-ar_row('fa-id-card',   'ID Card Generator',        'idcard',     $row);
-// only once sql/2026-10-14-add-employee-lifecycle.sql has run (a missing column would read as ON)
-if (array_key_exists('separation', $row)) {
-    ar_row('fa-user-minus',  'Separation & Lifecycle (resign / terminate / AWOL, rehire flag)', 'separation', $row);
-}
-if (array_key_exists('applicants', $row)) {
-    ar_row('fa-clipboard-list', 'Applicant Pool (job registrations; hiring also needs Enroll Employee)', 'applicants', $row);
-}
-if (array_key_exists('empverify', $row)) {
-    ar_row('fa-phone-volume', 'Employment Verification (CI calls)', 'empverify', $row);
-}
+$groups['Modules'] = ['fa-cubes', [
+    ['fa-folder',              'Electronic 201 File',                'e201'],
+    ['fa-calendar-check',      'Leave Credit Overview',              'lcreaditview'],
+    ['fa-calendar-plus',       'Leave Credit Management',            'lcreditedit'],
+    ['fa-calendar-check',      'Automated Leave Application System', 'alas'],
+    ['fa-file',                'Check Register',                     'checkregister'],
+    ['fa-file-lines',          'Memo Generator',                     'memo'],
+    ['fa-clock',               'Payroll Management System',          'payroll'],
+    ['fa-money-bill-wave',     'Payslip',                            'payslipt'],
+    ['fa-file-invoice-dollar', 'Debit Advise Module',                'debitadvise'],
+    ['fa-box-archive',         'Archived Management System',         'ams'],
+    ['fa-calendar-days',       'Employee Scheduling',                'EF'],
+    ['fa-clock',               'Overtime OB System',                 'otob'],
+    ['fa-briefcase',           'Official Business Trip Tracker',     'ob'],
+    ['fa-plane',               'Send to OB Trip',                    'sob'],
+    ['fa-business-time',       'Overtime Filing System',             'ot'],
+    ['fa-calendar-minus',      'Early Out System',                   'eo'],
+    ['fa-clipboard',           'New Blog',                           'nwblogs'],
+]];
 
-/* ---- Maintenance ---- */
-ar_group('Maintenance');
-ar_row('fa-square-plus', 'Agency',                        'agncy',               $row);
-ar_row('fa-square-plus', 'Company',                       'comp',                $row);
-ar_row('fa-square-plus', 'Department',                    'dep',                 $row);
-ar_row('fa-square-plus', 'Debit Advise Settings',         'debitadvisesettings', $row);
-ar_row('fa-square-plus', 'Position',                      'pos',                 $row);
-ar_row('fa-square-plus', 'Job Level',                     'jl',                  $row);
-ar_row('fa-square-plus', 'HMO',                           'hmo',                 $row);
-ar_row('fa-square-plus', 'Employee Status',               'est',                 $row);
-ar_row('fa-square-plus', 'Relationship',                  'rel',                 $row);
-ar_row('fa-square-plus', 'Classification',                'classf',              $row);
-ar_row('fa-square-plus', 'Work Time',                     'wt',                  $row);
-ar_row('fa-square-plus', 'Work Days',                     'wd',                  $row);
-ar_row('fa-square-plus', 'Types of Leave',               'tlv',                 $row);
-ar_row('fa-square-plus', 'Leave Validation',              'lval',                $row);
-ar_row('fa-square-plus', 'User Role',                     'ur',                  $row);
-ar_row('fa-square-plus', 'Holiday Logger',                'hldy',                $row);
-ar_row('fa-square-plus', 'LiLo Validation',               'gprdv',               $row);
-ar_row('fa-square-plus', 'OB Validation',                 'obval',               $row);
-ar_row('fa-square-plus', 'EO Validation',                 'eoval',               $row);
-ar_row('fa-square-plus', 'Family Details for Parental',   'pfam',                $row);
-ar_row('fa-square-plus', 'OT Filing System Maintenance',  'otfs',                $row);
-ar_row('fa-square-plus', 'SSS / Pag-IBIG / PhilHealth / SIL Loan', 'SPPContrib', $row);
-ar_row('fa-wand-magic-sparkles', 'Login Theme',           'logintheme',          $row);
-// only once sql/2026-10-20-add-db-backup-access-right.sql has run (a missing column would read as ON)
-if (array_key_exists('dbbackup', $row)) {
-    ar_row('fa-database', 'Database Backup (download the whole database)', 'dbbackup', $row);
-}
+$groups['Reports'] = ['fa-chart-column', [
+    ['fa-chart-column',    'ALAS Viewer',                   'alasv'],
+    ['fa-chart-column',    'Attendance Viewer',             'lilov'],
+    ['fa-chart-column',    'Compliance Document Data',      'cddv'],
+    ['fa-chart-column',    'Daily Activity Viewer',         'darv'],
+    ['fa-chart-column',    'Early Out Viewer',              'eov'],
+    ['fa-chart-column',    'Employment Information',        'emv'],
+    ['fa-chart-column',    'Employee Alpha List Generator', 'alphav'],
+    ['fa-chart-column',    'Official Business Viewer',      'obv'],
+    ['fa-chart-column',    'Overtime Viewer',               'atv'],
+    ['fa-chart-column',    'Personal Information',          'piv'],
+    ['fa-chart-column',    '13th Month Attachment',         'access_13_attachement'],
+    ['fa-chart-column',    'YTD 13th Month Report',         'access_13'],
+    ['fa-file-signature',  'COE Requests',                  'coefunction', 'Approve requests and issue a COE for anyone'],
+]];
 
-/* ---- Others ---- */
-ar_group('Others');
-ar_row('fa-chart-pie',    'Dashboard',         'dashboard', $row);
-ar_row('fa-user',         'Search Employee',   'srch',    $row);
-ar_row('fa-pen-to-square','Update 201 Files',  'updte',   $row);
-ar_row('fa-bullhorn',     "GM'S Corner",       'gcorner', $row);
-ar_row('fa-paperclip',    'Messages: Send Pictures & Documents', 'msgfile', $row);
-ar_row('fa-trash-can',    'Messages: Delete Own Messages',       'msgdel',  $row);
+$mgmt = [
+    ['fa-shield-halved', 'Access Rights',           'arights',    'Can change anyone\'s access on this page'],
+    ['fa-book',          'Booklet Management',      'bookletreg'],
+    ['fa-address-book',  'Payee Registry',          'payeereg'],
+    ['fa-user-plus',     'Enroll Employee',         'eemployee'],
+    ['fa-file-pdf',      'Electronic 201 Document', 'e201d'],
+    ['fa-id-card',       'ID Card Generator',       'idcard'],
+];
+if (array_key_exists('separation', $row)) { $mgmt[] = ['fa-user-minus',     'Separation & Lifecycle',  'separation', 'Resign / terminate / AWOL, rehire flag']; }
+if (array_key_exists('applicants', $row)) { $mgmt[] = ['fa-clipboard-list', 'Applicant Pool',          'applicants', 'Job registrations; hiring also needs Enroll Employee']; }
+if (array_key_exists('empverify', $row))  { $mgmt[] = ['fa-phone-volume',   'Employment Verification', 'empverify',  'CI calls']; }
+$groups['Management'] = ['fa-user-gear', $mgmt];
+
+$maint = [
+    ['fa-building',        'Agency',                       'agncy'],
+    ['fa-city',            'Company',                      'comp'],
+    ['fa-sitemap',         'Department',                   'dep'],
+    ['fa-sliders',         'Debit Advise Settings',        'debitadvisesettings'],
+    ['fa-briefcase',       'Position',                     'pos'],
+    ['fa-layer-group',     'Job Level',                    'jl'],
+    ['fa-notes-medical',   'HMO',                          'hmo'],
+    ['fa-user-tag',        'Employee Status',              'est'],
+    ['fa-people-arrows',   'Relationship',                 'rel'],
+    ['fa-tags',            'Classification',               'classf'],
+    ['fa-clock',           'Work Time',                    'wt'],
+    ['fa-calendar-week',   'Work Days',                    'wd'],
+    ['fa-umbrella-beach',  'Types of Leave',               'tlv'],
+    ['fa-circle-check',    'Leave Validation',             'lval'],
+    ['fa-user-shield',     'User Role',                    'ur'],
+    ['fa-calendar-day',    'Holiday Logger',               'hldy'],
+    ['fa-fingerprint',     'LiLo Validation',              'gprdv'],
+    ['fa-circle-check',    'OB Validation',                'obval'],
+    ['fa-circle-check',    'EO Validation',                'eoval'],
+    ['fa-people-roof',     'Family Details for Parental',  'pfam'],
+    ['fa-business-time',   'OT Filing System Maintenance', 'otfs'],
+    ['fa-hand-holding-dollar', 'SSS / Pag-IBIG / PhilHealth / SIL Loan', 'SPPContrib'],
+    ['fa-wand-magic-sparkles', 'Login Theme',              'logintheme'],
+];
+if (array_key_exists('dbbackup', $row)) { $maint[] = ['fa-database', 'Database Backup', 'dbbackup', 'Download the whole database']; }
+$groups['Maintenance'] = ['fa-screwdriver-wrench', $maint];
+
+$msgs = [
+    ['fa-paperclip',  'Send Pictures & Documents', 'msgfile'],
+    ['fa-trash-can',  'Delete Own Messages',       'msgdel'],
+];
 // only rgemana may see / change who can read everyone's messages (includes/msgaudit-gate.php)
 if (array_key_exists('msgaudit', $row) && msgaudit_can_grant($pdo, $_SESSION['id'])) {
-    ar_row('fa-user-shield', 'Messages: Review All Conversations (HR investigations)', 'msgaudit', $row);
+    $msgs[] = ['fa-user-secret', 'Review All Conversations', 'msgaudit', 'HR investigations: read every chat'];
 }
-// only once sql/2026-10-14-add-after-separation-access-right.sql has run (a missing column would read as ON)
+$groups['Messages'] = ['fa-comments', $msgs];
+
+$others = [
+    ['fa-chart-pie',     'Dashboard',        'dashboard'],
+    ['fa-user',          'Search Employee',  'srch'],
+    ['fa-pen-to-square', 'Update 201 Files', 'updte'],
+    ['fa-bullhorn',      "GM'S Corner",      'gcorner'],
+];
 if (array_key_exists('aftersep', $row)) {
-    ar_row('fa-user-clock', 'Sign in after resignation / termination (e.g. still prepares payroll)', 'aftersep', $row);
+    $others[] = ['fa-user-clock', 'Sign in after separation', 'aftersep', 'Keeps signing in after resignation / termination, e.g. still prepares payroll'];
 }
+$groups['Others'] = ['fa-ellipsis', $others];
+
+/* one switch row. State mirrors the historical rule (stored value 1 == OFF, otherwise ON). */
+function ar_item($item, $row, $sensitive) {
+    [$icon, $label, $key] = $item;
+    $hint  = $item[3] ?? '';
+    $on    = !(isset($row[$key]) && $row[$key] == 1);
+    $isSen = in_array($key, $sensitive, true);
+    $find  = strtolower($label . ' ' . $hint);
+
+    echo '<li class="ar-item' . ($on ? ' is-on' : '') . '" data-find="' . ar_h($find) . '">'
+       . '<span class="ar-item__icon"><i class="fa-solid ' . ar_h($icon) . '"></i></span>'
+       . '<span class="ar-item__text"><span class="ar-item__label">' . ar_h($label)
+       . ($isSen ? ' <span class="ar-flag" title="Asks before changing; skipped by All on / All off"><i class="fa-solid fa-triangle-exclamation"></i> Sensitive</span>' : '')
+       . '</span>'
+       . ($hint !== '' ? '<span class="ar-item__hint">' . ar_h($hint) . '</span>' : '')
+       . '</span>'
+       . '<button type="button" id="' . ar_h($key) . '" class="ar-switch" role="switch"'
+       . ' aria-checked="' . ($on ? 'true' : 'false') . '" aria-label="' . ar_h($label) . '"'
+       . ' data-label="' . ar_h($label) . '"' . ($isSen ? ' data-sensitive="1"' : '') . '>'
+       . '<span class="ar-switch__track"><span class="ar-switch__knob"></span></span>'
+       . '<span class="ar-switch__text">' . ($on ? 'On' : 'Off') . '</span>'
+       . '</button>'
+       . '</li>';
+}
+
+echo '<div class="ar-sheet" data-emp-id="' . ar_h($id) . '" data-emp-name="' . ar_h($empName !== '' ? $empName : $id) . '">';
+foreach ($groups as $title => [$gicon, $items]) {
+    $slug = strtolower($title);
+    echo '<section class="ar-group" data-group="' . ar_h($slug) . '">'
+       . '<header class="ar-group__head">'
+       . '<button type="button" class="ar-group__toggle" aria-expanded="true">'
+       . '<span class="ar-group__icon"><i class="fa-solid ' . ar_h($gicon) . '"></i></span>'
+       . '<span class="ar-group__title">' . ar_h($title) . '</span>'
+       . '<span class="ar-group__count"></span>'
+       . '<i class="fa-solid fa-chevron-down ar-group__chev"></i>'
+       . '</button>'
+       . '<span class="ar-group__bulk">'
+       . '<button type="button" class="ar-bulk" data-onoff="ON">All on</button>'
+       . '<button type="button" class="ar-bulk" data-onoff="OFF">All off</button>'
+       . '</span>'
+       . '</header>'
+       . '<ul class="ar-list">';
+    foreach ($items as $item) { ar_item($item, $row, $sensitive); }
+    echo '</ul></section>';
+}
+echo '</div>';
