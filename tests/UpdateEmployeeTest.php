@@ -47,6 +47,19 @@ final class UpdateEmployeeTest extends AppTestCase
         $this->assertStringContainsString('Juan Santos Dela Cruz Jr', $html);
     }
 
+    /** Family Details relationships come from `frelationship` (Maintenance > Relationship), plus a free-text "Other". */
+    public function testFamilyRelationshipPickerListsTheMaintenanceTableAndOther(): void
+    {
+        self::db()->exec("INSERT INTO frelationship (FRelDesc) VALUES ('Daughter')");
+        self::db()->exec("UPDATE accessrights SET eemployee = 2 WHERE EmpID = '" . self::ADMIN . "'");
+        $enroll = $this->request('newemployee.php', [], [], $this->asAdmin())['body'];
+        $this->assertNoPhpErrors($enroll);
+        foreach (['edit' => $this->editPage(), 'enroll' => $enroll] as $page => $html) {
+            $this->assertMatchesRegularExpression('/<select[^>]*id="rel".*?>Daughter<\/option>.*?<option value="__other">Other/s', $html, $page);
+            $this->assertStringContainsString('id="relinput" maxlength="50"', $html, $page);
+        }
+    }
+
     public function testEditPagePreselectsTheEmployeesCurrentValues(): void
     {
         $html = $this->editPage();

@@ -1,7 +1,8 @@
 -- ============================================================================
 -- READ-ONLY: which sql/ migrations are installed on THIS database?
 -- Paste into phpMyAdmin with the server's database selected (staging or
--- production). Changes nothing — it only reads information_schema.
+-- production). Changes nothing — it only reads information_schema (and the
+-- frelationship list for the Son / Daughter rows).
 -- Each row = one migration file; status OK or MISSING (+ what is missing).
 -- Run the MISSING files in date order. A partly applied file stops at the
 -- first "duplicate" error in phpMyAdmin: run only its missing statements.
@@ -87,6 +88,8 @@ FROM (
          IF((SELECT COUNT(*) FROM information_schema.COLUMNS WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'accessrights' AND COLUMN_NAME = 'dbbackup') = 0, 'accessrights.dbbackup', '')
   UNION ALL SELECT '2026-10-20-applicants-screening-exam-files',
          IF((SELECT COUNT(*) FROM information_schema.TABLES WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'applicant_files') = 0, 'table applicant_files', '')
+  UNION ALL SELECT '2026-10-28-add-son-daughter-relationship',
+         IF((SELECT COUNT(DISTINCT FRelDesc) FROM frelationship WHERE FRelDesc IN ('Son', 'Daughter')) < 2, 'frelationship Son / Daughter rows', '')
   UNION ALL SELECT 'security fix (remember-me hash, see wedo-security-fixes)',
          IF((SELECT COUNT(*) FROM information_schema.COLUMNS WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'empdetails' AND COLUMN_NAME = 'remember_hash') = 0, 'empdetails.remember_hash', '')
 ) AS m;
