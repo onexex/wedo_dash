@@ -13,13 +13,17 @@ $(document).ready(function(){
     });
 
     // status filter: only list employees with the picked status
+    // (#selEmp on the YTD report, #selEmpAtt on the attachment)
     $(document).on('change', '#selStat', function(){
         var stat = $(this).val();
-        $('#selEmp option[data-stat]').each(function(){
-            var show = (stat == 'all' || $(this).data('stat') == stat);
-            $(this).prop('hidden', !show).prop('disabled', !show);
+        $('#selEmp, #selEmpAtt').each(function(){
+            var $sel = $(this);
+            $sel.find('option[data-stat]').each(function(){
+                var show = (stat == 'all' || $(this).data('stat') == stat);
+                $(this).prop('hidden', !show).prop('disabled', !show);
+            });
+            if ($sel.find('option:selected').prop('disabled')) { $sel.val('all'); }
         });
-        if ($('#selEmp option:selected').prop('disabled')) { $('#selEmp').val('all'); }
     });
 
     $(document).on('click', '#btnView', function(e){
@@ -102,7 +106,8 @@ $(document).ready(function(){
     // attachment *********************************
     $(document).on('click', '#btnViewAtt', function(e){
        
-        var ids = $("#selEmpAtt").val();   
+        var ids = $("#selEmpAtt").val();
+        var stat = $("#selStat").val();
         var dfrom = $("#cutOFd1").val();
         var dto = $("#cutOFd2").val();  
       
@@ -114,9 +119,9 @@ $(document).ready(function(){
 
         // ***************
         jQuery.ajax({
-            url:'query/general-phpscript.php?viewSummaryAtt', 
+            url:'query/general-phpscript.php?viewSummaryAtt',
             method: 'POST',
-            data: {ids:ids,dfrom:dfrom, dto: dto},
+            data: {ids:ids,stat:stat,dfrom:dfrom, dto: dto},
             cache: false,
             dataType: 'json',
             error: function(xhr, status, error) {
@@ -155,7 +160,9 @@ $(document).ready(function(){
                     })              
                   $("#dataAtt").empty();
                   $("#dataAtt").append(emp);
-                  
+
+               }else{
+                  $("#dataAtt").empty().append("<tr><td colspan='6' style='text-align:center'>No records for this filter.</td></tr>");
                }
                
                
