@@ -126,7 +126,7 @@ $(document).ready(function(){
 
                         total=0;
                         allowance_13month2=0; 
-                        total=parseFloat(item.PYGross)/12;
+                        total=parseFloat(item.th)/12;
                         allowance_13month2=total + (parseFloat(item.PYAllowance)/12); 
                             emp+="<tr>"                          
                                 +"<td style='text-align:right'>"+item.EmpLN+"</td>"
