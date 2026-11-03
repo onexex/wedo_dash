@@ -87,7 +87,9 @@ date_default_timezone_set('Asia/Manila');
     <script type="text/javascript">
         $(document).ready(function () {
             $(document).on('click', '.btnprint', function (e) {
-                var css = '@page { size: landscape; }',
+                // margins only, no forced size: prints portrait by default and the
+                // print dialog keeps its Portrait/Landscape choice
+                var css = '@page { margin: 12mm; }',
                     head = document.head || document.getElementsByTagName('head')[0],
                     style = document.createElement('style');
 
@@ -150,6 +152,17 @@ date_default_timezone_set('Asia/Manila');
             .wd-tablewrap { max-height: none !important; overflow: visible !important; border: 0 !important; }
             .wd-table td, .wd-table th { white-space: normal; }
             * { -webkit-print-color-adjust: exact !important; print-color-adjust: exact !important; }
+
+            /* standard document sizes on paper (the screen table is 13px with roomy padding) */
+            .header_data { margin: 0 0 6px !important; }
+            .header_data img { max-height: 36px; }
+            .header_data h3 { font-size: 13pt; margin: 0; }
+            .header_data h5 { font-size: 9pt; margin: 2px 0 0; }
+            .wd-table { font-size: 9pt; line-height: 1.3; }
+            .wd-table th { font-size: 8pt; padding: 4px 6px; color: #333; }
+            .wd-table td { padding: 3px 6px; color: #000; }
+            .wd-table thead { display: table-header-group; }   /* repeat header on each page */
+            .wd-table tr { page-break-inside: avoid; }
         }
     </style>
 </head>
