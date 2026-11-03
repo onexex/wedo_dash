@@ -245,6 +245,7 @@ date_default_timezone_set('Asia/Manila');
                                 <th class="not_13month_data">Adjustments</th>
                                 <th class="not_13month_data">Adjustments Allow</th>
                                 <th class="not_13month_data">Pay Receivable</th>
+                                <th>13<sup>th</sup> Month Base</th>
                                 <th>13<sup>th</sup> Month (BASIC)</th>
                                 <th>13<sup>th</sup> Month (BASIC+ALLOWANCE)</th>
                             </tr>

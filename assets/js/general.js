@@ -77,6 +77,7 @@ $(document).ready(function(){
                               +"<td  class='not_13month_data' style='text-align:left'>"+item.PYOtherAdj.toFixed(2).replace(/\B(?=(\d{3})+(?!\d)\.?)/g, ",")+"</td>"
                               +"<td  class='not_13month_data' style='text-align:left'>"+item.PYallowadj.toFixed(2).replace(/\B(?=(\d{3})+(?!\d)\.?)/g, ",")+"</td>"
                               +"<td  class='not_13month_data' style='text-align:left'>"+item.PYRecivable.toFixed(2).replace(/\B(?=(\d{3})+(?!\d)\.?)/g, ",")+"</td>"
+                              +"<td style='text-align:left'>"+parseFloat(item.th).toFixed(2).replace(/\B(?=(\d{3})+(?!\d)\.?)/g, ",")+"</td>"
                               +"<td style='text-align:left'>"+total.toFixed(2).replace(/\B(?=(\d{3})+(?!\d)\.?)/g, ",")+"</td>"
                               +"<td style='text-align:left'>"+allowance_13month.toFixed(2).replace(/\B(?=(\d{3})+(?!\d)\.?)/g, ",")+"</td>"
                              
@@ -87,7 +88,7 @@ $(document).ready(function(){
                   $("#data").append(emp);
 
                }else{
-                  $("#data").empty().append("<tr><td colspan='19' style='text-align:center'>No records for this filter.</td></tr>");
+                  $("#data").empty().append("<tr><td colspan='20' style='text-align:center'>No records for this filter.</td></tr>");
                }
                
                
