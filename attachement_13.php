@@ -80,7 +80,7 @@ date_default_timezone_set('Asia/Manila');
     <link rel="stylesheet" href="assets/css/wedo-theme.css?v=<?php echo @filemtime('assets/css/wedo-theme.css'); ?>">
 
     <script type="text/javascript" src="assets/js/script.js"></script>
-    <script type="text/javascript" src="assets/js/general.js"></script>
+    <script type="text/javascript" src="assets/js/general.js?v=<?php echo @filemtime('assets/js/general.js'); ?>"></script>
 
     <!-- Print the report area in landscape.
          Hooks preserved: .btnprint #btngen1Att #toprint .header_data .chk13_month .thisdate #cutOFd1 #cutOFd2 #reportview -->

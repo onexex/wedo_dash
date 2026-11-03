@@ -80,7 +80,7 @@ date_default_timezone_set('Asia/Manila');
     <link rel="stylesheet" href="assets/css/wedo-theme.css?v=<?php echo @filemtime('assets/css/wedo-theme.css'); ?>">
 
     <script type="text/javascript" src="assets/js/script.js"></script>
-    <script type="text/javascript" src="assets/js/general.js"></script>
+    <script type="text/javascript" src="assets/js/general.js?v=<?php echo @filemtime('assets/js/general.js'); ?>"></script>
 
     <!-- Print the report area in landscape.
          Hooks preserved: .btnprint #btngen1 #toprint .header_data .chk13_month .thisdate #cutOFd1 #cutOFd2 #reportview -->
@@ -106,7 +106,8 @@ date_default_timezone_set('Asia/Manila');
                 $(".header_data").removeClass("d-none").addClass("d-block");
                 $(".chk13_month").removeClass("d-block").addClass("d-none");
 
-                $(".thisdate").html($("#cutOFd1").val() + " To : " + $("#cutOFd2").val());
+                $(".thisdate").text($("#cutOFd1").val() + " To : " + $("#cutOFd2").val()
+                    + ($("#selStat").val() == "all" ? "" : " · " + $("#selStat option:selected").text()));
 
                 var printContents = document.getElementById('toprint').innerHTML;
 
@@ -178,14 +179,26 @@ date_default_timezone_set('Asia/Manila');
                     <input type="date" class="wd-input" id="cutOFd2" name="cutOFd2" style="width:auto;padding:7px 10px">
                 </div>
                 <div class="wd-field" style="margin:0">
+                    <label for="selStat">Status</label>
+                    <select class="wd-select" id="selStat" style="min-width:150px">
+                        <option value="all">All</option>
+                        <?php
+                        $sql = mysqli_query($con, "select * from estatus order by ID asc");
+                        while ($res = mysqli_fetch_array($sql)) {
+                        ?>
+                        <option value="<?php echo (int)$res['ID']; ?>"><?php echo htmlspecialchars($res['StatusEmpDesc']); ?></option>
+                        <?php } ?>
+                    </select>
+                </div>
+                <div class="wd-field" style="margin:0">
                     <label for="selEmp">Employee</label>
                     <select class="wd-select" id="selEmp" style="min-width:230px">
                         <option value="all">All</option>
                         <?php
-                        $sql = mysqli_query($con, "select * from employees where EmpStatusID='1' and EmpID<>'WeDoinc-003' order by EmpLN asc");
+                        $sql = mysqli_query($con, "select * from employees where EmpID<>'WeDoinc-003' order by EmpLN asc");
                         while ($res = mysqli_fetch_array($sql)) {
                         ?>
-                        <option value="<?php echo htmlspecialchars($res['EmpID']); ?>"><?php echo htmlspecialchars($res['EmpLN'] . ", " . $res['EmpMN'] . " " . $res['EmpFN']); ?></option>
+                        <option value="<?php echo htmlspecialchars($res['EmpID']); ?>" data-stat="<?php echo (int)$res['EmpStatusID']; ?>"><?php echo htmlspecialchars($res['EmpLN'] . ", " . $res['EmpMN'] . " " . $res['EmpFN']); ?></option>
                         <?php } ?>
                     </select>
                 </div>
