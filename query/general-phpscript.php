@@ -18,17 +18,23 @@
         try{
             $id=$_POST['ids']; 
             $dfrom=$_POST['dfrom']; 
-            $dto=$_POST['dto']; 
+            $dto=$_POST['dto'];
+            $stat=$_POST['stat'] ?? 'all';   // employment status (estatus.ID) or 'all'
             $empdata=[];
-    
+
             if($id=="all"){
+                $statSql = ($stat=="all") ? "" : " AND a.EmpStatusID=:stat";
                 $getemployee = $pdo->prepare("SELECT a.EmpLN as EmpLN, SUM(PYBasic) as PYBasic,SUM(PYAdj)  as PYAdj,SUM(PYOverTime)  as PYOverTime,
                  SUM(PYGross)  as PYGross,SUM(PYSSS)  as PYSSS,SUM(PYSSSLoan)  as PYSSSLoan,SUM(PYPhilHealth)  as PYPhilHealth,SUM(PYPagibig)  as PYPagibig,SUM(PYPILoan)  as PYPILoan,
                  SUM(PYTaxIncome)  as PYTaxIncome,SUM(PYIncTax)  as PYIncTax,SUM(PYNetPay)  as PYNetPay,SUM(PYAllowance)  as PYAllowance,SUM(PYOtherAdj)  as PYOtherAdj,SUM(PYallowadj)  as PYallowadj
                  ,SUM(PYRecivable)  as PYRecivable,SUM(13thMon)  as th
-                 FROM employees AS a INNER JOIN payrol AS b ON a.EmpID=b.PYEmpID WHERE (b.PYDate BETWEEN :dfrom AND :dto) AND a.EmpID<>'WeDoinc-003' group by a.EmpLN ORDER BY a.EmpLN");
+                 FROM employees AS a INNER JOIN payrol AS b ON a.EmpID=b.PYEmpID WHERE (b.PYDate BETWEEN :dfrom AND :dto) AND a.EmpID<>'WeDoinc-003'$statSql group by a.EmpLN ORDER BY a.EmpLN");
                 $getemployee->bindParam(':dfrom' , $dfrom);
                 $getemployee->bindParam(':dto' , $dto);
+                if($stat!="all"){
+                    $statId=(int)$stat;
+                    $getemployee->bindParam(':stat' , $statId, PDO::PARAM_INT);
+                }
             }else{
 
                 $getemployee = $pdo->prepare("SELECT a.EmpLN as EmpLN, SUM(PYBasic) as PYBasic,SUM(PYAdj)  as PYAdj,SUM(PYOverTime)  as PYOverTime,

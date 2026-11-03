@@ -12,12 +12,23 @@ $(document).ready(function(){
         }
     });
 
+    // status filter: only list employees with the picked status
+    $(document).on('change', '#selStat', function(){
+        var stat = $(this).val();
+        $('#selEmp option[data-stat]').each(function(){
+            var show = (stat == 'all' || $(this).data('stat') == stat);
+            $(this).prop('hidden', !show).prop('disabled', !show);
+        });
+        if ($('#selEmp option:selected').prop('disabled')) { $('#selEmp').val('all'); }
+    });
+
     $(document).on('click', '#btnView', function(e){
-       
-        var ids = $("#selEmp").val();   
+
+        var ids = $("#selEmp").val();
+        var stat = $("#selStat").val();
         var dfrom = $("#cutOFd1").val();
-        var dto = $("#cutOFd2").val();  
-      
+        var dto = $("#cutOFd2").val();
+
         e.preventDefault();
         $.ajaxSetup({
         headers: {
@@ -26,9 +37,9 @@ $(document).ready(function(){
 
         // ***************
         jQuery.ajax({
-            url:'query/general-phpscript.php?viewSummary', 
+            url:'query/general-phpscript.php?viewSummary',
             method: 'POST',
-            data: {ids:ids,dfrom:dfrom, dto: dto},
+            data: {ids:ids,stat:stat,dfrom:dfrom, dto: dto},
             cache: false,
             dataType: 'json',
             error: function(xhr, status, error) {
@@ -74,7 +85,9 @@ $(document).ready(function(){
                        })              
                   $("#data").empty();
                   $("#data").append(emp);
-                  
+
+               }else{
+                  $("#data").empty().append("<tr><td colspan='19' style='text-align:center'>No records for this filter.</td></tr>");
                }
                
                
