@@ -63,6 +63,12 @@
     });
   }
 
+  // inside the app a new tab goes nowhere: the phone's own viewer opens the photo
+  $id('invMine').addEventListener('click', function (ev) {
+    var a = ev.target.closest('.inv-card__photos a');
+    if (a && window.__wdDownload) { ev.preventDefault(); window.__wdDownload(a.href); }
+  });
+
   $id('invReportSend').addEventListener('click', send);
   $id('invReportForm').addEventListener('submit', function (ev) { ev.preventDefault(); send(); });
   load();
