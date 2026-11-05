@@ -1,8 +1,8 @@
 {
-  "version": "1.0.8",
-  "versionCode": 31,
-  "size": "6.2 MB",
-  "released": "2026-10-15",
+  "version": "1.0.9",
+  "versionCode": 32,
+  "size": "6.3 MB",
+  "released": "2026-11-05",
   "minAndroid": "6.0",
-  "notes": "HR: the Applicant Pool now looks and works like the rest of the app, and resumes open right on your phone."
+  "notes": "Inventory and My Items now look and work like the rest of the app. Confirm what was issued to you and report a problem right from your phone."
 }
