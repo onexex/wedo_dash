@@ -146,6 +146,21 @@ if (isset($ar['applicants']) && $ar['applicants'] == 2) {
     catch (Exception $wdErr) { $wdAplCount = 0; }
 }
 
+/* items issued to me and not confirmed yet (everyone) */
+$wdMyItemsCount = 0;
+try {
+    $wdInvQ = $wdpdo->prepare("SELECT COUNT(*) FROM inv_items WHERE HolderEmpID = :e AND AckAt IS NULL AND Status IN ('active','repair')");
+    $wdInvQ->execute([':e' => (string) $_SESSION['id']]);
+    $wdMyItemsCount = (int) $wdInvQ->fetchColumn();
+} catch (Exception $wdErr) { $wdMyItemsCount = 0; }   // inventory migration not run yet
+
+/* inventory alerts: expiring documents, warranties, low stock, ... (Inventory managers only) */
+$wdInvCount = 0;
+if (isset($ar['inventory']) && $ar['inventory'] == 2) {
+    require_once __DIR__ . '/inventory-lib.php';
+    $wdInvCount = inv_alert_count($wdpdo);
+}
+
 $wd_active = $wd_active ?? '';
 function wd_on($k, $a) { return $k === $a ? ' is-active' : ''; }
 function wd_can($ar, $k) { return isset($ar[$k]) && $ar[$k] == 2; }
@@ -174,13 +189,15 @@ function wd_can($ar, $k) { return isset($ar[$k]) && $ar[$k] == 2; }
 
   $wdSections = [
     ['key' => 'modules', 'label' => 'Modules', 'icon' => 'layout-grid', 'tone' => 'mod',
-     'badge' => $wdPcrCount, 'badgeTitle' => 'Profile change requests awaiting review', 'items' => [
+     'badge' => $wdPcrCount + $wdMyItemsCount, 'badgeTitle' => 'Requests awaiting review and items to confirm', 'items' => [
       ['alas',                'alas',            'alas',                     'calendar-check', 'Automated Leave Application'],
       ['checkregister',       'checkregister',   'checkregister',            'receipt-text',   'Check Register'],
       ['eo',                  'earlyout',        'earlyout',                 'door-open',      'Early Out Application'],
       ['e201',                'e201',            'e201',                     'folder-open',    'Electronic 201 File'],
       ['updte',               'profilerequests', 'profilerequests',          'user-check',     'Profile Change Requests', $wdPcrCount],
       ['memo',                'memo',            'memo',                     'file-pen-line',  'Memorandum Generator'],
+      // everyone sees what is issued to them; `inventory` manages the register
+      [true,                  'myitems',         'myitems',                  'package-check',  'My Items', $wdMyItemsCount],
       ['ob',                  'ob',              'ob',                       'route',          'Official Business Trip Tracker'],
       ['ot',                  'otfilling',       'otfilling',                'clock-plus',     'Overtime Filing'],
       ['payroll',             'payroll',         'payroll',                  'banknote',       'Payroll Management System'],
@@ -205,7 +222,7 @@ function wd_can($ar, $k) { return isset($ar[$k]) && $ar[$k] == 2; }
       ['access_13',             'generalreport',  'generalreport',  'calendar-range',  'YTD 13<sup>th</sup> Month'],
     ]],
     ['key' => 'management', 'label' => 'Management', 'icon' => 'briefcase-business', 'tone' => 'mgt',
-     'badge' => $wdAplCount, 'badgeTitle' => 'New job applications', 'items' => [
+     'badge' => $wdAplCount + $wdInvCount, 'badgeTitle' => 'New job applications and inventory alerts', 'items' => [
       ['arights',    'accessrights',    'accessrights.php', 'shield-check',   'Access Rights'],
       ['applicants', 'applicants',      'applicants',       'clipboard-list', 'Applicant Pool', $wdAplCount],
       ['ams',        'ams',             'ams',              'archive',        'Archived Management System'],
@@ -215,6 +232,7 @@ function wd_can($ar, $k) { return isset($ar[$k]) && $ar[$k] == 2; }
       ['empverify',  'verify',          'verify',           'user-search',    'Employment Verification (CI)'],
       ['eemployee',  'newemployee',     'newemployee',      'user-plus',      'Enroll Employee'],
       ['idcard',     'idcard',          'idcard',           'id-card',        'ID Card Generator'],
+      ['inventory',  'inventory',       'inventory',        'boxes',          'Inventory', $wdInvCount],
       ['msgaudit',   'msgreview',       'msgreview',        'message-square-warning', 'Message Review'],
       ['payeereg',   'payeereg',        'payeereg',         'book-user',      'Payee Management System'],
       ['schedv',     'schedviewer',     'schedviewer',      'calendar-clock', 'Schedule Viewer'],

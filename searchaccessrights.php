@@ -93,6 +93,7 @@ $mgmt = [
 if (array_key_exists('separation', $row)) { $mgmt[] = ['fa-user-minus',     'Separation & Lifecycle',  'separation', 'Resign / terminate / AWOL, rehire flag']; }
 if (array_key_exists('applicants', $row)) { $mgmt[] = ['fa-clipboard-list', 'Applicant Pool',          'applicants', 'Job registrations; hiring also needs Enroll Employee']; }
 if (array_key_exists('empverify', $row))  { $mgmt[] = ['fa-phone-volume',   'Employment Verification', 'empverify',  'CI calls']; }
+if (array_key_exists('inventory', $row))  { $mgmt[] = ['fa-boxes-stacked',  'Inventory',               'inventory',  'Property, documents and supplies; everyone sees their own items in My Items']; }
 $groups['Management'] = ['fa-user-gear', $mgmt];
 
 $maint = [

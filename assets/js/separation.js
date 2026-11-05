@@ -37,7 +37,8 @@
       + (emp.position ? ' · ' + esc(emp.position) : '')
       + (emp.classDesc ? ' <span class="wd-pill wd-pill--info">' + esc(emp.classDesc) + '</span>' : '')
       + ' ' + L.statusPill(emp.status)
-      + (emp.hired ? ' · hired ' + esc(L.fmtDate(emp.hired)) : '');
+      + (emp.hired ? ' · hired ' + esc(L.fmtDate(emp.hired)) : '')
+      + (current.items.count ? ' <span class="wd-pill wd-pill--warn">' + current.items.count + ' company item(s) still issued</span>' : '');
     $id('lcySeparateBtn').classList.toggle('lcy-hidden', emp.separated);
 
     var ev = current.events;
@@ -63,7 +64,7 @@
       + '<dl class="lcy-facts">'
       + '<div><dt>Reason</dt><dd>' + (s.reason ? esc(s.reason) : '<span class="lcy-muted">not given yet</span>') + '</dd></div>'
       + (s.rehireNote ? '<div><dt>Rehire note</dt><dd>' + esc(s.rehireNote) + '</dd></div>' : '')
-      + '<div><dt>Clearance</dt><dd>' + (s.clearance ? 'Completed' : 'Not yet') + '</dd></div>'
+      + '<div><dt>Clearance</dt><dd>' + (s.clearance ? 'Completed' : 'Not yet' + (current.items.count ? ' · ' + current.items.count + ' item(s) outstanding' : '')) + '</dd></div>'
       + '</dl></div>';
   }
 
@@ -107,6 +108,11 @@
     f.elements.reason.value = editing ? sep.reason : '';
     f.elements.rehireNote.value = editing ? sep.rehireNote : '';
     f.elements.clearance.checked = editing ? sep.clearance : false;
+    var held = current.items, wait = held.count > 0 && !f.elements.clearance.checked;
+    f.elements.clearance.disabled = wait;   // the server refuses it too
+    $id('lcySepItems').classList.toggle('lcy-hidden', !wait);
+    $id('lcySepItems').textContent = wait ? 'Clearance waits for ' + held.count + ' company item(s): '
+      + held.items.map(function (i) { return i.tag + ' ' + i.name; }).join(', ') + '. Return them in Inventory first.' : '';
     Array.prototype.forEach.call(f.querySelectorAll('[name=rehire]'), function (r) { r.checked = r.value === (editing ? sep.rehire : 'review'); });
     $('#lcySepModal').modal('show');
   }

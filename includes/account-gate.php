@@ -173,6 +173,19 @@ function wd_password_gate(?PDO $pdo = null): void
     exit;
 }
 
+/**
+ * Where sign-in lands. A QR label scanned while signed out (inventory.php keeps
+ * the tag in the session) returns to that item, once; anything else goes home.
+ * Only a validated tag is ever used, on a fixed path, so this can't redirect
+ * off-site.
+ */
+function wd_after_login(): string
+{
+    $tag = strtoupper((string) ($_SESSION['wd_after_tag'] ?? ''));
+    unset($_SESSION['wd_after_tag']);
+    return preg_match('/^[A-Z0-9][A-Z0-9-]{1,29}$/', $tag) ? 'inventory?tag=' . $tag : 'index.php';
+}
+
 /** JSON endpoints: 401 + "X-WeDo-Inactive: 1" (includes/wd-footer.php then opens the sign-in page). */
 function wd_account_gate_api(?PDO $pdo = null): void
 {
