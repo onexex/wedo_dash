@@ -19,9 +19,19 @@
   function empty(msg) { return '<div class="lcy-empty">' + esc(msg) + '</div>'; }
   function pill(tone, text) { return '<span class="wd-pill wd-pill--' + tone + '">' + esc(text) + '</span>'; }
   function each(box, sel, fn) { Array.prototype.forEach.call(box.querySelectorAll(sel), fn); }
-  function table(head, body) {
-    return '<div class="wd-tablewrap inv-tablewrap"><table class="wd-table lcy-table"><thead><tr>' + head.map(function (h) { return '<th>' + h + '</th>'; }).join('')
-      + '</tr></thead><tbody>' + body + '</tbody></table></div>';
+  /** cls: a phone layout of its own (inv-grid inv-t-*); without one a phone gets label / value rows. */
+  function table(head, body, cls) {
+    var t = document.createElement('table');
+    t.innerHTML = '<tbody>' + body + '</tbody>';
+    each(t, 'tr', function (tr) {
+      Array.prototype.forEach.call(tr.cells, function (td, n) { td.setAttribute('data-label', /^</.test(head[n] || '') ? '' : (head[n] || '')); });
+    });
+    return '<div class="wd-tablewrap inv-tablewrap"><table class="wd-table lcy-table' + (cls ? ' ' + cls : '') + '"><thead><tr>' + head.map(function (h) { return '<th>' + h + '</th>'; }).join('')
+      + '</tr></thead><tbody>' + t.tBodies[0].innerHTML + '</tbody></table></div>';
+  }
+  /** Inside the app a new tab goes nowhere: the phone's own viewer opens photos and files. */
+  function openInApp(ev) {
+    if (window.__wdDownload) { ev.preventDefault(); window.__wdDownload(this.href); }
   }
 
   var STATUS_TONE = { active: 'ok', repair: 'warn', lost: 'danger', disposed: 'info', merged: 'info' };
@@ -60,7 +70,10 @@
     bs.options.backdrop = locked ? 'static' : true;
     bs.options.keyboard = !locked;
   }
-  function closeModal() { $('#invModal').modal('hide'); }
+  var plainClose = false;     // our own close, or the X: nothing to step back through
+  var formBack = null;        // the open form's way back
+  var formStart = '';         // what it held when it opened
+  function closeModal() { plainClose = true; $('#invModal').modal('hide'); }
 
   /**
    * A form in the modal. spec: title, fields (or body: ready html), action, data
@@ -80,12 +93,14 @@
       + '<button type="button" class="wd-btn ' + btn + '" id="invFormGo"><i class="fa-solid fa-check"></i> ' + esc(spec.submit || 'Save') + '</button>',
       spec.panel || !!spec.back, true);
     var f = $id('invForm');
+    formBack = spec.back || null;
     (spec.fields || []).forEach(function (fd) {
       if (fd.type === 'select' && fd.value !== undefined && fd.value !== null) { f.elements[fd.name].value = fd.value; }
       if (fd.type === 'emp') {
         L.employeeSearch(f.querySelector('[data-emp="' + fd.name + '"]'), f.querySelector('[data-empbox="' + fd.name + '"]'), function (e) { f.elements[fd.name].value = e.empId; });
       }
     });
+    formStart = $(f).serialize();
     $id('invFormBack').addEventListener('click', function () { if (spec.back) { spec.back(); } else { closeModal(); } });
     f.addEventListener('submit', function (ev) { ev.preventDefault(); go(); });
     $id('invFormGo').addEventListener('click', function () { go(); });
@@ -204,10 +219,21 @@
     var body = '<div class="inv-itemhead"><div><span class="inv-tag">' + esc(i.tag) + '</span> ' + statusPill(i)
       + (i.low ? ' ' + pill('danger', 'Low stock') : '') + '</div></div>' + countBar + facts + fam + filesHtml + repairs + ledger + hist;
 
-    var acts = itemActions(i, d).map(function (a) {
-      return '<button type="button" class="wd-btn wd-btn--' + (a[3] || 'ghost') + ' wd-btn--sm" data-act="' + a[0] + '"><i class="fa-solid ' + a[1] + '"></i> ' + esc(a[2]) + '</button>';
-    }).join('');
-    showModal(i.name, body, '<div class="inv-actions">' + acts + '</div>', true);
+    var list = itemActions(i, d), main = list.filter(function (a) { return a[3] === 'primary'; })[0];
+    var button = function (a, cls) {
+      return '<button type="button" class="wd-btn wd-btn--' + (a[3] || 'ghost') + ' ' + cls + '" data-act="' + a[0] + '"><i class="fa-solid ' + a[1] + '"></i> ' + esc(a[2]) + '</button>';
+    };
+    var many = list.length > 2;   // a phone shows the main action, the rest are one tap away
+    var bar = '<div class="inv-phonebar">' + (many ? (main ? button(main, '') : '') + '<button type="button" class="wd-btn wd-btn--ghost" id="invMore"><i class="fa-solid fa-ellipsis"></i> More</button>'
+      : list.map(function (a) { return button(a, ''); }).join('')) + '</div>';
+    var sheet = '<div class="inv-moresheet" id="invMoreSheet"><div class="inv-scrim"></div><div class="inv-actions"><div class="inv-sheethead">' + esc(i.name) + '</div>'
+      + list.map(function (a) { return button(a, 'wd-btn--sm' + (many && a === main ? ' inv-ismain' : '')); }).join('') + '</div></div>';
+    showModal(i.name, body, bar + sheet, true);
+    var closeSheet = function () { $id('invMoreSheet').classList.remove('is-open'); };
+    if (many) {
+      $id('invMore').addEventListener('click', function () { $id('invMoreSheet').classList.add('is-open'); });
+      $id('invMoreSheet').querySelector('.inv-scrim').addEventListener('click', closeSheet);
+    }
 
     var run = { edit: function () { itemForm(i); }, dup: function () { itemForm(i, true); }, label: function () { printLabels([i]); } };
     run.del = function () {
@@ -225,9 +251,10 @@
     };
     Object.keys(ACTIONS).forEach(function (k) { run[k] = function () { ACTIONS[k](i); }; });
     each($id('invModalFoot'), '[data-act]', function (b) {
-      b.addEventListener('click', function () { run[b.getAttribute('data-act')](); });
+      b.addEventListener('click', function () { closeSheet(); run[b.getAttribute('data-act')](); });
     });
     var box = $id('invModalBody');
+    each(box, '.inv-thumb a, .inv-paper a', function (a) { a.addEventListener('click', openInApp); });
     each(box, '[data-item]', function (a) { a.addEventListener('click', function (ev) { ev.preventDefault(); openItem(+a.getAttribute('data-item')); }); });
     each(box, '[data-delfile]', function (b) {
       b.addEventListener('click', function () {
@@ -525,7 +552,7 @@
         + '<td><span class="inv-tag">' + esc(i.tag) + '</span></td><td><b>' + esc(i.name) + '</b>' + (i.brand || i.model ? '<br><span class="lcy-muted">' + esc((i.brand + ' ' + i.model).trim()) + '</span>' : '') + '</td>'
         + '<td>' + esc(i.category) + '</td><td>' + i.qty + ' ' + esc(i.unit) + '</td><td>' + esc(i.location) + (i.spot ? '<br><span class="lcy-muted">' + esc(i.spot) + '</span>' : '') + '</td>'
         + '<td>' + esc(i.holder) + (i.holderId && !i.ackAt ? '<br><span class="lcy-muted">not confirmed</span>' : '') + '</td><td>' + statusPill(i) + '</td><td>' + esc(money(i.totalCost)) + '</td></tr>';
-    }).join('')) + (rows.length >= limit ? '<p class="lcy-muted inv-more">Showing the first ' + limit + '. Narrow the search to see the rest.</p>' : '');
+    }).join(''), 'inv-grid inv-t-items') + (rows.length >= limit ? '<p class="lcy-muted inv-more">Showing the first ' + limit + '. Narrow the search to see the rest.</p>' : '');
     each(box, 'tr.inv-row', function (tr) {
       tr.addEventListener('click', function (ev) {
         if (ev.target.closest('.inv-tick')) { return; }
@@ -597,7 +624,7 @@
           + '<td>' + esc(money(i.unitCost)) + '</td><td class="inv-tick"><span class="lcy-actions">'
           + '<button type="button" class="wd-btn wd-btn--ghost wd-btn--sm" data-stock="stockIn" data-n="' + n + '"><i class="fa-solid fa-arrow-down"></i> In</button>'
           + '<button type="button" class="wd-btn wd-btn--ghost wd-btn--sm" data-stock="stockOut" data-n="' + n + '"><i class="fa-solid fa-arrow-up"></i> Out</button></span></td></tr>';
-      }).join(''));
+      }).join(''), 'inv-grid inv-t-sup');
       each(box, 'tr.inv-row', function (tr) {
         tr.addEventListener('click', function (ev) { if (!ev.target.closest('.inv-tick')) { openItem(+tr.getAttribute('data-id')); } });
       });
@@ -636,7 +663,7 @@
         return '<tr><td><b>' + esc(p.name) + '</b><br><span class="lcy-muted">' + esc(p.empId) + (p.position ? ' · ' + esc(p.position) : '') + '</span>' + (p.left ? ' ' + L.statusPill(p.status) : '') + '</td>'
           + '<td>' + esc(p.department) + '</td><td>' + p.items + '</td><td>' + (p.pending ? pill('warn', p.pending) : '') + '</td><td>' + esc(L.fmtDate(p.lastIssued)) + '</td>'
           + '<td><button type="button" class="wd-btn wd-btn--ghost wd-btn--sm" data-emp="' + esc(p.empId) + '">View</button></td></tr>';
-      }).join(''));
+      }).join(''), 'inv-grid inv-t-people');
       each(box, '[data-emp]', function (b) { b.addEventListener('click', function () { openPerson(b.getAttribute('data-emp')); }); });
     });
   }
@@ -657,6 +684,14 @@
   }
 
   function printSheet(html) {
+    if (document.documentElement.classList.contains('wdapp')) {   // the app prints a page of its own, not this one
+      var w = window.open('about:blank');
+      w.document.write('<!DOCTYPE html><html><head><meta charset="utf-8"><link rel="stylesheet" href="' + new URL('assets/css/inventory.css', location.href).href + '"></head>'
+        + '<body class="inv-printing"><div id="invPrint">' + html + '</div></body></html>');
+      w.document.close();
+      w.print();
+      return;
+    }
     $id('invPrint').innerHTML = html;
     document.body.classList.add('inv-printing');
     var off = function () { document.body.classList.remove('inv-printing'); $id('invPrint').innerHTML = ''; window.removeEventListener('afterprint', off); };
@@ -710,7 +745,7 @@
         return '<tr><td><a href="#" data-item="' + r.itemId + '"><b>' + esc(r.tag) + '</b></a><br><span class="lcy-muted">' + esc(r.name) + '</span></td><td>' + repairPill(r) + '</td>'
           + '<td>' + esc(r.problem) + (r.reportedBy ? '<br><span class="lcy-muted">reported by ' + esc(r.reportedBy) + '</span>' : '') + (r.result ? '<br><span class="lcy-muted">' + esc(r.result) + '</span>' : '') + '</td>'
           + '<td>' + esc(r.vendor) + '</td><td>' + esc(L.fmtDate(r.sentOn)) + '</td><td>' + esc(L.fmtDate(r.returnedOn)) + '</td><td>' + esc(money(r.cost)) + '</td><td class="inv-nowrap">' + b + '</td></tr>';
-      }).join(''));
+      }).join(''), 'inv-grid inv-t-rep');
       each(box, '[data-item]', function (a) { a.addEventListener('click', function (ev) { ev.preventDefault(); openItem(+a.getAttribute('data-item')); }); });
       each(box, '[data-rep]', function (b) { b.addEventListener('click', function () { repairAct(b.getAttribute('data-rep'), res.repairs[+b.getAttribute('data-n')]); }); });
     });
@@ -784,7 +819,7 @@
       return '<tr><td><span class="inv-tag">' + esc(l.tag || '—') + '</span></td><td><b>' + esc(l.name) + '</b>' + (l.spot ? '<br><span class="lcy-muted">' + esc(l.spot) + '</span>' : '')
         + (l.holder ? '<br><span class="lcy-muted">with ' + esc(l.holder) + '</span>' : '') + (l.result === 'misplaced' ? '<br><span class="lcy-muted">recorded at ' + esc(l.itemLocation) + '</span>' : '') + '</td>'
         + '<td>' + l.expected + ' ' + esc(l.unit) + '</td><td>' + found + '</td><td>' + (r ? pill(short ? 'warn' : r[0], short ? 'Short by ' + (l.expected - l.found) : r[1]) : '') + '</td><td class="inv-nowrap">' + act + '</td></tr>';
-    }).join('')) : empty('Nothing is recorded at this location.');
+    }).join(''), 'inv-grid inv-t-lines') : empty('Nothing is recorded at this location.');
     box.innerHTML = head + bar + body;
 
     $id('invCountBack').addEventListener('click', function () { openCountId = null; loadCounts(); });
@@ -866,7 +901,7 @@
       box.innerHTML = table(['', 'Item', 'What', 'Date'], res.alerts.map(function (a) {
         return '<tr class="inv-row" data-id="' + a.itemId + '"><td><span class="wd-pill wd-pill--' + a.tone + '"><i class="fa-solid ' + (ALERT_ICON[a.type] || 'fa-bell') + '"></i></span></td>'
           + '<td><span class="inv-tag">' + esc(a.tag) + '</span> ' + esc(a.name) + '</td><td>' + esc(a.detail) + '</td><td>' + esc(L.fmtDate(a.date)) + '</td></tr>';
-      }).join(''));
+      }).join(''), 'inv-grid inv-t-alerts');
       each(box, 'tr.inv-row', function (tr) { tr.addEventListener('click', function () { openItem(+tr.getAttribute('data-id')); }); });
     });
   }
@@ -876,11 +911,11 @@
     $id('invCats').innerHTML = !look.categories.length ? empty('No categories yet.') : table(['Code', 'Name', 'Kind', 'Items', ''], look.categories.map(function (c, n) {
       return '<tr><td><span class="inv-tag">' + esc(c.code) + '</span></td><td>' + esc(c.name) + (c.active ? '' : ' ' + pill('info', 'Off')) + '</td><td>' + esc({ asset: 'Asset', document: 'Document', consumable: 'Consumable' }[c.kind]) + '</td><td>' + c.items + '</td>'
         + '<td><button type="button" class="wd-iconbtn" data-cat="' + n + '" aria-label="Edit ' + esc(c.name) + '"><i class="fa-solid fa-pen"></i></button></td></tr>';
-    }).join(''));
+    }).join(''), 'inv-grid inv-t-cats');
     $id('invLocs').innerHTML = !look.locations.length ? empty('No locations yet. Add every office, floor or storeroom you keep things in.') : table(['Name', 'Items', 'Notes', ''], look.locations.map(function (l, n) {
       return '<tr><td>' + esc(l.name) + (l.active ? '' : ' ' + pill('info', 'Off')) + '</td><td>' + l.items + '</td><td>' + esc(l.notes) + '</td>'
         + '<td><button type="button" class="wd-iconbtn" data-loc="' + n + '" aria-label="Edit ' + esc(l.name) + '"><i class="fa-solid fa-pen"></i></button></td></tr>';
-    }).join(''));
+    }).join(''), 'inv-grid inv-t-locs');
     each($id('invCats'), '[data-cat]', function (b) { b.addEventListener('click', function () { catForm(look.categories[+b.getAttribute('data-cat')]); }); });
     each($id('invLocs'), '[data-loc]', function (b) { b.addEventListener('click', function () { locForm(look.locations[+b.getAttribute('data-loc')]); }); });
   }
@@ -905,7 +940,11 @@
   function go(name) {
     tab = name;
     Object.keys(PANES).forEach(function (k) { $id('invPane' + PANES[k]).classList.toggle('lcy-hidden', k !== name); });
-    each($id('invTabs'), '.lcy-tab', function (b) { b.classList.toggle('is-on', b.getAttribute('data-tab') === name); });
+    each($id('invTabs'), '.lcy-tab', function (b) {
+      var on = b.getAttribute('data-tab') === name, T = $id('invTabs');
+      b.classList.toggle('is-on', on);
+      if (on) { T.scrollLeft += b.getBoundingClientRect().left - T.getBoundingClientRect().left - (T.clientWidth - b.offsetWidth) / 2; }
+    });
     LOAD[name]();
   }
 
@@ -916,6 +955,19 @@
   function refresh() { LOAD[tab](); if (tab !== 'items') { refreshStats(); } }
 
   /* ------------------------------------------------------------ wire up */
+  $('#invModal .close').on('click', function () { plainClose = true; });
+  // The phone's Back key hides the modal outright, so it steps out one level here: the
+  // actions sheet, then a form back to its item, and typed work is never lost unasked.
+  $('#invModal').on('hide.bs.modal', function (ev) {
+    var plain = plainClose, sheet = $id('invMoreSheet'), f = $id('invForm');
+    plainClose = false;
+    if (ev.target !== this || plain) { return; }
+    if (sheet && sheet.classList.contains('is-open')) { ev.preventDefault(); sheet.classList.remove('is-open'); return; }
+    if (!f) { return; }
+    if (formBack) { ev.preventDefault(); formBack(); return; }
+    if ($(f).serialize() !== formStart && !confirm('Discard what you typed?')) { ev.preventDefault(); }
+  });
+
   var timer = null;
   function later(fn) { clearTimeout(timer); timer = setTimeout(fn, 250); }
 

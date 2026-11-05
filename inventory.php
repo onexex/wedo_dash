@@ -83,7 +83,7 @@ $v = function ($f) { return @filemtime(__DIR__ . '/' . $f) ?: 0; };
       include 'includes/wd-header.php';   // provides $wdpdo, $ar, $wdName
     ?>
 
-      <div class="wd-pagehead">
+      <div class="wd-pagehead inv-head">
         <div>
           <h1>Inventory</h1>
           <p>Company property, documents and supplies: where everything is, who holds it, and what needs attention.</p>
@@ -109,6 +109,7 @@ $v = function ($f) { return @filemtime(__DIR__ . '/' . $f) ?: 0; };
       <section class="wd-card inv-pane" id="invPaneItems">
         <div class="inv-toolbar">
           <input type="search" class="wd-input" id="invQ" placeholder="Search tag, name, serial&hellip;" aria-label="Search items">
+          <div class="inv-filters">
           <select class="wd-select" id="invFCat" aria-label="Category"></select>
           <select class="wd-select" id="invFLoc" aria-label="Location"></select>
           <select class="wd-select" id="invFStatus" aria-label="Status">
@@ -122,6 +123,7 @@ $v = function ($f) { return @filemtime(__DIR__ . '/' . $f) ?: 0; };
           </select>
           <span class="inv-spacer"></span>
           <button type="button" class="wd-btn wd-btn--ghost" id="invExport"><i class="fa-solid fa-file-excel"></i> Export</button>
+          </div>
           <button type="button" class="wd-btn wd-btn--primary" id="invAdd"><i class="fa-solid fa-plus"></i> Add item</button>
         </div>
         <div class="inv-bulk lcy-hidden" id="invBulk">
