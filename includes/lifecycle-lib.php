@@ -261,6 +261,17 @@ function lcy_latest_separation(PDO $pdo, $empId) {
     return $list ? $list[0] : null;
 }
 
+/** Company items this person still holds (Inventory). Empty until that module's migration has run. */
+function lcy_items_held(PDO $pdo, $empId) {
+    require_once __DIR__ . '/inventory-lib.php';
+    return inv_ready($pdo) ? inv_held_summary($pdo, $empId) : ['count' => 0, 'items' => []];
+}
+
+function lcy_clearance_block(array $held, $name) {
+    return $name . ' still holds ' . $held['count'] . ' company item' . ($held['count'] === 1 ? '' : 's')
+         . ' — have them returned in Inventory before completing clearance.';
+}
+
 /**
  * Record a separation: status Resigned/Terminated/AWOL, last day, separation
  * record, history, then sign the person out everywhere.
@@ -278,6 +289,10 @@ function lcy_separate(PDO $pdo, $empId, $type, $lastDay, $reason, $rehire, $rehi
     if ($reason === '') { return ['ok' => false, 'msg' => 'Enter the reason for leaving.']; }
     if ($emp['separated']) {
         return ['ok' => false, 'msg' => $emp['name'] . ' is already ' . $emp['status'] . ' — edit the existing separation record instead.'];
+    }
+    if ($clearance) {
+        $held = lcy_items_held($pdo, $emp['empId']);
+        if ($held['count'] > 0) { return ['ok' => false, 'msg' => lcy_clearance_block($held, $emp['name'])]; }
     }
 
     $statusId = LCY_SEP_STATUS[$type];
@@ -314,6 +329,13 @@ function lcy_update_separation(PDO $pdo, $id, $lastDay, $reason, $rehire, $rehir
     if (!in_array($rehire, LCY_REHIRE, true)) { return ['ok' => false, 'msg' => 'Choose whether this person may be rehired.']; }
     $reason = lcy_text($reason, 500);
     if ($reason === '') { return ['ok' => false, 'msg' => 'Enter the reason for leaving.']; }
+    if ($clearance && (int) $old['ClearanceDone'] !== 1) {   // a record already cleared stays editable
+        $held = lcy_items_held($pdo, $old['EmpID']);
+        if ($held['count'] > 0) {
+            $emp = lcy_employee($pdo, $old['EmpID']);
+            return ['ok' => false, 'msg' => lcy_clearance_block($held, $emp ? $emp['name'] : $old['EmpID'])];
+        }
+    }
 
     $pdo->prepare("UPDATE emp_separations SET LastDay = :d, Reason = :r, RehireEligible = :h, RehireNote = :hn, ClearanceDone = :c
                    WHERE id = :id")
@@ -355,7 +377,7 @@ function lcy_timeline(PDO $pdo, $empId) {
                                 'notes' => null, 'by' => '', 'at' => null]);
     }
     return ['employee' => $emp, 'events' => $events, 'separations' => lcy_separations($pdo, $emp['empId']),
-            'coe' => lcy_coe_list($pdo, ['emp' => $emp['empId']])];
+            'coe' => lcy_coe_list($pdo, ['emp' => $emp['empId']]), 'items' => lcy_items_held($pdo, $emp['empId'])];
 }
 
 /* ------------------------------------------------------------------ COE */

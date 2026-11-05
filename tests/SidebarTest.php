@@ -46,7 +46,7 @@ final class SidebarTest extends AppTestCase
 
         // and every icon named in the menu source (pages a seeded user can't see) exists too
         // the icon is the column right before a page label ('wallet', 'Leave Credit Viewer'])
-        preg_match_all("/'([a-z0-9-]+)',\s+'[A-Z0-9][^']*'(?:,\s*\\\$wdPcrCount)?\]/", file_get_contents(__DIR__ . '/../includes/wd-header.php'), $src);
+        preg_match_all("/'([a-z0-9-]+)',\s+'[A-Z0-9][^']*'(?:,\s*\\\$wd\w+)?\]/", file_get_contents(__DIR__ . '/../includes/wd-header.php'), $src);
         preg_match_all("/wd_icon\('([a-z0-9-]+)'/", file_get_contents(__DIR__ . '/../includes/wd-header.php'), $calls);
         $named = array_map(fn($n) => 'i-' . $n, array_unique(array_merge($src[1], $calls[1])));
         $this->assertGreaterThan(50, count($named), 'expected to find the menu icon names in wd-header.php');

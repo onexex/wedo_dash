@@ -94,6 +94,9 @@ FROM (
          IF((SELECT COUNT(*) FROM information_schema.COLUMNS WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'accessrights' AND COLUMN_NAME = 'cpoll') = 0, 'accessrights.cpoll', '')
   UNION ALL SELECT '2026-10-28-add-son-daughter-relationship',
          IF((SELECT COUNT(DISTINCT FRelDesc) FROM frelationship WHERE FRelDesc IN ('Son', 'Daughter')) < 2, 'frelationship Son / Daughter rows', '')
+  UNION ALL SELECT '2026-11-05-add-inventory', CONCAT_WS(' ',
+         IF((SELECT COUNT(*) FROM information_schema.COLUMNS WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'accessrights' AND COLUMN_NAME = 'inventory') = 0, 'accessrights.inventory', NULL),
+         IF((SELECT COUNT(*) FROM information_schema.TABLES WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME IN ('inv_categories','inv_locations','inv_items','inv_movements','inv_stock_moves','inv_repairs','inv_files','inv_counts','inv_count_lines')) < 9, 'inv_* tables', NULL))
   UNION ALL SELECT 'security fix (remember-me hash, see wedo-security-fixes)',
          IF((SELECT COUNT(*) FROM information_schema.COLUMNS WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'empdetails' AND COLUMN_NAME = 'remember_hash') = 0, 'empdetails.remember_hash', '')
 ) AS m;

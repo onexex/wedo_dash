@@ -144,6 +144,7 @@ $v = function ($f) { return @filemtime(__DIR__ . '/' . $f) ?: 0; };
               <div class="wd-field">
                 <label class="lcy-check"><input type="checkbox" name="clearance" value="1"> Clearance completed</label>
               </div>
+              <p class="lcy-note lcy-hidden" id="lcySepItems"></p>
               <p class="lcy-note" id="lcySepWarn">The account is signed out on every device right away and can no longer sign in.</p>
               <p class="lcy-modal-error" id="lcySepErr"></p>
             </form>

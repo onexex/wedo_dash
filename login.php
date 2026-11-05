@@ -50,7 +50,7 @@
 
     // 2. If session already exists, redirect to index
     if (isset($_SESSION['id']) && $_SESSION['id'] != "0" && $ltPreviewName === null) {
-    header('location: index.php');
+    header('location: ' . wd_after_login());
     exit();
     }
 
@@ -75,7 +75,7 @@
             $_SESSION['CompanyColor'] = "red";
         }
 
-        header('location: index.php');
+        header('location: ' . wd_after_login());
         exit();
     };
 

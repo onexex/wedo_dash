@@ -45,6 +45,7 @@ CREATE TABLE `accessrights` (
   `updte` int(11) NOT NULL DEFAULT 1,
   `separation` int(11) NOT NULL DEFAULT 1,
   `empverify` int(11) NOT NULL DEFAULT 1,
+  `inventory` int(11) NOT NULL DEFAULT 1,
   `applicants` int(11) NOT NULL DEFAULT 1,
   `idcard` int(11) NOT NULL DEFAULT 1,
   `gcorner` int(11) NOT NULL DEFAULT 2,
@@ -989,6 +990,187 @@ CREATE TABLE `idcard_settings` (
 /*!40101 SET character_set_client = @saved_cs_client */;
 /*!40101 SET @saved_cs_client     = @@character_set_client */;
 /*!40101 SET character_set_client = utf8 */;
+CREATE TABLE `inv_categories` (
+  `id` int(11) NOT NULL AUTO_INCREMENT,
+  `Code` varchar(6) NOT NULL,
+  `Name` varchar(60) NOT NULL,
+  `Kind` varchar(12) NOT NULL DEFAULT 'asset',
+  `NextSeq` int(11) NOT NULL DEFAULT 1,
+  `Active` tinyint(1) NOT NULL DEFAULT 1,
+  `SortOrder` int(11) NOT NULL DEFAULT 0,
+  `CreatedAt` datetime NOT NULL DEFAULT current_timestamp(),
+  PRIMARY KEY (`id`),
+  UNIQUE KEY `ux_inv_cat_code` (`Code`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
+
+CREATE TABLE `inv_locations` (
+  `id` int(11) NOT NULL AUTO_INCREMENT,
+  `Name` varchar(80) NOT NULL,
+  `Notes` varchar(200) DEFAULT NULL,
+  `Active` tinyint(1) NOT NULL DEFAULT 1,
+  `CreatedAt` datetime NOT NULL DEFAULT current_timestamp(),
+  PRIMARY KEY (`id`),
+  UNIQUE KEY `ux_inv_loc_name` (`Name`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
+
+CREATE TABLE `inv_items` (
+  `id` int(11) NOT NULL AUTO_INCREMENT,
+  `TagNo` varchar(30) NOT NULL,
+  `CategoryID` int(11) NOT NULL,
+  `Name` varchar(150) NOT NULL,
+  `Description` varchar(500) DEFAULT NULL,
+  `Brand` varchar(80) DEFAULT NULL,
+  `Model` varchar(80) DEFAULT NULL,
+  `SerialNo` varchar(80) DEFAULT NULL,
+  `Qty` int(11) NOT NULL DEFAULT 1,
+  `Unit` varchar(20) NOT NULL DEFAULT 'pc',
+  `ItemCondition` varchar(10) NOT NULL DEFAULT 'good',
+  `Status` varchar(10) NOT NULL DEFAULT 'active',
+  `LocationID` int(11) NOT NULL,
+  `Spot` varchar(100) DEFAULT NULL,
+  `HolderEmpID` varchar(50) DEFAULT NULL,
+  `IssuedOn` date DEFAULT NULL,
+  `AckAt` datetime DEFAULT NULL,
+  `CompanyID` varchar(10) DEFAULT NULL,
+  `AcquiredOn` date DEFAULT NULL,
+  `Supplier` varchar(120) DEFAULT NULL,
+  `UnitCost` decimal(12,2) DEFAULT NULL,
+  `ReferenceNo` varchar(60) DEFAULT NULL,
+  `WarrantyUntil` date DEFAULT NULL,
+  `DocNumber` varchar(80) DEFAULT NULL,
+  `DocIssuer` varchar(120) DEFAULT NULL,
+  `DocIssuedOn` date DEFAULT NULL,
+  `ExpiresOn` date DEFAULT NULL,
+  `RemindDays` int(11) NOT NULL DEFAULT 30,
+  `ReorderLevel` int(11) DEFAULT NULL,
+  `ParentID` int(11) DEFAULT NULL,
+  `SplitSeq` int(11) NOT NULL DEFAULT 0,
+  `MergedIntoID` int(11) DEFAULT NULL,
+  `DisposedOn` date DEFAULT NULL,
+  `DisposalMethod` varchar(12) DEFAULT NULL,
+  `DisposalNote` varchar(300) DEFAULT NULL,
+  `LastCountedOn` date DEFAULT NULL,
+  `Notes` varchar(500) DEFAULT NULL,
+  `CreatedBy` varchar(50) DEFAULT NULL,
+  `CreatedAt` datetime NOT NULL DEFAULT current_timestamp(),
+  `UpdatedAt` datetime DEFAULT NULL,
+  PRIMARY KEY (`id`),
+  UNIQUE KEY `ux_inv_tag` (`TagNo`),
+  KEY `ix_inv_cat` (`CategoryID`,`Status`),
+  KEY `ix_inv_loc` (`LocationID`,`Status`),
+  KEY `ix_inv_holder` (`HolderEmpID`,`Status`),
+  KEY `ix_inv_parent` (`ParentID`),
+  KEY `ix_inv_expires` (`ExpiresOn`),
+  KEY `ix_inv_warranty` (`WarrantyUntil`),
+  KEY `ix_inv_serial` (`SerialNo`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
+
+CREATE TABLE `inv_movements` (
+  `id` int(11) NOT NULL AUTO_INCREMENT,
+  `ItemID` int(11) NOT NULL,
+  `Type` varchar(16) NOT NULL,
+  `FromLocationID` int(11) DEFAULT NULL,
+  `ToLocationID` int(11) DEFAULT NULL,
+  `FromEmpID` varchar(50) DEFAULT NULL,
+  `ToEmpID` varchar(50) DEFAULT NULL,
+  `Qty` int(11) DEFAULT NULL,
+  `RefItemID` int(11) DEFAULT NULL,
+  `RefID` int(11) DEFAULT NULL,
+  `Notes` varchar(500) DEFAULT NULL,
+  `ByEmpID` varchar(50) DEFAULT NULL,
+  `CreatedAt` datetime NOT NULL DEFAULT current_timestamp(),
+  PRIMARY KEY (`id`),
+  KEY `ix_inv_mov_item` (`ItemID`,`id`),
+  KEY `ix_inv_mov_emp` (`ToEmpID`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
+
+CREATE TABLE `inv_stock_moves` (
+  `id` int(11) NOT NULL AUTO_INCREMENT,
+  `ItemID` int(11) NOT NULL,
+  `Type` varchar(8) NOT NULL,
+  `Qty` int(11) NOT NULL,
+  `BalanceAfter` int(11) NOT NULL,
+  `UnitCost` decimal(12,2) DEFAULT NULL,
+  `Supplier` varchar(120) DEFAULT NULL,
+  `ToEmpID` varchar(50) DEFAULT NULL,
+  `ToDepartmentID` int(11) DEFAULT NULL,
+  `Reference` varchar(60) DEFAULT NULL,
+  `Notes` varchar(300) DEFAULT NULL,
+  `CountID` int(11) DEFAULT NULL,
+  `ByEmpID` varchar(50) DEFAULT NULL,
+  `CreatedAt` datetime NOT NULL DEFAULT current_timestamp(),
+  PRIMARY KEY (`id`),
+  KEY `ix_inv_stk_item` (`ItemID`,`id`),
+  KEY `ix_inv_stk_type` (`Type`,`CreatedAt`),
+  KEY `ix_inv_stk_dept` (`ToDepartmentID`,`CreatedAt`),
+  KEY `ix_inv_stk_emp` (`ToEmpID`,`CreatedAt`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
+
+CREATE TABLE `inv_repairs` (
+  `id` int(11) NOT NULL AUTO_INCREMENT,
+  `ItemID` int(11) NOT NULL,
+  `Kind` varchar(8) NOT NULL DEFAULT 'repair',
+  `Status` varchar(10) NOT NULL DEFAULT 'open',
+  `Problem` varchar(500) NOT NULL,
+  `Vendor` varchar(120) DEFAULT NULL,
+  `SentOn` date DEFAULT NULL,
+  `ReturnedOn` date DEFAULT NULL,
+  `Cost` decimal(12,2) DEFAULT NULL,
+  `Result` varchar(500) DEFAULT NULL,
+  `ReportedBy` varchar(50) DEFAULT NULL,
+  `ByEmpID` varchar(50) DEFAULT NULL,
+  `CreatedAt` datetime NOT NULL DEFAULT current_timestamp(),
+  `ClosedAt` datetime DEFAULT NULL,
+  PRIMARY KEY (`id`),
+  KEY `ix_inv_rep_item` (`ItemID`,`Status`),
+  KEY `ix_inv_rep_status` (`Status`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
+
+CREATE TABLE `inv_files` (
+  `id` int(11) NOT NULL AUTO_INCREMENT,
+  `ItemID` int(11) NOT NULL,
+  `Kind` varchar(8) NOT NULL DEFAULT 'photo',
+  `FileKey` varchar(80) NOT NULL,
+  `Name` varchar(100) DEFAULT NULL,
+  `Size` int(11) NOT NULL DEFAULT 0,
+  `ByEmpID` varchar(50) DEFAULT NULL,
+  `CreatedAt` datetime NOT NULL DEFAULT current_timestamp(),
+  PRIMARY KEY (`id`),
+  KEY `ix_inv_files_item` (`ItemID`,`Kind`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
+
+CREATE TABLE `inv_counts` (
+  `id` int(11) NOT NULL AUTO_INCREMENT,
+  `LocationID` int(11) NOT NULL,
+  `Title` varchar(120) NOT NULL,
+  `Status` varchar(8) NOT NULL DEFAULT 'open',
+  `Notes` varchar(500) DEFAULT NULL,
+  `StartedBy` varchar(50) DEFAULT NULL,
+  `StartedAt` datetime NOT NULL DEFAULT current_timestamp(),
+  `ClosedBy` varchar(50) DEFAULT NULL,
+  `ClosedAt` datetime DEFAULT NULL,
+  PRIMARY KEY (`id`),
+  KEY `ix_inv_counts_loc` (`LocationID`,`Status`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
+
+CREATE TABLE `inv_count_lines` (
+  `id` int(11) NOT NULL AUTO_INCREMENT,
+  `CountID` int(11) NOT NULL,
+  `ItemID` int(11) DEFAULT NULL,
+  `ExtraName` varchar(150) DEFAULT NULL,
+  `ExpectedQty` int(11) NOT NULL DEFAULT 0,
+  `FoundQty` int(11) DEFAULT NULL,
+  `Result` varchar(10) DEFAULT NULL,
+  `ItemCondition` varchar(10) DEFAULT NULL,
+  `Notes` varchar(300) DEFAULT NULL,
+  `Applied` tinyint(1) NOT NULL DEFAULT 0,
+  `ByEmpID` varchar(50) DEFAULT NULL,
+  `CheckedAt` datetime DEFAULT NULL,
+  PRIMARY KEY (`id`),
+  UNIQUE KEY `ux_inv_line` (`CountID`,`ItemID`),
+  KEY `ix_inv_line_item` (`ItemID`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
+
 CREATE TABLE `jobdescription` (
   `JD_ID` int(11) NOT NULL AUTO_INCREMENT,
   `JDescription` varchar(100) NOT NULL,

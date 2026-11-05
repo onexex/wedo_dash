@@ -26,7 +26,7 @@
     return isNaN(d) ? s : d.toLocaleString(undefined, { year: 'numeric', month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' });
   }
 
-  /** POST an action to query/lifecycle-action.php; resolves with the JSON (status ok|error, msg). */
+  /** POST an action to BOOT.endpoint (default query/lifecycle-action.php); resolves with the JSON (status ok|error, msg). */
   function post(action, data) {
     var fd = new FormData();
     fd.append('action', action);
@@ -36,7 +36,7 @@
       if (Array.isArray(v)) { v.forEach(function (x) { fd.append(k + '[]', x); }); }
       else if (v !== undefined && v !== null) { fd.append(k, v); }
     });
-    return fetch('query/lifecycle-action.php', { method: 'POST', body: fd, credentials: 'same-origin' })
+    return fetch(BOOT.endpoint || 'query/lifecycle-action.php', { method: 'POST', body: fd, credentials: 'same-origin' })
       .then(function (r) { return r.json().catch(function () { return { status: 'error', msg: 'Unexpected answer from the server.' }; }); })
       .catch(function () { return { status: 'error', msg: 'Could not reach the server — check your connection.' }; });
   }

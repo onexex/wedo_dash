@@ -620,6 +620,36 @@ $hasSched = (bool)$effs;
         </div>
       <?php } ?>
     </section>
+
+    <?php
+    // Company property issued (Inventory). Nothing shows until that module's migration has run.
+    $e2Items = null;
+    try {
+      require_once __DIR__ . '/inventory-lib.php';
+      $e2inv = new PDO("mysql:host=$servername;dbname=$db;charset=utf8mb4", $username, $password);   // item names may have accents
+      $e2inv->setAttribute(PDO::ATTR_ERRMODE, PDO::ERRMODE_EXCEPTION);
+      if (inv_ready($e2inv)) { $e2Items = inv_held_by($e2inv, $eid); }
+    } catch (Throwable $e2err) { $e2Items = null; }
+    if ($e2Items !== null) { ?>
+    <section class="e2-card">
+      <header class="e2-card__head">
+        <h3><i class="fa-solid fa-boxes-stacked"></i>Company property</h3>
+        <span class="e2-count"><?php echo count($e2Items); ?></span>
+      </header>
+      <?php if (!$e2Items) { ?>
+        <p class="e2-none">Nothing issued.</p>
+      <?php } else { ?>
+        <div class="e2-files">
+          <?php foreach ($e2Items as $e2Item) { ?>
+            <div class="e2-file">
+              <i class="fa-solid fa-box"></i>
+              <span><?php echo e2h($e2Item['name']); ?><small><?php echo e2h($e2Item['tag'] . ' · ' . $e2Item['qty'] . ' ' . $e2Item['unit'] . ($e2Item['ackAt'] ? '' : ' · not confirmed')); ?></small></span>
+            </div>
+          <?php } ?>
+        </div>
+      <?php } ?>
+    </section>
+    <?php } ?>
   </div>
 </div>
 
