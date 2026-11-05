@@ -49,29 +49,38 @@
   }
 
   /* ------------------------------------------------------------ the modal */
-  function showModal(title, body, foot, large) {
+  function showModal(title, body, foot, panel, locked) {
     $id('invModalTitle').textContent = title;
     $id('invModalBody').innerHTML = body;
+    $id('invModalBody').scrollTop = 0;
     $id('invModalFoot').innerHTML = foot;
-    $id('invModalDialog').className = 'modal-dialog' + (large ? ' modal-lg' : '');
+    $id('invModalDialog').className = 'modal-dialog' + (panel ? ' inv-panel' : '');
     $('#invModal').modal('show');
+    var bs = $('#invModal').data('bs.modal');   // a click outside or Esc must not throw away what was typed
+    bs.options.backdrop = locked ? 'static' : true;
+    bs.options.keyboard = !locked;
   }
   function closeModal() { $('#invModal').modal('hide'); }
 
   /**
-   * A form in the modal. spec: title, fields, action, data (sent as is), submit,
-   * tone ('danger'), back (fn: the Cancel button returns there), done (fn(res)).
+   * A form in the modal. spec: title, fields (or body: ready html), action, data
+   * (sent as is), submit, tone ('danger'), back (fn: the Cancel button returns
+   * there), done (fn(res)), panel, another (fn(res): adds "Save and add another").
    * field: name, label, type (text number date select textarea emp checkbox hidden),
    * options (html), value, help, required, placeholder, max.
    */
   function form(spec) {
-    var html = '<form id="invForm" autocomplete="off">' + spec.fields.map(fieldHtml).join('') + '<p class="lcy-modal-error" id="invFormErr"></p></form>';
+    var err = '<p class="lcy-modal-error" id="invFormErr" role="alert"></p>';
+    var html = '<form id="invForm" autocomplete="off">' + (spec.body || spec.fields.map(fieldHtml).join('') + err) + '<button type="submit" class="lcy-hidden" tabindex="-1" aria-hidden="true"></button></form>';
     var btn = spec.tone === 'danger' ? 'wd-btn--danger' : 'wd-btn--primary';
     showModal(spec.title, html,
-      '<button type="button" class="wd-btn wd-btn--ghost" id="invFormBack">' + (spec.back ? 'Back' : 'Cancel') + '</button>'
-      + '<button type="button" class="wd-btn ' + btn + '" id="invFormGo"><i class="fa-solid fa-check"></i> ' + esc(spec.submit || 'Save') + '</button>', spec.large);
+      (spec.body ? '<div class="inv-formstatus"><p class="inv-formok" id="invFormOk" role="status"></p>' + err + '</div>' : '')
+      + '<button type="button" class="wd-btn wd-btn--ghost inv-formback" id="invFormBack">' + (spec.back ? 'Back' : 'Cancel') + '</button>'
+      + (spec.another ? '<button type="button" class="wd-btn wd-btn--ghost" id="invFormMore"><i class="fa-solid fa-plus"></i> Save and add another</button>' : '')
+      + '<button type="button" class="wd-btn ' + btn + '" id="invFormGo"><i class="fa-solid fa-check"></i> ' + esc(spec.submit || 'Save') + '</button>',
+      spec.panel || !!spec.back, true);
     var f = $id('invForm');
-    spec.fields.forEach(function (fd) {
+    (spec.fields || []).forEach(function (fd) {
       if (fd.type === 'select' && fd.value !== undefined && fd.value !== null) { f.elements[fd.name].value = fd.value; }
       if (fd.type === 'emp') {
         L.employeeSearch(f.querySelector('[data-emp="' + fd.name + '"]'), f.querySelector('[data-empbox="' + fd.name + '"]'), function (e) { f.elements[fd.name].value = e.empId; });
@@ -79,16 +88,18 @@
     });
     $id('invFormBack').addEventListener('click', function () { if (spec.back) { spec.back(); } else { closeModal(); } });
     f.addEventListener('submit', function (ev) { ev.preventDefault(); go(); });
-    $id('invFormGo').addEventListener('click', go);
-    function go() {
+    $id('invFormGo').addEventListener('click', function () { go(); });
+    if (spec.another) { $id('invFormMore').addEventListener('click', function () { go(spec.another); }); }
+    function go(then) {
       var d = L.formData(f), b = $id('invFormGo');
       Object.keys(spec.data || {}).forEach(function (k) { d[k] = spec.data[k]; });
       if (spec.prepare) { spec.prepare(d); }
       b.disabled = true;
+      $id('invFormErr').textContent = '';
       L.post(spec.action, d).then(function (res) {
         b.disabled = false;
         if (res.status !== 'ok') { $id('invFormErr').textContent = res.msg; return; }
-        spec.done(res);
+        (then || spec.done)(res);
       });
     }
   }
@@ -330,63 +341,113 @@
   };
 
   /* ------------------------------------------------------------ add / edit */
-  /** i: edit it; dup: start a new item from it. */
+  var CAT_ICON = { APP: 'fa-tv', FUR: 'fa-couch', FIX: 'fa-lightbulb', EQP: 'fa-laptop', DOC: 'fa-file-lines', SUP: 'fa-box-open', OTH: 'fa-cube' };
+  var KIND_ICON = { asset: 'fa-cube', document: 'fa-file-lines', consumable: 'fa-box-open' };
+  var UNITS = ['pc', 'set', 'unit', 'box', 'pack', 'ream', 'roll', 'bottle'];
+
+  function section(title, body, kinds) {
+    return '<section class="inv-sec"' + (kinds ? ' data-kind="' + kinds + '"' : '') + '><h5 class="inv-sec__title">' + esc(title) + '</h5>' + body + '</section>';
+  }
+  function fold(title, hint, body, open) {
+    return '<details class="inv-fold"' + (open ? ' open' : '') + '><summary><span>' + esc(title) + '<small>' + esc(hint) + '</small></span><i class="fa-solid fa-chevron-down"></i></summary>'
+      + '<div class="inv-fold__body">' + body + '</div></details>';
+  }
+  function two(a, b, kinds) { return '<div class="inv-two"' + (kinds ? ' data-kind="' + kinds + '"' : '') + '>' + a + b + '</div>'; }
+  function radios(name, list, on) {
+    return list.map(function (o) {
+      return '<label class="inv-seg"><input type="radio" name="' + name + '" value="' + esc(o.id) + '"' + (String(o.id) === String(on) ? ' checked' : '') + '><span>' + esc(o.name) + '</span></label>';
+    }).join('');
+  }
+
+  /** i: edit it; dup: start a new item from it; supply: a new consumable. */
   function itemForm(i, dup, supply) {
-    var editing = !!i && !dup, v = i || {};
+    var editing = !!i && !dup, v = i || {}, isSup = i ? i.kind === 'consumable' : !!supply;
     var cats = catsOf(function (c) {
       if (i) { return c.kind === i.kind && (c.active || c.id === i.categoryId); }   // keeps a category switched off since
       return c.active && (supply ? isSupply(c) : !isSupply(c));
     });
     if (!cats.length) { alert('Add a category in Setup first.'); return; }
-    var active = look.locations.filter(function (l) { return l.active; });
-    if (!active.length) { alert('Add a location in Setup first.'); return; }
-    var kindOf = function (id) { var c = catsOf(function (x) { return x.id === +id; })[0]; return c ? c.kind : 'asset'; };
-    var fields = [
-      { name: 'categoryId', label: 'Category', type: 'select', options: options(cats, null), value: v.categoryId || cats[0].id },
-      { name: 'name', label: 'Name', required: true, max: 150, value: v.name, placeholder: 'e.g. Split-type aircon, Monobloc chair, Business permit' },
-      { name: 'tag', label: 'Tag number', max: 30, value: editing ? v.tag : '', help: editing ? 'change it if the sticker was replaced' : 'blank = next number; type one to keep an existing sticker' },
-    ];
-    if (!editing) { fields.push({ name: 'locationId', label: 'Location', type: 'select', options: locOptions(), value: v.locationId }); }
-    fields.push({ name: 'spot', label: 'Spot', help: 'cabinet, shelf, room corner', max: 100, value: v.spot });
-    fields.push({ name: 'qty', label: 'Quantity', type: 'number', min: 0, value: dup ? (v.kind === 'consumable' ? 0 : 1) : (v.qty === undefined ? (supply ? 0 : 1) : v.qty) });
-    fields.push({ name: 'unit', label: 'Unit', max: 20, value: v.unit || 'pc', help: 'pc, set, ream, box' });
-    fields.push({ name: 'condition', label: 'Condition', type: 'select', options: condOptions(), value: v.condition || 'good' });
+    if (!look.locations.some(function (l) { return l.active; })) { alert('Add a location in Setup first.'); return; }
+    var catId = v.categoryId || cats[0].id;
+    var catOf = function (id) { return catsOf(function (x) { return x.id === +id; })[0] || cats[0]; };
+    var text = function (name, label, val, extra) { var o = extra || {}; o.name = name; o.label = label; o.value = val; return fieldHtml(o); };
 
-    fields.push({ name: 'brand', label: 'Brand', max: 80, value: v.brand });
-    fields.push({ name: 'model', label: 'Model', max: 80, value: v.model });
-    fields.push({ name: 'serial', label: 'Serial no.', max: 80, value: dup ? '' : v.serial });
-    fields.push({ name: 'warrantyUntil', label: 'Warranty until', type: 'date', value: dup ? '' : v.warrantyUntil });
-    fields.push({ name: 'docNumber', label: 'Document no.', max: 80, value: dup ? '' : v.docNumber });
-    fields.push({ name: 'docIssuer', label: 'Issued by', max: 120, value: v.docIssuer, help: 'agency or office' });
-    fields.push({ name: 'docIssuedOn', label: 'Date issued', type: 'date', value: v.docIssuedOn });
-    fields.push({ name: 'expiresOn', label: 'Expires on', type: 'date', value: v.expiresOn });
-    fields.push({ name: 'remindDays', label: 'Remind before expiry', type: 'number', value: v.remindDays === undefined ? 30 : v.remindDays, help: 'days' });
-    fields.push({ name: 'reorderLevel', label: 'Reorder level', type: 'number', value: v.reorderLevel, help: 'alert at this quantity; blank = none' });
+    var picker = cats.length === 1 ? '<input type="hidden" name="categoryId" value="' + catId + '">'
+      : section('What are you adding?', '<div class="inv-cats" role="radiogroup" aria-label="Category">' + cats.map(function (c) {
+        return '<label class="inv-cat"><input type="radio" name="categoryId" value="' + c.id + '"' + (c.id === catId ? ' checked' : '') + '>'
+          + '<span><i class="fa-solid ' + (CAT_ICON[c.code] || KIND_ICON[c.kind]) + '"></i>' + esc(c.name) + '</span></label>';
+      }).join('') + '</div>');
 
-    fields.push({ name: 'companyId', label: 'Company', type: 'select', options: options(look.companies, 'Not specified'), value: v.companyId });
-    fields.push({ name: 'acquiredOn', label: 'Date acquired', type: 'date', value: v.acquiredOn });
-    fields.push({ name: 'supplier', label: 'Supplier', max: 120, value: v.supplier });
-    fields.push({ name: 'unitCost', label: 'Unit cost', type: 'number', step: '0.01', value: v.unitCost });
-    fields.push({ name: 'reference', label: 'Reference', help: 'invoice or PO', max: 60, value: v.reference });
-    fields.push({ name: 'description', label: 'Description', type: 'textarea', max: 500, value: v.description });
-    fields.push({ name: 'notes', label: 'Notes', type: 'textarea', max: 500, value: v.notes });
+    var qtyField = editing && isSup
+      ? '<div class="wd-field"><label>Quantity on hand</label><div class="inv-readonly">' + v.qty + ' ' + esc(v.unit) + '<small>Changes through Stock in, Stock out or Adjust</small></div></div>'
+      : '<div class="wd-field"><label for="invQty">' + (isSup ? 'Opening quantity' : 'Quantity') + '</label><div class="inv-stepper">'
+        + '<button type="button" data-step="-1" aria-label="One less"><i class="fa-solid fa-minus"></i></button>'
+        + '<input class="wd-input" type="number" id="invQty" name="qty" min="' + (isSup ? 0 : 1) + '" step="1" value="' + (dup ? (isSup ? 0 : 1) : (v.qty === undefined ? (isSup ? 0 : 1) : v.qty)) + '">'
+        + '<button type="button" data-step="1" aria-label="One more"><i class="fa-solid fa-plus"></i></button></div></div>';
+    var unitField = '<div class="wd-field"><label for="invUnit">Unit</label><input class="wd-input" id="invUnit" name="unit" maxlength="20" list="invUnits" value="' + esc(v.unit || 'pc') + '">'
+      + '<datalist id="invUnits">' + UNITS.map(function (u) { return '<option value="' + u + '">'; }).join('') + '</datalist></div>';
 
-    form({ title: editing ? 'Edit ' + v.tag : (supply || v.kind === 'consumable' ? 'Add supply' : 'Add item'), action: 'item_save', data: { id: editing ? v.id : '' },
-      back: i ? function () { openItem(i.id); } : null, submit: 'Save', large: true, fields: fields,
-      done: function (res) { refresh(); openItem(res.id); } });
+    var basics = section('Basics', text('name', 'Name', v.name, { required: true, max: 150, placeholder: isSup ? 'e.g. Bond paper A4, Printer ink' : 'e.g. Split-type aircon, Monobloc chair, Business permit' })
+      + two(qtyField, unitField)
+      + '<div class="wd-field" data-kind="asset"><label>Condition</label><div class="inv-segs" role="radiogroup" aria-label="Condition">' + radios('condition', kv(look.conditions), v.condition || 'good') + '</div></div>');
 
-    /* show only what the category's kind uses */
-    var FOR = { asset: ['serial', 'warrantyUntil', 'brand', 'model'], document: ['docNumber', 'docIssuer', 'docIssuedOn', 'expiresOn', 'remindDays'], consumable: ['reorderLevel', 'brand', 'model'] };
-    var all = ['brand', 'model', 'serial', 'warrantyUntil', 'docNumber', 'docIssuer', 'docIssuedOn', 'expiresOn', 'remindDays', 'reorderLevel'];
-    var el = $id('invForm').elements;
+    var place = editing
+      ? '<div class="wd-field"><label>Location</label><div class="inv-readonly">' + esc(v.location) + '<small>Use Move on the item to change it</small></div></div>'
+      : text('locationId', 'Location', v.locationId, { type: 'select', options: locOptions() });
+    var tag = editing ? text('tag', 'Tag number', v.tag, { max: 30, help: 'change it if the sticker was replaced' })
+      : '<div class="inv-tagline"><i class="fa-solid fa-qrcode"></i><span id="invTagHint"></span><button type="button" class="inv-link" id="invTagOwn">Use an existing sticker</button></div>'
+        + '<div class="lcy-hidden" id="invTagBox">' + text('tag', 'Tag number on the sticker', '', { max: 30 }) + '</div>';
+    var where = section('Where it is', two(place, text('spot', 'Spot', v.spot, { max: 100, placeholder: 'Cabinet, shelf, room corner' })) + tag);
+
+    var product = section('Product details', two(text('brand', 'Brand', v.brand, { max: 80 }), text('model', 'Model', v.model, { max: 80 }))
+      + two(text('serial', 'Serial no.', dup ? '' : v.serial, { max: 80 }), text('warrantyUntil', 'Warranty until', dup ? '' : v.warrantyUntil, { type: 'date' }), 'asset'), 'asset consumable');
+    var paper = section('Document details', two(text('docNumber', 'Document no.', dup ? '' : v.docNumber, { max: 80 }), text('docIssuer', 'Issued by', v.docIssuer, { max: 120, placeholder: 'Agency or office' }))
+      + two(text('docIssuedOn', 'Date issued', v.docIssuedOn, { type: 'date' }), text('expiresOn', 'Expires on', v.expiresOn, { type: 'date' }))
+      + text('remindDays', 'Remind me this many days before it expires', v.remindDays === undefined ? 30 : v.remindDays, { type: 'number' }), 'document');
+    var stock = section('Low-stock alert', text('reorderLevel', 'Alert me at this quantity', v.reorderLevel, { type: 'number', placeholder: 'Leave blank for no alert' }), 'consumable');
+
+    var bought = !!(v.companyId || v.acquiredOn || v.supplier || v.unitCost !== undefined && v.unitCost !== null || v.reference);
+    var purchase = fold('Purchase details', 'Company, supplier, cost, invoice',
+      two(text('companyId', 'Company', v.companyId, { type: 'select', options: options(look.companies, 'Not specified') }), text('acquiredOn', 'Date acquired', v.acquiredOn, { type: 'date' }))
+      + two(text('supplier', 'Supplier', v.supplier, { max: 120 }), text('unitCost', 'Unit cost', v.unitCost, { type: 'number', step: '0.01', placeholder: '0.00' }))
+      + text('reference', 'Reference', v.reference, { max: 60, placeholder: 'Invoice or PO number' }), bought);
+    var notes = fold('Description and notes', 'Anything else worth keeping',
+      text('description', 'Description', v.description, { type: 'textarea', max: 500 }) + text('notes', 'Notes', v.notes, { type: 'textarea', max: 500 }), !!(v.description || v.notes));
+
+    form({ title: editing ? 'Edit ' + v.tag : (isSup ? 'Add supply' : 'Add item'), action: 'item_save', data: { id: editing ? v.id : '' }, panel: true,
+      back: i ? function () { openItem(i.id); } : null, submit: editing ? 'Save changes' : (isSup ? 'Save supply' : 'Save item'),
+      body: picker + basics + where + product + paper + stock + purchase + notes,
+      done: function (res) { refresh(); openItem(res.id); },
+      another: editing ? null : function (res) {
+        ['name', 'tag', 'serial', 'warrantyUntil', 'docNumber', 'docIssuedOn', 'expiresOn', 'reference', 'description', 'notes'].forEach(function (n) { el[n].value = ''; });
+        $id('invFormOk').textContent = 'Saved ' + res.tag + '. Ready for the next one.';
+        $id('invModalBody').scrollTop = 0;
+        el.name.focus();
+        refresh();
+      } });
+
+    var box = $id('invForm'), el = box.elements;
     function fit() {
-      var k = kindOf(el.categoryId.value);
-      all.forEach(function (n) { el[n].closest('.wd-field').classList.toggle('lcy-hidden', FOR[k].indexOf(n) < 0); });
-      if (editing && k === 'consumable') { el.qty.disabled = true; el.qty.closest('.wd-field').querySelector('label').textContent = 'Quantity (changes through Stock in / out / Adjust)'; }
+      var c = catOf(el.categoryId.value);
+      each(box, '[data-kind]', function (s) { s.classList.toggle('lcy-hidden', s.getAttribute('data-kind').split(' ').indexOf(c.kind) < 0); });
+      if ($id('invTagHint')) { $id('invTagHint').innerHTML = 'Gets the next <b>' + esc(c.code) + '</b> tag number when you save'; }
     }
-    el.categoryId.addEventListener('change', fit);
+    box.addEventListener('change', function (ev) { if (ev.target.name === 'categoryId') { fit(); } });
+    each(box, '[data-step]', function (b) {
+      b.addEventListener('click', function () {
+        var q = $id('invQty'), n = (parseInt(q.value, 10) || 0) + +b.getAttribute('data-step');
+        q.value = Math.max(+q.min, n);
+      });
+    });
+    if ($id('invTagOwn')) {
+      $id('invTagOwn').addEventListener('click', function () {
+        $id('invTagBox').classList.remove('lcy-hidden');
+        this.closest('.inv-tagline').classList.add('lcy-hidden');
+        el.tag.focus();
+      });
+    }
     fit();
-    $id('invForm').classList.add('inv-formgrid');
+    if (!editing) { setTimeout(function () { el.name.focus(); }, 320); }
   }
 
   /* ------------------------------------------------------------ files */
