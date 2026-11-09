@@ -135,9 +135,11 @@
     });
   }
 
+  var ATTN_SHOWN = 3, attnAll = false;
   function drawAttention() {
     var list = data.attention;
     $id('subAttnNote').textContent = list.length ? 'Reminders go out daily for these' : '';
+    $id('subAttnCard').classList.toggle('lcy-hidden', !list.length);   // all clear: the answer above already says so
     if (!list.length) {
       $id('subAttention').innerHTML = '<div class="sub-allclear"><i class="fa-solid fa-circle-check"></i><div><b>All clear</b><br><span class="lcy-muted">'
         + (data.next ? 'Next renewal: ' + esc(data.next.label) + ' on ' + esc(L.fmtDate(data.next.expiresOn)) + '.' : 'Nothing is inside its reminder window.') + '</span></div></div>';
@@ -145,7 +147,8 @@
     }
     var items = {};
     data.items.forEach(function (i) { items[i.id] = i; });
-    $id('subAttention').innerHTML = '<ul class="sub-rows">' + list.map(function (e) {
+    var more = attnAll ? 0 : Math.max(0, list.length - ATTN_SHOWN);   // the rest are in the register below anyway
+    $id('subAttention').innerHTML = '<ul class="sub-rows">' + list.slice(0, list.length - more).map(function (e) {
       var i = items[e.itemId] || {};
       var meta = [e.categoryLabel];
       if (!e.reqId && i.provider) { meta.push(i.provider); }
@@ -153,16 +156,18 @@
       if (e.owner) { meta.push('owner ' + e.owner); } else { meta.push('no owner'); }
       return '<li class="sub-row sub-row--' + e.tone + '" data-open="' + e.itemId + '">'
         + '<span class="sub-row__icon">' + catIcon(e.category) + '</span>'
-        + '<div class="sub-row__main"><b>' + esc(e.label) + '</b><span class="lcy-muted">' + esc(meta.join(' · ')) + '</span>'
-        + (e.impact ? '<span class="sub-row__impact"><i class="fa-solid fa-triangle-exclamation"></i> If it lapses: ' + esc(e.impact) + '</span>' : '') + '</div>'
+        + '<div class="sub-row__main"><b>' + esc(e.label) + '</b><span class="lcy-muted" title="' + esc(meta.join(' · ')) + '">' + esc(meta.join(' · ')) + '</span>'
+        + (e.impact ? '<span class="sub-row__impact" title="' + esc(e.impact) + '"><i class="fa-solid fa-triangle-exclamation"></i> If it lapses: ' + esc(e.impact) + '</span>' : '') + '</div>'
         + '<div class="sub-row__end">' + duePill(e.tone, e.days)
         + '<span class="sub-row__date">' + esc(L.fmtDate(e.expiresOn)) + '</span>'
         + '<span class="sub-row__btns">'
         + (!e.reqId && i.renewUrl ? '<a class="wd-btn wd-btn--ghost wd-btn--sm" href="' + esc(i.renewUrl) + '" target="_blank" rel="noopener" data-stop title="Open the renewal page"><i class="fa-solid fa-arrow-up-right-from-square"></i><span class="sub-hide-sm"> Renew</span></a>' : '')
         + '<button type="button" class="wd-btn wd-btn--primary wd-btn--sm" data-renew="' + e.itemId + '" data-req="' + (e.reqId || '') + '" data-stop><i class="fa-solid fa-check"></i> Mark renewed</button>'
         + '</span></div></li>';
-    }).join('') + '</ul>';
+    }).join('') + '</ul>'
+      + (more ? '<button type="button" class="sub-attn-more" id="subAttnMore"><i class="fa-solid fa-chevron-down"></i> Show ' + more + ' more' + '</button>' : '');
     wireRows($id('subAttention'));
+    if (more) { $id('subAttnMore').addEventListener('click', function () { attnAll = true; drawAttention(); }); }
   }
 
   function wireRows(box) {
