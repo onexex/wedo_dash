@@ -110,6 +110,55 @@ final class InventoryTest extends AppTestCase
         $this->assertSame('FUR-0002', $this->item($this->add())['TagNo']);
     }
 
+    public function testEachUnitBecomesItsOwnItem(): void
+    {
+        $this->add();   // FUR-0001, so the units start after it
+        $r = $this->act('item_save', ['name' => 'Monobloc chair', 'categoryId' => $this->furn, 'locationId' => $this->hq, 'qty' => 3, 'condition' => 'good',
+                                      'eachUnit' => '1', 'serial' => 'SN-1', 'unitCost' => '450']);
+        $this->assertSame(200, $r['status'], $r['body']);
+        $this->assertSame(['FUR-0002', 'FUR-0003', 'FUR-0004'], array_column($r['json']['units'], 'tag'));
+        $this->assertSame('Monobloc chair', $r['json']['name']);
+        $this->assertSame($r['json']['units'][0]['id'], $r['json']['id']);
+        foreach ($r['json']['units'] as $u) {
+            $row = $this->item((int) $u['id']);
+            $this->assertSame($u['tag'], $row['TagNo']);
+            $this->assertSame(1, (int) $row['Qty']);
+            $this->assertNull($row['ParentID']);
+            $this->assertNull($row['SerialNo']);
+            $this->assertSame('450.00', $row['UnitCost']);
+            $this->assertSame(['added'], $this->moves((int) $u['id']));
+        }
+        $this->assertSame(4, (int) self::db()->query('SELECT COUNT(*) FROM inv_items')->fetchColumn());
+        $this->assertSame('FUR-0005', $this->item($this->add())['TagNo']);
+    }
+
+    public function testEachUnitOnlyAppliesToANewAssetOfSeveral(): void
+    {
+        $base = ['name' => 'Chair', 'categoryId' => $this->furn, 'locationId' => $this->hq, 'condition' => 'good'];
+        $one = $this->act('item_save', $base + ['qty' => 1, 'eachUnit' => '1']);
+        $this->assertArrayNotHasKey('units', $one['json']);
+
+        $off = $this->act('item_save', $base + ['qty' => 5]);
+        $this->assertArrayNotHasKey('units', $off['json']);
+        $this->assertSame(5, (int) $this->item((int) $off['json']['id'])['Qty']);
+
+        $edit = $this->act('item_save', ['id' => $off['json']['id'], 'qty' => 6, 'eachUnit' => '1'] + $base);
+        $this->assertArrayNotHasKey('units', $edit['json']);
+        $this->assertSame(6, (int) $this->item((int) $off['json']['id'])['Qty']);
+
+        $supply = $this->act('item_save', ['name' => 'Paper', 'categoryId' => $this->sup, 'locationId' => $this->hq, 'qty' => 4, 'eachUnit' => '1']);
+        $this->assertArrayNotHasKey('units', $supply['json']);
+        $this->assertSame(4, (int) $this->item((int) $supply['json']['id'])['Qty']);
+    }
+
+    public function testEachUnitRefusesATypedTagAndTooManyAtOnce(): void
+    {
+        $base = ['name' => 'Chair', 'categoryId' => $this->furn, 'locationId' => $this->hq, 'condition' => 'good', 'eachUnit' => '1'];
+        $this->assertSame(422, $this->act('item_save', $base + ['qty' => 2, 'tag' => 'OLD-1'])['status']);
+        $this->assertSame(422, $this->act('item_save', $base + ['qty' => INV_MAX_UNITS + 1])['status']);
+        $this->assertSame(0, (int) self::db()->query('SELECT COUNT(*) FROM inv_items')->fetchColumn());
+    }
+
     public function testValidationKeepsBadValuesOut(): void
     {
         $this->assertSame(422, $this->act('item_save', ['name' => ' ', 'categoryId' => $this->furn, 'locationId' => $this->hq])['status']);

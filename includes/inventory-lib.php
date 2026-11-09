@@ -24,6 +24,7 @@ const INV_DISPOSAL   = ['sold' => 'Sold', 'donated' => 'Donated', 'scrapped' => 
 const INV_FILE_KINDS = ['photo' => 'Photo', 'scan' => 'Scanned copy', 'receipt' => 'Receipt', 'other' => 'Other'];
 const INV_DOC_TYPES  = ['pdf', 'jpg', 'jpeg', 'png'];
 const INV_TABLE_LIMIT = 1000;
+const INV_MAX_UNITS  = 200;   // separate items one Add can create
 
 /* ------------------------------------------------------------------ access */
 
@@ -383,7 +384,9 @@ function _inv_next_tag_tx(PDO $pdo, $categoryId) {
  * Add ($d['id'] empty) or edit an item. Location, holder, status and a
  * consumable's quantity change only through their own actions, so an edit
  * ignores them. A consumable's opening balance is the ledger's first row.
- * @return array{ok:bool, msg?:string, id?:int, tag?:string}
+ * With eachUnit, a new asset of quantity N becomes N items of 1, each with its
+ * own tag, and the answer lists them in `units`.
+ * @return array{ok:bool, msg?:string, id?:int, tag?:string, name?:string, units?:array}
  */
 function inv_save(PDO $pdo, array $d, $actor) {
     $id   = (int) ($d['id'] ?? 0);
@@ -442,8 +445,15 @@ function inv_save(PDO $pdo, array $d, $actor) {
         }
     }
 
+    $eachUnit = $id === 0 && $kind === 'asset' && $qty > 1 && (string) ($d['eachUnit'] ?? '') === '1';
+    if ($eachUnit) {
+        if ($qty > INV_MAX_UNITS) { return inv_fail('Add at most ' . INV_MAX_UNITS . ' separate items at a time.'); }
+        if ($tag !== '') { return inv_fail('A typed tag fits one item only: leave it blank so each one gets its own.'); }
+        $fields['SerialNo'] = null;   // one serial cannot be true of every unit
+    }
+
     try {
-        return _inv_tx($pdo, function () use ($pdo, $id, $d, $cat, $kind, $tag, $qty, $cost, $fields, $actor, $name) {
+        return _inv_tx($pdo, function () use ($pdo, $id, $d, $cat, $kind, $tag, $qty, $cost, $fields, $actor, $name, $eachUnit) {
             if ($id > 0) {
                 $old = _inv_lock_tx($pdo, $id);
                 if (!$old) { return inv_fail('That item no longer exists.'); }
@@ -461,14 +471,26 @@ function inv_save(PDO $pdo, array $d, $actor) {
             $st = $pdo->prepare("SELECT Active FROM inv_locations WHERE id = :id");
             $st->execute([':id' => (int) ($d['locationId'] ?? 0)]);
             if ((int) $st->fetchColumn() !== 1) { return inv_fail('Choose a location.'); }
+            $insert = function ($newTag, $newQty) use ($pdo, $d, $cat, $fields, $actor) {
+                $cols = array_merge(array_keys($fields), ['TagNo', 'CategoryID', 'LocationID', 'Qty', 'CreatedBy', 'CreatedAt', 'UpdatedAt']);
+                $vals = array_merge(array_values($fields), [$newTag, (int) $cat['id'], (int) $d['locationId'], $newQty, (string) $actor, inv_now(), inv_now()]);
+                $pdo->prepare("INSERT INTO inv_items (`" . implode('`,`', $cols) . "`) VALUES (" . implode(',', array_fill(0, count($cols), '?')) . ")")->execute($vals);
+                $newId = (int) $pdo->lastInsertId();
+                _inv_move_tx($pdo, $newId, 'added', ['toLoc' => (int) $d['locationId'], 'qty' => $newQty], $actor);
+                return $newId;
+            };
+
+            if ($eachUnit) {
+                $units = [];
+                for ($n = 0; $n < $qty; $n++) {
+                    $unitTag = _inv_next_tag_tx($pdo, $cat['id']);
+                    $units[] = ['id' => $insert($unitTag, 1), 'tag' => $unitTag];
+                }
+                return ['ok' => true, 'id' => $units[0]['id'], 'tag' => $units[0]['tag'], 'name' => $name, 'units' => $units];
+            }
+
             $newTag = $tag !== '' ? $tag : _inv_next_tag_tx($pdo, $cat['id']);
-            $cols = array_keys($fields);
-            $cols = array_merge($cols, ['TagNo', 'CategoryID', 'LocationID', 'Qty', 'CreatedBy', 'CreatedAt', 'UpdatedAt']);
-            $vals = array_values($fields);
-            $vals = array_merge($vals, [$newTag, (int) $cat['id'], (int) $d['locationId'], $qty, (string) $actor, inv_now(), inv_now()]);
-            $pdo->prepare("INSERT INTO inv_items (`" . implode('`,`', $cols) . "`) VALUES (" . implode(',', array_fill(0, count($cols), '?')) . ")")->execute($vals);
-            $newId = (int) $pdo->lastInsertId();
-            _inv_move_tx($pdo, $newId, 'added', ['toLoc' => (int) $d['locationId'], 'qty' => $qty], $actor);
+            $newId = $insert($newTag, $qty);
             if ($kind === 'consumable' && $qty > 0) {
                 _inv_ledger_tx($pdo, $newId, 'in', $qty, $qty, ['unitCost' => $cost, 'supplier' => $fields['Supplier'], 'notes' => 'Opening balance'], $actor);
             }
