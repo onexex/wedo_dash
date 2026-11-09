@@ -258,6 +258,46 @@ final class SubscriptionsTest extends AppTestCase
         $this->assertLessThanOrEqual(11, $ssl);
     }
 
+    public function testInfrastructureNeverExpires(): void
+    {
+        // whatever the form still carried, an Infrastructure item has no date, cost or renewal
+        $id = $this->add(['category' => 'infra', 'name' => 'Production server', 'provider' => 'GoDaddy',
+                          'expiresOn' => $this->days(5), 'cost' => '999', 'autoRenew' => 1, 'renewUrl' => 'https://example.com']);
+        $row = $this->row('SELECT * FROM sub_items WHERE id = ?', [$id]);
+        $this->assertSame('infra', $row['Category']);
+        $this->assertNull($row['ExpiresOn']);
+        $this->assertNull($row['Cost']);
+        $this->assertNull($row['RenewUrl']);
+        $this->assertSame(0, (int) $row['CycleMonths']);
+        $this->assertSame(0, (int) $row['AutoRenew']);
+
+        $this->add(['name' => 'undated.ph', 'expiresOn' => '']);
+        $ov = $this->act('overview')['json'];
+        $this->assertSame(2, $ov['stats']['active']);
+        $this->assertSame(1, $ov['stats']['noDate'], 'only the undated domain is missing a date');
+        $this->assertSame(1, $ov['stats']['autoOff'], 'the domain, not the server');
+        $this->assertSame([], $ov['attention']);
+        $this->assertSame([], sub_my_due(self::db(), self::ADMIN), 'never reminds');
+        $this->assertSame(['infra'], $this->act('lookups')['json']['noExpiry'], 'the page hides dates for these');
+
+        $r = $this->act('renew', ['id' => $id, 'newExpiry' => $this->days(400)]);
+        $this->assertSame(422, $r['status'], 'nothing to renew');
+
+        // its logins go in the vault like any other item
+        $this->vaultKey(self::VAULT_KEY);
+        $this->grantCreds();
+        $r = $this->act('cred_save', ['itemId' => $id, 'label' => 'Server SSH', 'username' => 'deploy', 'secret' => 'S3cret!']);
+        $this->assertSame(200, $r['status'], $r['body']);
+        // office devices are reached by IP, not a web page
+        foreach (['192.168.1.1', '10.0.0.5:21', 'mrtg.example.net/login'] as $addr) {
+            $r = $this->act('cred_save', ['itemId' => $id, 'label' => 'Router', 'url' => $addr, 'secret' => 'x']);
+            $this->assertSame(200, $r['status'], $addr . ' ' . $r['body']);
+        }
+        foreach (['javascript:alert(1)', 'data:text/html,x', '<b>x</b>'] as $bad) {
+            $this->assertSame(422, $this->act('cred_save', ['itemId' => $id, 'label' => 'Router', 'url' => $bad, 'secret' => 'x'])['status'], $bad);
+        }
+    }
+
     public function testDateHelpers(): void
     {
         $this->assertSame('2027-02-28', sub_add_months('2027-01-31', 1));
