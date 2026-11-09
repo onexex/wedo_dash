@@ -711,50 +711,204 @@
     return f;
   }
 
-  var NAME_HINT = { domain: 'wedo.ph', hosting: 'GoDaddy cPanel hosting', security: 'SiteLock / SSL certificate', philgeps: 'PhilGEPS Platinum registration' };
-  var IMPACT_HINT = { domain: 'Website, app and company e-mail stop working', hosting: 'WeDo site and app go down', security: 'Site loses malware protection / SSL', philgeps: 'Cannot join government biddings' };
+  /* ------------------------------------------------------------ add / edit a subscription
+     One guided form: pick the kind (tiles), and a live card at the top answers "what will happen"
+     (when it expires, when reminders start and who gets them, what it costs) while it is filled in.
+     Quick picks (providers, cycles, reminder lead, people, what breaks) save typing; the optional
+     "if it lapses" part is folded away. Field names are the endpoint's, unchanged. */
+  var KIND = {
+    domain:   { tip: 'Web address, e.g. wedo.ph', name: 'wedo.ph', providers: ['GoDaddy', 'dot.ph', 'Namecheap', 'Cloudflare'],
+                impacts: ['Website, app and company e-mail stop working', 'Someone else can register the name'] },
+    hosting:  { tip: 'Where the site and e-mail live', name: 'GoDaddy cPanel hosting', providers: ['GoDaddy', 'Hostinger', 'SiteGround', 'DigitalOcean'],
+                impacts: ['WeDo site and app go down', 'Files and databases can be deleted'] },
+    security: { tip: 'SSL, malware scan, firewall', name: 'SiteLock / SSL certificate', providers: ['SiteLock', 'Sucuri', 'Cloudflare', 'Sectigo'],
+                impacts: ['Browsers show "Not secure"', 'Site loses malware scanning and firewall'] },
+    philgeps: { tip: 'Certificate + eligibility documents', name: 'PhilGEPS Platinum registration', providers: ['PhilGEPS'],
+                impacts: ['Cannot join government biddings'] }
+  };
+  var CYCLE_PICKS = [[1, 'Monthly'], [12, 'Yearly'], [24, '2 years'], [36, '3 years']];
+  var LEAD_PICKS = [14, 30, 45, 60, 90];
+
+  function isoAddMonths(iso, n) {
+    var d = new Date(iso + 'T00:00:00'), day = d.getDate();
+    d.setDate(1);
+    d.setMonth(d.getMonth() + n);
+    d.setDate(Math.min(day, new Date(d.getFullYear(), d.getMonth() + 1, 0).getDate()));
+    return d.getFullYear() + '-' + ('0' + (d.getMonth() + 1)).slice(-2) + '-' + ('0' + d.getDate()).slice(-2);
+  }
+  function isoAddDays(iso, n) {
+    var d = new Date(iso + 'T00:00:00');
+    d.setDate(d.getDate() + n);
+    return d.getFullYear() + '-' + ('0' + (d.getMonth() + 1)).slice(-2) + '-' + ('0' + d.getDate()).slice(-2);
+  }
+  function daysBetween(a, b) { return Math.round((new Date(b + 'T00:00:00') - new Date(a + 'T00:00:00')) / 86400000); }
+  function initials(name) {
+    var p = String(name || '').trim().split(/\s+/);
+    return ((p[0] || '').charAt(0) + (p.length > 1 ? p[p.length - 1].charAt(0) : '')).toUpperCase() || '?';
+  }
+  function chipRadio(name, value, label, on, extra) {
+    return '<label class="sub-chip' + (extra || '') + '"><input type="radio" name="' + name + '" value="' + esc(value) + '"' + (on ? ' checked' : '') + '><span>' + label + '</span></label>';
+  }
 
   function itemForm(i, presetCat) {
     var editing = !!i;
     i = i || { category: presetCat || (tab !== 'all' && tab !== 'reminders' ? tab : 'domain'), cycle: 12, notifyDays: '', autoRenew: false, watchers: [],
                companyId: company !== 'all' ? company : look.myCompany, ownerId: BOOT.me };
-    var cats = Object.keys(look.categories).map(function (k) { return [k, look.categories[k]]; });
-    var cycles = [1, 3, 6, 12, 24, 36, 60, 120, 0].map(function (k) { return [k, look.cycles[k]]; });
-    var people = [['', '— nobody yet —']].concat(look.people.map(function (p) { return [p.id, p.name]; }));
-    var parents = [['', '— nothing —']].concat(data.items.filter(function (x) { return x.id !== i.id && x.status === 'active'; }).map(function (x) { return [x.id, x.name + ' (' + x.categoryLabel + ')']; }));
-    var html = '<section class="sub-sec"><h4 class="sub-h">What is it</h4>'
-      + field('Kind', select('category', cats, i.category))
-      + field('Name', input('name', i.name, 'text', ' maxlength="150" required id="subFName" placeholder="' + esc(NAME_HINT[i.category] || '') + '"'))
+    var defLead = function (c) { return c === 'philgeps' ? look.notifyPhilgeps : look.notifyDefault; };
+    var lead = +i.notifyDays || defLead(i.category);
+    var leads = LEAD_PICKS.indexOf(lead) < 0 ? LEAD_PICKS.concat([lead]).sort(function (a, b) { return a - b; }) : LEAD_PICKS;
+    var cyclePicked = CYCLE_PICKS.some(function (c) { return c[0] === +i.cycle; });
+    var parents = [['', 'Nothing — it stands on its own']].concat(data.items.filter(function (x) { return x.id !== i.id && x.status === 'active'; })
+      .map(function (x) { return [x.id, x.name + ' (' + x.categoryLabel + ')']; }));
+    var lapseOpen = editing && (i.impact || i.parentId || i.notes);
+
+    var html = ''
+      // the answer, live
+      + '<div class="sub-preview" id="subPreview" aria-live="polite"></div>'
+      // kind
+      + '<section class="sub-sec"><h4 class="sub-h">What are you tracking?</h4><div class="sub-kinds">'
+      + Object.keys(look.categories).map(function (k) {
+          return '<label class="sub-kind"><input type="radio" name="category" value="' + k + '"' + (i.category === k ? ' checked' : '') + '>'
+            + '<span><i class="fa-solid ' + (ICON[k] || 'fa-circle') + '"></i><b>' + esc(look.categories[k]) + '</b><small>' + esc((KIND[k] || {}).tip || '') + '</small></span></label>';
+        }).join('') + '</div>'
       + (look.allCompanies && look.companies.length > 1 ? field('Company', select('companyId', look.companies.map(function (c) { return [c.id, c.name]; }), i.companyId)) : '')
-      + '<div class="sub-2col">' + field('Provider', input('provider', i.provider, 'text', ' maxlength="100" placeholder="GoDaddy"')) + field('Plan', input('plan', i.plan, 'text', ' maxlength="100" placeholder="Deluxe, Platinum…"')) + '</div>'
-      + field('Account / login', input('accountRef', i.accountRef, 'text', ' maxlength="150" placeholder="it@company.ph"'), 'never a password') + '</section>'
-      + '<section class="sub-sec"><h4 class="sub-h">Renewal</h4>'
-      + '<div class="sub-2col">' + field('Expires on', input('expiresOn', i.expiresOn, 'date'), i.category === 'philgeps' ? 'the certificate' : '') + field('Renews', select('cycle', cycles, i.cycle)) + '</div>'
-      + '<div class="sub-2col">' + field('Cost per renewal (₱)', input('cost', i.cost, 'text', ' inputmode="decimal" placeholder="1,250.00"')) + field('Paid with', input('paymentNote', i.paymentNote, 'text', ' maxlength="100" placeholder="Visa ending 4411"')) + '</div>'
-      + '<div class="wd-field"><label class="lcy-check"><input type="checkbox" name="autoRenew" value="1"' + (i.autoRenew ? ' checked' : '') + '> Renews automatically</label>'
-      + '<p class="lcy-muted sub-help">Reminders still go out: auto-renew fails when a card expires.</p></div>'
-      + field('Renewal page', input('renewUrl', i.renewUrl, 'url', ' maxlength="255" placeholder="https://account.godaddy.com/products"'), 'opens from the reminder') + '</section>'
-      + '<section class="sub-sec"><h4 class="sub-h">Who looks after it</h4>'
-      + field('Owner', select('ownerId', people, i.ownerId), 'gets the daily reminders')
-      + '<div class="wd-field"><label>Also remind</label><div class="lcy-checks">' + (look.people.length ? look.people.map(function (p) {
-          return '<label class="lcy-check"><input type="checkbox" name="watchers[]" value="' + esc(p.id) + '"' + (i.watchers.indexOf(p.id) >= 0 ? ' checked' : '') + '> ' + esc(p.name) + '</label>';
+      + field('Name', input('name', i.name, 'text', ' maxlength="150" required id="subFName" autocomplete="off" placeholder="' + esc(KIND[i.category].name) + '"'))
+      + '<div class="wd-field"><label>Provider</label>' + input('provider', i.provider, 'text', ' maxlength="100" autocomplete="off" placeholder="Who you pay"')
+      + '<div class="sub-picks" id="subProvPicks"></div></div>'
+      + '<div class="sub-2col">' + field('Plan', input('plan', i.plan, 'text', ' maxlength="100" placeholder="Deluxe, Platinum…"'))
+      + field('Account / login', input('accountRef', i.accountRef, 'text', ' maxlength="150" autocomplete="off" placeholder="it@company.ph"'), 'never a password') + '</div>'
+      + '</section>'
+
+      // renewal
+      + '<section class="sub-sec"><h4 class="sub-h">When does it renew?</h4>'
+      + '<div class="wd-field"><label>Expires on <span class="lcy-muted" id="subExpHelp">' + (i.category === 'philgeps' ? 'the certificate' : '') + '</span></label>'
+      + input('expiresOn', i.expiresOn, 'date')
+      + '<div class="sub-picks"><button type="button" class="sub-pick" id="subBoughtToday"><i class="fa-solid fa-bolt"></i> <span></span></button></div></div>'
+      + '<div class="wd-field"><label>Renews</label><input type="hidden" name="cycle" value="' + esc(i.cycle) + '"><div class="sub-segs" id="subCycleSegs">'
+      + CYCLE_PICKS.map(function (c) { return chipRadio('cyclePick', c[0], c[1], +i.cycle === c[0], ' sub-seg'); }).join('')
+      + chipRadio('cyclePick', 'other', 'Other', !cyclePicked, ' sub-seg') + '</div>'
+      + '<div class="sub-cycleother' + (cyclePicked ? ' lcy-hidden' : '') + '" id="subCycleOther">'
+      + select('cycleOther', [1, 3, 6, 12, 24, 36, 60, 120, 0].map(function (k) { return [k, look.cycles[k]]; }), cyclePicked ? 12 : i.cycle) + '</div></div>'
+      + '<div class="sub-2col">'
+      + '<div class="wd-field"><label>Cost per renewal</label><div class="sub-money"><span>₱</span>' + input('cost', i.cost, 'text', ' inputmode="decimal" placeholder="0.00"') + '</div></div>'
+      + field('Paid with', input('paymentNote', i.paymentNote, 'text', ' maxlength="100" placeholder="Visa ending 4411"')) + '</div>'
+      + '<label class="sub-switch" id="subAutoRow"><input type="checkbox" name="autoRenew" value="1"' + (i.autoRenew ? ' checked' : '') + '><span class="sub-switch__track"></span>'
+      + '<span class="sub-switch__text"><b>Renews automatically</b><small>Reminders still go out: auto-renew fails when a card expires.</small></span></label>'
+      + field('Renewal page', input('renewUrl', i.renewUrl, 'url', ' maxlength="255" placeholder="https://"'), 'the reminder links here')
+      + '</section>'
+
+      // people
+      + '<section class="sub-sec"><h4 class="sub-h">Who gets reminded?</h4>'
+      + '<div class="wd-field"><label>Owner <span class="lcy-muted">renews it and gets the daily reminder</span></label><div class="sub-people" id="subOwners">'
+      + chipRadio('ownerId', '', '<i class="sub-av sub-av--none">?</i> Nobody yet', !i.ownerId)
+      + look.people.map(function (p) { return chipRadio('ownerId', p.id, '<i class="sub-av">' + esc(initials(p.name)) + '</i> ' + esc(p.name) + (p.id === BOOT.me ? ' <small>(you)</small>' : ''), i.ownerId === p.id); }).join('')
+      + '</div></div>'
+      + '<div class="wd-field"><label>Also remind</label><div class="sub-people" id="subWatchers">' + (look.people.length ? look.people.map(function (p) {
+          return '<label class="sub-chip" data-person="' + esc(p.id) + '"><input type="checkbox" name="watchers[]" value="' + esc(p.id) + '"' + (i.watchers.indexOf(p.id) >= 0 ? ' checked' : '') + '>'
+            + '<span><i class="sub-av">' + esc(initials(p.name)) + '</i> ' + esc(p.name) + '</span></label>';
         }).join('') : '<span class="lcy-muted">Nobody else has Subscriptions access yet.</span>') + '</div></div>'
-      + field('Start reminders', input('notifyDays', i.notifyDays || '', 'number', ' min="1" max="365" placeholder="' + (i.category === 'philgeps' ? look.notifyPhilgeps : look.notifyDefault) + '"'), 'days before expiry, then every day') + '</section>'
-      + '<section class="sub-sec"><h4 class="sub-h">If it lapses</h4>'
-      + field('What breaks', input('impact', i.impact, 'text', ' maxlength="255" id="subFImpact" placeholder="' + esc(IMPACT_HINT[i.category] || '') + '"'))
+      + '<div class="wd-field"><label>Start reminding</label><div class="sub-segs" id="subLeadSegs">'
+      + leads.map(function (d) { return chipRadio('notifyDays', d, d + ' days', d === lead, ' sub-seg'); }).join('') + '</div>'
+      + '<p class="lcy-muted sub-help">before it expires, then every day until it is marked renewed.</p></div>'
+      + '</section>'
+
+      // optional
+      + '<details class="sub-fold"' + (lapseOpen ? ' open' : '') + '><summary><span><b>If it lapses</b><small>What breaks, what it depends on, notes — optional</small></span><i class="fa-solid fa-chevron-down"></i></summary><div class="sub-fold__body">'
+      + '<div class="wd-field"><label>What breaks</label>' + input('impact', i.impact, 'text', ' maxlength="255" id="subFImpact" placeholder="Shown on every reminder"')
+      + '<div class="sub-picks" id="subImpactPicks"></div></div>'
       + field('Depends on', select('parentId', parents, i.parentId || ''), 'e.g. the SSL depends on the hosting')
-      + field('Notes', '<textarea class="wd-textarea" rows="3" name="notes" maxlength="1000">' + esc(i.notes || '') + '</textarea>') + '</section>'
-      + (!editing && i.category === 'philgeps' ? '<p class="lcy-note">The usual eligibility documents are added for you; enter their expiry dates afterwards.</p>' : '');
-    var f = formPanel(editing ? 'Edit ' + i.name : 'Add subscription', html, 'item_save', { id: editing ? i.id : '' }, editing ? 'Save' : 'Add', function (res) {
+      + field('Notes', '<textarea class="wd-textarea" rows="3" name="notes" maxlength="1000">' + esc(i.notes || '') + '</textarea>')
+      + '</div></details>'
+      + '<p class="lcy-note sub-pgnote' + (!editing && i.category === 'philgeps' ? '' : ' lcy-hidden') + '" id="subPgNote"><i class="fa-solid fa-list-check"></i> The usual eligibility documents are added for you; enter their expiry dates afterwards.</p>';
+
+    var f = formPanel(editing ? 'Edit ' + i.name : 'Add subscription', html, 'item_save', { id: editing ? i.id : '' }, editing ? 'Save changes' : 'Add subscription', function (res) {
       load().then(function () { openItem(res.id); });
     }, editing ? function () { openItem(i.id); } : null);
-    f.elements.category.addEventListener('change', function () {
-      var c = f.elements.category.value;
-      f.elements.name.placeholder = NAME_HINT[c] || '';
-      f.elements.impact.placeholder = IMPACT_HINT[c] || '';
-      f.elements.notifyDays.placeholder = c === 'philgeps' ? look.notifyPhilgeps : look.notifyDefault;
+    var el = f.elements, leadTouched = editing && !!+i.notifyDays;
+    var cat = function () { var c = f.querySelector('input[name="category"]:checked'); return c ? c.value : 'domain'; };
+    var radio = function (n) { var c = f.querySelector('input[name="' + n + '"]:checked'); return c ? c.value : ''; };
+    var personName = function (id) { var p = look.people.filter(function (x) { return x.id === id; })[0]; return p ? p.name : ''; };
+
+    function picks(box, list, target) {
+      $id(box).innerHTML = list.map(function (v) { return '<button type="button" class="sub-pick" data-v="' + esc(v) + '">' + esc(v) + '</button>'; }).join('');
+      each($id(box), '[data-v]', function (b) {
+        b.addEventListener('click', function () { el[target].value = b.getAttribute('data-v'); el[target].dispatchEvent(new Event('input', { bubbles: true })); });
+      });
+    }
+    function onKind(first) {
+      var c = cat(), k = KIND[c] || KIND.domain;
+      el.name.placeholder = k.name;
+      picks('subProvPicks', k.providers, 'provider');
+      picks('subImpactPicks', k.impacts, 'impact');
+      $id('subExpHelp').textContent = c === 'philgeps' ? 'the certificate' : '';
+      $id('subAutoRow').classList.toggle('lcy-hidden', c === 'philgeps');
+      $id('subPgNote').classList.toggle('lcy-hidden', editing || c !== 'philgeps');
+      if (!first && c === 'philgeps' && !el.provider.value) { el.provider.value = 'PhilGEPS'; }
+      if (!first && !leadTouched) {                     // follow the kind's default lead until it is chosen by hand
+        var d = String(defLead(c)), r = f.querySelector('input[name="notifyDays"][value="' + d + '"]');
+        if (r) { r.checked = true; }
+      }
+    }
+    function syncCycle() {
+      var p = radio('cyclePick');
+      $id('subCycleOther').classList.toggle('lcy-hidden', p !== 'other');
+      el.cycle.value = p === 'other' ? el.cycleOther.value : p;
+    }
+    function syncPeople() {
+      var owner = radio('ownerId');
+      each($id('subWatchers'), '[data-person]', function (l) {
+        var me = l.getAttribute('data-person') === owner;
+        l.classList.toggle('lcy-hidden', me);
+        if (me) { l.querySelector('input').checked = false; }
+      });
+    }
+    function preview() {
+      var c = cat(), name = el.name.value.trim(), exp = el.expiresOn.value, cyc = +el.cycle.value, lead = +radio('notifyDays') || defLead(c);
+      var owner = radio('ownerId'), watchers = [].filter.call(f.querySelectorAll('input[name="watchers[]"]:checked'), function (x) { return true; }).length;
+      var bought = $id('subBoughtToday');
+      bought.classList.toggle('lcy-hidden', !cyc);
+      if (cyc) { bought.querySelector('span').textContent = 'Bought today: expires ' + L.fmtDate(isoAddMonths(BOOT.today, cyc)); }
+      var lines = [], tone = 'ok';
+      if (!exp) {
+        lines.push(['fa-calendar-xmark', 'No expiry date yet, so no reminders can start.']);
+        tone = 'none';
+      } else {
+        var left = daysBetween(BOOT.today, exp), from = isoAddDays(exp, -lead);
+        tone = left < 0 ? 'expired' : left <= 7 ? 'urgent' : left <= lead ? 'soon' : 'ok';
+        lines.push(['fa-calendar-day', 'Expires ' + L.fmtDate(exp) + ' · ' + (left === 0 ? 'today' : left > 0 ? 'in ' + plural(left, 'day') : plural(-left, 'day') + ' ago')]);
+        var who = owner ? personName(owner) + (owner === BOOT.me ? ' (you)' : '') + (watchers ? ' + ' + watchers + ' more' : '') : '';
+        lines.push(['fa-bell', !owner ? 'Nobody is reminded until it expires. Choose an owner.'
+          : (from <= BOOT.today ? 'Reminders start today' : 'Reminders start ' + L.fmtDate(from)) + ' for ' + who + ', every day']);
+      }
+      var cost = el.cost.value.replace(/[^\d.]/g, '');
+      if (cost) {
+        lines.push(['fa-peso-sign', money(+cost) + ' ' + (cyc ? look.cycles[cyc].toLowerCase() : 'one time')
+          + (c === 'philgeps' ? '' : el.autoRenew.checked ? ' · renews automatically' : ' · renewed by hand')]);
+      }
+      $id('subPreview').className = 'sub-preview sub-preview--' + tone;
+      $id('subPreview').innerHTML = '<span class="sub-preview__icon">' + catIcon(c) + '</span><div><b>' + esc(name || (c === 'philgeps' ? 'New PhilGEPS registration' : 'New ' + look.categories[c].toLowerCase())) + '</b>'
+        + lines.map(function (l) { return '<span><i class="fa-solid ' + l[0] + '"></i> ' + esc(l[1]) + '</span>'; }).join('') + '</div>';
+    }
+
+    each(f, 'input[name="category"]', function (r) { r.addEventListener('change', function () { onKind(false); preview(); }); });
+    each(f, 'input[name="cyclePick"]', function (r) { r.addEventListener('change', function () { syncCycle(); preview(); }); });
+    each(f, 'input[name="ownerId"]', function (r) { r.addEventListener('change', function () { syncPeople(); preview(); }); });
+    each(f, 'input[name="notifyDays"]', function (r) { r.addEventListener('change', function () { leadTouched = true; preview(); }); });
+    el.cycleOther.addEventListener('change', function () { syncCycle(); preview(); });
+    f.addEventListener('input', preview);
+    f.addEventListener('change', preview);
+    $id('subBoughtToday').addEventListener('click', function () { el.expiresOn.value = isoAddMonths(BOOT.today, +el.cycle.value || 12); preview(); });
+    el.name.addEventListener('blur', function () {      // a pasted address -> the bare domain
+      if (cat() !== 'domain') { return; }
+      el.name.value = el.name.value.trim().toLowerCase().replace(/^[a-z]+:\/\//, '').replace(/^www\./, '').replace(/[\/?#].*$/, '');
+      preview();
     });
-    if (!editing) { f.elements.name.focus(); }
+    onKind(true);
+    syncCycle();
+    syncPeople();
+    preview();
+    formStart = $(f).serialize();                       // after the quick setup above: untouched = nothing to discard
+    if (!editing) { el.name.focus(); }
   }
 
   /** "Mark renewed" for an item, or for one PhilGEPS document (reqId). */
