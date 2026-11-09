@@ -88,20 +88,43 @@ $v = function ($f) { return @filemtime(__DIR__ . '/' . $f) ?: 0; };
 <?php if (!sub_ready($subpdo)): ?>
       <section class="wd-card"><div class="lcy-empty">This page is not set up on this server yet — run <code>sql/2026-11-09-add-subscriptions.sql</code>.</div></section>
 <?php else: ?>
-      <!-- the answer, in one sentence -->
-      <section class="sub-answer" id="subAnswer" aria-live="polite"><div class="lcy-empty">Loading&hellip;</div></section>
-
-      <section class="wd-stats sub-stats" id="subStats"></section>
+      <!-- the answer in one sentence, and the counts that filter the register -->
+      <section class="sub-summary">
+        <div class="sub-answer" id="subAnswer" aria-live="polite"><div class="lcy-empty">Loading&hellip;</div></div>
+        <div class="sub-stats" id="subStats"></div>
+      </section>
 
       <div class="sub-grid">
-        <section class="wd-card sub-attention">
-          <div class="wd-card__head">
-            <h3>Needs attention</h3>
-            <span class="lcy-muted" id="subAttnNote"></span>
+        <div class="sub-main">
+          <section class="wd-card sub-attention lcy-hidden" id="subAttnCard">
+            <div class="wd-card__head">
+              <h3>Needs attention</h3>
+              <span class="lcy-muted" id="subAttnNote"></span>
+            </div>
+            <div id="subAttention"></div>
+          </section>
+        <div class="lcy-tabs sub-tabs" id="subTabs" role="tablist">
+          <button type="button" class="lcy-tab is-on" data-tab="all"><i class="fa-solid fa-layer-group"></i> All</button>
+          <button type="button" class="lcy-tab" data-tab="domain"><i class="fa-solid fa-globe"></i> Domains</button>
+          <button type="button" class="lcy-tab" data-tab="hosting"><i class="fa-solid fa-server"></i> Hosting</button>
+          <button type="button" class="lcy-tab" data-tab="security"><i class="fa-solid fa-shield-halved"></i> Security</button>
+          <button type="button" class="lcy-tab" data-tab="philgeps"><i class="fa-solid fa-landmark"></i> PhilGEPS</button>
+          <button type="button" class="lcy-tab" data-tab="reminders"><i class="fa-solid fa-bell"></i> Reminders</button>
+        </div>
+
+        <section class="wd-card sub-pane" id="subPaneList">
+          <div class="sub-toolbar">
+            <input type="search" class="wd-input" id="subQ" placeholder="Search name, provider, account&hellip;" aria-label="Search subscriptions">
+            <label class="lcy-check"><input type="checkbox" id="subShowCancelled"> Show cancelled</label>
           </div>
-          <div id="subAttention"></div>
+          <div id="subList"><div class="lcy-empty">Loading&hellip;</div></div>
         </section>
-        <div class="sub-side">
+
+        <section class="wd-card sub-pane lcy-hidden" id="subPaneReminders">
+          <div id="subReminders"></div>
+        </section>
+        </div>
+        <aside class="sub-side">
           <section class="wd-card" id="subPhilgepsCard">
             <div class="wd-card__head"><h3>Can we bid on PhilGEPS?</h3></div>
             <div id="subPhilgeps"></div>
@@ -110,29 +133,8 @@ $v = function ($f) { return @filemtime(__DIR__ . '/' . $f) ?: 0; };
             <div class="wd-card__head"><h3>Next 12 months</h3><span class="lcy-muted" id="subCostNote"></span></div>
             <div id="subTimeline"></div>
           </section>
-        </div>
+        </aside>
       </div>
-
-      <div class="lcy-tabs sub-tabs" id="subTabs" role="tablist">
-        <button type="button" class="lcy-tab is-on" data-tab="all"><i class="fa-solid fa-layer-group"></i> All</button>
-        <button type="button" class="lcy-tab" data-tab="domain"><i class="fa-solid fa-globe"></i> Domains</button>
-        <button type="button" class="lcy-tab" data-tab="hosting"><i class="fa-solid fa-server"></i> Hosting</button>
-        <button type="button" class="lcy-tab" data-tab="security"><i class="fa-solid fa-shield-halved"></i> Security</button>
-        <button type="button" class="lcy-tab" data-tab="philgeps"><i class="fa-solid fa-landmark"></i> PhilGEPS</button>
-        <button type="button" class="lcy-tab" data-tab="reminders"><i class="fa-solid fa-bell"></i> Reminders</button>
-      </div>
-
-      <section class="wd-card sub-pane" id="subPaneList">
-        <div class="sub-toolbar">
-          <input type="search" class="wd-input" id="subQ" placeholder="Search name, provider, account&hellip;" aria-label="Search subscriptions">
-          <label class="lcy-check"><input type="checkbox" id="subShowCancelled"> Show cancelled</label>
-        </div>
-        <div id="subList"><div class="lcy-empty">Loading&hellip;</div></div>
-      </section>
-
-      <section class="wd-card sub-pane lcy-hidden" id="subPaneReminders">
-        <div id="subReminders"></div>
-      </section>
 
       <!-- one side panel: an item, or a form; its content is swapped, so nothing stacks -->
       <div class="modal fade" id="subModal" tabindex="-1">

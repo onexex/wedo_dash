@@ -7,63 +7,89 @@
 .sub-headtools { display: flex; gap: 10px; align-items: center; flex-wrap: wrap; }
 .sub-company { width: auto; min-width: 180px; margin: 0; }
 
-/* ---- the answer ---- */
-.sub-answer { margin: 18px 0 0; padding: 16px 20px; border-radius: var(--radius-lg); background: var(--surface); border: 1px solid var(--border);
-  border-left: 4px solid var(--info-text); }
+/* ---- summary strip: the answer + the counts, one compact card ---- */
+.sub-summary { display: flex; align-items: stretch; margin: 14px 0 16px; background: var(--surface); border: 1px solid var(--border);
+  border-radius: var(--radius-lg); overflow: hidden; }
+.sub-answer { flex: 1 1 auto; min-width: 0; padding: 12px 18px; border-left: 4px solid var(--info-text); }
+.sub-answer .lcy-empty { padding: 4px 0; }
 .sub-answer--danger { border-left-color: var(--danger-text); }
 .sub-answer--warn { border-left-color: var(--warn-text); }
 .sub-answer--ok { border-left-color: var(--ok-text); }
-.sub-answer__date { margin: 0; font-size: 12px; color: var(--text-3); text-transform: uppercase; letter-spacing: .04em; font-weight: 700; }
-.sub-answer__head { margin: 4px 0 0; font-size: 20px; line-height: 1.35; font-weight: 700; color: var(--text); }
-.sub-answer__sub { margin: 6px 0 0; color: var(--text-2); font-size: 13.5px; }
+.sub-answer__date { margin: 0; font-size: 11px; color: var(--text-3); text-transform: uppercase; letter-spacing: .04em; font-weight: 700; }
+.sub-answer__head { margin: 2px 0 0; font-size: 16px; line-height: 1.35; font-weight: 700; color: var(--text); }
+.sub-answer__sub { margin: 3px 0 0; color: var(--text-2); font-size: 12.5px; line-height: 1.45; }
 
-/* ---- tiles: each one filters the register ---- */
-.sub-stats { margin: 16px 0; grid-template-columns: repeat(auto-fit, minmax(140px, 1fr)); }
-.sub-stat { text-align: left; font: inherit; cursor: pointer; width: 100%; }
-.sub-stat:hover { border-color: var(--border-2); }
-.sub-stat--danger::before { background: var(--danger-text); }
-.sub-stat--danger .wd-stat__value, .sub-stat--danger .wd-stat__label i { color: var(--danger-text); }
-.sub-stat--warn::before { background: var(--warn-text); }
-.sub-stat--warn .wd-stat__value, .sub-stat--warn .wd-stat__label i { color: var(--warn-text); }
-.sub-stat--calm::before { background: var(--border-2); }
-.sub-stat--calm .wd-stat__label i { color: var(--text-3); }
+/* the counts: each one filters the register */
+.sub-stats { flex: 0 0 auto; display: flex; margin: 0; border-left: 1px solid var(--border); }
+.sub-summary .sub-stat { position: relative; display: flex; flex-direction: column; justify-content: center; gap: 2px; width: auto; min-width: 104px; margin: 0;
+  padding: 10px 16px; border: 0; border-left: 1px solid var(--border); border-radius: 0; background: none; box-shadow: none; text-align: left; font: inherit; cursor: pointer; }
+.sub-summary .sub-stat:first-child { border-left: 0; }
+.sub-summary .sub-stat::before { display: none; }
+.sub-summary .sub-stat:hover { background: var(--surface-2); }
+.sub-summary .wd-stat__label { order: 2; margin: 0; font-size: 11.5px; color: var(--text-3); white-space: nowrap; }
+.sub-summary .wd-stat__label i { display: none; }
+.sub-summary .wd-stat__value { order: 1; margin: 0; font-size: 20px; line-height: 1.1; font-weight: 800; color: var(--text); }
+.sub-stat--danger .wd-stat__value { color: var(--danger-text) !important; }
+.sub-stat--warn .wd-stat__value { color: var(--warn-text) !important; }
+.sub-stat--calm .wd-stat__value { color: var(--text-2); }
+@media (max-width: 1100px) {
+  .sub-summary { flex-direction: column; }
+  .sub-stats { border-left: 0; border-top: 1px solid var(--border); }
+  .sub-summary .sub-stat { flex: 1 1 0; min-width: 0; }
+}
 
-/* ---- overview grid ---- */
-.sub-grid { display: grid; grid-template-columns: minmax(0, 1.55fr) minmax(0, 1fr); gap: 20px; align-items: start; margin-bottom: 22px; }
+/* the Android app draws the answer and the counts as its own cards */
+html.wdapp .sub-summary { display: block; margin: 0; background: none; border: 0; border-radius: 0; overflow: visible; }
+html.wdapp .sub-stats { border: 0 !important; }
+html.wdapp .sub-summary .wd-stat__label, html.wdapp .sub-summary .wd-stat__value { order: 0; }
+
+/* ---- overview grid: the register on the left, PhilGEPS + the year on a narrow side ---- */
+.sub-grid { display: grid; grid-template-columns: minmax(0, 1fr) 340px; gap: 16px; align-items: start; margin-bottom: 22px; }
 .sub-grid .wd-card { margin: 0; }
-.sub-side { display: grid; gap: 20px; }
-@media (max-width: 1000px) { .sub-grid { grid-template-columns: minmax(0, 1fr); } }
+.sub-main > .wd-card { margin-bottom: 14px; }
+.sub-main > .sub-pane { margin-bottom: 0; }
+.sub-side { display: grid; gap: 16px; position: sticky; top: 76px; }
+.sub-side .wd-card__head { padding-top: 12px; padding-bottom: 12px; }
+.sub-side .wd-card__head h3 { font-size: 14px; }
+@media (max-width: 1000px) { .sub-grid { grid-template-columns: minmax(0, 1fr); } .sub-side { position: static; } }
 
 /* ---- needs attention ---- */
 .sub-rows { list-style: none; margin: 0; padding: 0; }
-.sub-row { display: flex; gap: 14px; align-items: center; padding: 13px 20px; border-top: 1px solid var(--border); cursor: pointer; }
+.sub-row { display: flex; gap: 12px; align-items: center; padding: 10px 16px; border-top: 1px solid var(--border); cursor: pointer; }
 .sub-row:first-child { border-top: 0; }
 .sub-row:hover { background: var(--surface-2); }
-.sub-row__icon { flex: 0 0 36px; height: 36px; border-radius: var(--radius); display: flex; align-items: center; justify-content: center;
+.sub-row__icon { flex: 0 0 32px; height: 32px; border-radius: var(--radius); display: flex; align-items: center; justify-content: center;
   background: var(--surface-2); color: var(--text-2); font-size: 15px; }
 .sub-row--expired .sub-row__icon { background: var(--danger-bg); color: var(--danger-text); }
 .sub-row--urgent .sub-row__icon { background: var(--warn-bg); color: var(--warn-text); }
 .sub-row__main { flex: 1 1 auto; min-width: 0; display: flex; flex-direction: column; gap: 2px; }
 .sub-row__main b { font-size: 14px; color: var(--text); word-break: break-word; }
 .sub-row__impact { font-size: 12px; color: var(--warn-text); }
-.sub-row__end { flex: 0 0 auto; display: flex; flex-direction: column; align-items: flex-end; gap: 6px; }
+/* one line each, so the list stays short; the full text is in the tooltip and the panel */
+.sub-row__main > span { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.sub-attention .wd-card__head { padding-top: 10px; padding-bottom: 10px; }
+.sub-row__end { flex: 0 0 auto; display: flex; align-items: center; gap: 10px; }
+.sub-attn-more { display: block; width: 100%; padding: 8px 16px; border: 0; border-top: 1px solid var(--border); background: none;
+  color: var(--text-2); font: inherit; font-size: 13px; font-weight: 600; cursor: pointer; }
+.sub-attn-more:hover { background: var(--surface-2); color: var(--text); }
+.sub-attn-more i { font-size: 11px; margin-right: 4px; }
 .sub-row__date { font-size: 12px; color: var(--text-3); }
 .sub-row__btns { display: flex; gap: 6px; }
 .sub-allclear { display: flex; gap: 14px; align-items: center; padding: 22px 20px; }
 .sub-allclear > i { font-size: 26px; color: var(--ok-text); }
 
 /* ---- PhilGEPS ---- */
-.sub-pg { display: flex; gap: 14px; align-items: center; padding: 14px 20px; border-top: 1px solid var(--border); cursor: pointer; }
+.sub-pg { display: flex; gap: 12px; align-items: center; padding: 12px 16px; border-top: 1px solid var(--border); cursor: pointer; }
 .sub-pg:first-child { border-top: 0; }
 .sub-pg--none { display: block; cursor: default; }
-.sub-pg--none p { margin: 0 0 10px; }
+.sub-pg--none p { margin: 0 0 8px; font-size: 12.5px; }
 .sub-pg__verdict { flex: 0 0 auto; min-width: 58px; text-align: center; font-weight: 800; font-size: 17px; padding: 10px 8px; border-radius: var(--radius); }
 .sub-pg__verdict--yes { background: var(--ok-bg); color: var(--ok-text); }
 .sub-pg__verdict--no { background: var(--danger-bg); color: var(--danger-text); }
 .sub-pg__text { font-size: 13px; color: var(--text); line-height: 1.5; }
 
 /* ---- 12-month timeline ---- */
-.sub-bars { display: flex; align-items: flex-end; gap: 4px; height: 128px; padding: 14px 20px 0; }
+.sub-bars { display: flex; align-items: flex-end; gap: 3px; height: 76px; padding: 10px 16px 0; }
 .sub-bar { flex: 1 1 0; min-width: 0; height: 100%; display: flex; flex-direction: column; justify-content: flex-end; align-items: stretch;
   border: 0; background: none; padding: 0; cursor: pointer; }
 .sub-bar__fill { display: block; background: var(--border-2); border-radius: 4px 4px 0 0; transition: background .15s ease; }
@@ -73,7 +99,7 @@
 .sub-bar.is-empty .sub-bar__fill { background: var(--border); }
 .sub-bar__lbl { font-size: 10.5px; color: var(--text-3); text-align: center; padding: 5px 0 0; height: 20px; }
 .sub-bar.is-picked .sub-bar__lbl { color: var(--text); font-weight: 700; }
-.sub-month { padding: 10px 20px 16px; border-top: 1px solid var(--border); margin-top: 6px; }
+.sub-month { padding: 8px 16px 12px; border-top: 1px solid var(--border); margin-top: 6px; }
 .sub-month__head { display: flex; justify-content: space-between; font-size: 13px; margin-bottom: 4px; }
 .sub-month ul { list-style: none; margin: 0; padding: 0; font-size: 13px; }
 .sub-month li { display: flex; justify-content: space-between; gap: 10px; padding: 4px 0; cursor: pointer; }
@@ -82,7 +108,7 @@
 .sub-month__note { margin-top: 8px !important; }
 
 /* ---- register ---- */
-.sub-tabs { margin: 0 0 14px; }
+.sub-tabs { margin: 0 0 12px; }
 .sub-tabs .lcy-tab i { margin-right: 5px; }
 .sub-toolbar { display: flex; flex-wrap: wrap; gap: 14px; align-items: center; padding: 14px 20px; }
 .sub-toolbar input[type=search] { flex: 1 1 220px; max-width: 360px; margin: 0; }
@@ -166,19 +192,22 @@
   .sub-headtools { width: 100%; }
   .sub-headtools .wd-btn { flex: 1 1 auto; justify-content: center; }
   .sub-company { flex: 1 1 100%; }
-  .sub-answer { padding: 14px 16px; }
-  .sub-answer__head { font-size: 17px; }
-  #subStats { display: flex; gap: 8px; margin: 12px 0; overflow-x: auto; scrollbar-width: none; }
-  #subStats .wd-stat { flex: 0 0 auto; width: auto; min-width: 104px; margin: 0; padding: 9px 12px 9px 14px; border-radius: var(--radius); }
-  #subStats .wd-stat__label { font-size: 11.5px; white-space: nowrap; }
-  #subStats .wd-stat__value { font-size: 18px; }
+  .sub-answer { padding: 12px 14px; }
+  .sub-answer__head { font-size: 16px; }
+  .sub-summary .sub-stat { min-width: 0; padding: 9px 10px; }
+  .sub-summary .wd-stat__label { white-space: normal; font-size: 11px; line-height: 1.25; }
   #subTabs { flex-wrap: nowrap; overflow-x: auto; scrollbar-width: none; }
   #subTabs .lcy-tab { flex: 0 0 auto; }
-  #subStats::-webkit-scrollbar, #subTabs::-webkit-scrollbar { display: none; }
+  #subTabs::-webkit-scrollbar { display: none; }
 
   .sub-row { flex-wrap: wrap; align-items: flex-start; padding: 12px 14px; }
   .sub-row__main { flex: 1 1 calc(100% - 50px); }
   .sub-row__end { flex: 1 1 100%; flex-direction: row; align-items: center; justify-content: space-between; flex-wrap: wrap; }
+  .sub-attention .sub-row__end { flex-wrap: nowrap; gap: 8px; }   /* the pill already says how close it is */
+  .sub-attention .wd-pill, .sub-attention .wd-btn { white-space: nowrap; }
+  #subAttnNote { display: none; }
+  .sub-attention .sub-row__date { display: none; }
+  .sub-attention .sub-row__btns { flex: 0 0 auto; margin-left: auto; }
   .sub-hide-sm { display: none; }
   .sub-pg, .sub-month { padding-left: 14px; padding-right: 14px; }
   .sub-bars { padding: 12px 14px 0; gap: 2px; }
