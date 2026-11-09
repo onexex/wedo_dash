@@ -27,7 +27,7 @@ abstract class AppTestCase extends TestCase
         'job_openings', 'applicants', 'applicant_education', 'applicant_family', 'applicant_events', 'applicant_files', 'login_attempts', 'tblsyslog',
         'earlyout', 'obshbd', 'hleavesbd', 'otattendancelog', 'leaves', 'payrol',
         'corner_polls', 'corner_poll_options', 'corner_poll_votes', 'annseen',
-        'inv_categories', 'inv_locations', 'inv_items', 'inv_movements', 'inv_stock_moves', 'inv_repairs', 'inv_files', 'inv_counts', 'inv_count_lines',
+        'inv_categories', 'inv_locations', 'inv_items', 'inv_movements', 'inv_stock_moves', 'inv_repairs', 'inv_files', 'inv_counts', 'inv_count_lines', 'sub_items', 'sub_requirements', 'sub_renewals', 'sub_files', 'sub_watchers', 'sub_runs', 'sub_notify_log', 'sub_creds', 'sub_cred_log',
     ];
 
     protected function setUp(): void

@@ -1,8 +1,8 @@
 {
-  "version": "1.0.9",
-  "versionCode": 32,
+  "version": "1.1.0",
+  "versionCode": 33,
   "size": "6.3 MB",
-  "released": "2026-11-05",
+  "released": "2026-11-09",
   "minAndroid": "6.0",
-  "notes": "Inventory and My Items now look and work like the rest of the app. Confirm what was issued to you and report a problem right from your phone."
+  "notes": "New: Subscriptions. See what needs renewing and whether you can bid on PhilGEPS, mark a renewal done and open saved logins, right from your phone."
 }

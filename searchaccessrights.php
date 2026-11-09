@@ -94,6 +94,8 @@ if (array_key_exists('separation', $row)) { $mgmt[] = ['fa-user-minus',     'Sep
 if (array_key_exists('applicants', $row)) { $mgmt[] = ['fa-clipboard-list', 'Applicant Pool',          'applicants', 'Job registrations; hiring also needs Enroll Employee']; }
 if (array_key_exists('empverify', $row))  { $mgmt[] = ['fa-phone-volume',   'Employment Verification', 'empverify',  'CI calls']; }
 if (array_key_exists('inventory', $row))  { $mgmt[] = ['fa-boxes-stacked',  'Inventory',               'inventory',  'Property, documents and supplies; everyone sees their own items in My Items']; }
+if (array_key_exists('subscriptions', $row)) { $mgmt[] = ['fa-globe',      'Subscriptions',           'subscriptions', 'Domains, hosting, security and PhilGEPS renewals; gets the daily renewal reminders']; }
+if (array_key_exists('subcreds', $row)) { $mgmt[] = ['fa-key',        'Subscription logins',     'subcreds', 'See and copy the saved passwords of subscriptions (every view is logged); needs Subscriptions too']; }
 $groups['Management'] = ['fa-user-gear', $mgmt];
 
 $maint = [

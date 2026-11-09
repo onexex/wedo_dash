@@ -161,6 +161,31 @@ if (isset($ar['inventory']) && $ar['inventory'] == 2) {
     $wdInvCount = inv_alert_count($wdpdo);
 }
 
+/* Subscriptions: renewals needing action (sidebar badge) and what I am reminded
+   about today (bell + once-a-day desktop pop-up, includes/sub-remind.php). */
+$wdSubCount = 0;
+$wdSubMine  = [];
+require_once __DIR__ . '/subscriptions-lib.php';
+if (isset($ar['subscriptions']) && $ar['subscriptions'] == 2 && sub_ready($wdpdo)) {
+    try {
+        $wdSubCount = sub_menu_count($wdpdo, sub_scope($wdpdo));
+        $wdSubMine  = sub_my_due($wdpdo, (string) $_SESSION['id']);
+    } catch (Throwable $wdErr) { error_log('[wedo subscriptions] ' . $wdErr->getMessage()); }
+    // the bell counts today's reminder until Notifications is opened today
+    if ($wdSubMine && (empty($wdSeen) || $wdSeen < date('Y-m-d 00:00:00'))) { $nrow += count($wdSubMine); }
+}
+/* The day's renewal reminders, if the 8:00 AM cron has not sent them: the first
+   page load after 8 AM (anyone's) sends them after the page is delivered. Once
+   per session a day; sub_run_daily() itself makes sure it happens once a day. */
+if (($_SESSION['wd_sub_day'] ?? '') !== date('Y-m-d') && (int) date('G') >= SUB_RUN_HOUR) {
+    $_SESSION['wd_sub_day'] = date('Y-m-d');
+    register_shutdown_function(function () use ($wdpdo) {
+        if (function_exists('fastcgi_finish_request')) { @fastcgi_finish_request(); }
+        elseif (function_exists('litespeed_finish_request')) { @litespeed_finish_request(); }
+        try { sub_run_daily($wdpdo, 'page'); } catch (Throwable $e) { error_log('[wedo subscriptions daily] ' . $e->getMessage()); }
+    });
+}
+
 $wd_active = $wd_active ?? '';
 function wd_on($k, $a) { return $k === $a ? ' is-active' : ''; }
 function wd_can($ar, $k) { return isset($ar[$k]) && $ar[$k] == 2; }
@@ -222,7 +247,7 @@ function wd_can($ar, $k) { return isset($ar[$k]) && $ar[$k] == 2; }
       ['access_13',             'generalreport',  'generalreport',  'calendar-range',  'YTD 13<sup>th</sup> Month'],
     ]],
     ['key' => 'management', 'label' => 'Management', 'icon' => 'briefcase-business', 'tone' => 'mgt',
-     'badge' => $wdAplCount + $wdInvCount, 'badgeTitle' => 'New job applications and inventory alerts', 'items' => [
+     'badge' => $wdAplCount + $wdInvCount + $wdSubCount, 'badgeTitle' => 'New job applications, inventory alerts and renewals due', 'items' => [
       ['arights',    'accessrights',    'accessrights.php', 'shield-check',   'Access Rights'],
       ['applicants', 'applicants',      'applicants',       'clipboard-list', 'Applicant Pool', $wdAplCount],
       ['ams',        'ams',             'ams',              'archive',        'Archived Management System'],
@@ -237,6 +262,7 @@ function wd_can($ar, $k) { return isset($ar[$k]) && $ar[$k] == 2; }
       ['payeereg',   'payeereg',        'payeereg',         'book-user',      'Payee Management System'],
       ['schedv',     'schedviewer',     'schedviewer',      'calendar-clock', 'Schedule Viewer'],
       ['separation', 'separation',      'separation',       'user-minus',     'Separation & Lifecycle'],
+      ['subscriptions', 'subscriptions', 'subscriptions',   'globe',          'Subscriptions', $wdSubCount],
     ]],
     ['key' => 'maintenance', 'label' => 'Maintenance', 'icon' => 'wrench', 'tone' => 'mnt', 'items' => [
       ['agncy',      'agency',                'maintenance?agency',                'building-2',      'Agencies'],

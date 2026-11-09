@@ -163,6 +163,8 @@ die("ERROR: Could not connect. " . $e->getMessage());
         </div>
     </div>
 
+    <?php include 'includes/sub-card.php'; /* renewals due (Subscriptions), only when something is */ ?>
+
     <section class="wd-card">
         <div class="wd-card__head">
             <h3>Recent notifications</h3>
