@@ -24,7 +24,7 @@ ALTER TABLE accessrights ADD COLUMN subscriptions INT(11) NOT NULL DEFAULT 1;
 CREATE TABLE IF NOT EXISTS `sub_items` (
   `id`          INT(11)       NOT NULL AUTO_INCREMENT,
   `CompanyID`   VARCHAR(20)   NOT NULL,                        -- companies.CompanyID
-  `Category`    VARCHAR(10)   NOT NULL,                        -- domain | hosting | security | philgeps
+  `Category`    VARCHAR(10)   NOT NULL,                        -- domain | hosting | security | philgeps | infra
   `Name`        VARCHAR(150)  NOT NULL,                        -- wedo.ph, cPanel hosting, SiteLock, PhilGEPS Platinum
   `Provider`    VARCHAR(100)  NULL,                            -- GoDaddy, Sucuri, PhilGEPS ...
   `Plan`        VARCHAR(100)  NULL,

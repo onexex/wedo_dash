@@ -18,7 +18,10 @@
    ========================================================================== */
 require_once __DIR__ . '/lifecycle-lib.php';
 
-const SUB_CATEGORIES = ['domain' => 'Domain', 'hosting' => 'Hosting', 'security' => 'Security service', 'philgeps' => 'PhilGEPS'];
+const SUB_CATEGORIES = ['domain' => 'Domain', 'hosting' => 'Hosting', 'security' => 'Security service', 'philgeps' => 'PhilGEPS',
+                        'infra' => 'Infrastructure'];
+/** Kinds that never expire or renew: servers, code hosting, API keys. They exist to hold logins; no reminders, no cost. */
+const SUB_NO_EXPIRY  = ['infra'];
 const SUB_CYCLES     = [1 => 'Monthly', 3 => 'Every 3 months', 6 => 'Every 6 months', 12 => 'Yearly', 24 => 'Every 2 years',
                         36 => 'Every 3 years', 60 => 'Every 5 years', 120 => 'Every 10 years', 0 => 'No fixed cycle'];
 const SUB_FILE_KINDS = ['receipt' => 'Receipt / invoice', 'document' => 'Document', 'other' => 'Other'];
@@ -194,7 +197,8 @@ function sub_lookups(PDO $pdo, array $scope) {
     }
     return ['categories' => SUB_CATEGORIES, 'cycles' => SUB_CYCLES, 'fileKinds' => SUB_FILE_KINDS, 'people' => $people,
             'companies' => $companies, 'allCompanies' => $scope['all'], 'myCompany' => $scope['company'],
-            'philgepsDocs' => SUB_PHILGEPS_DOCS, 'notifyDefault' => SUB_NOTIFY_DEFAULT, 'notifyPhilgeps' => SUB_NOTIFY_PHILGEPS];
+            'philgepsDocs' => SUB_PHILGEPS_DOCS, 'notifyDefault' => SUB_NOTIFY_DEFAULT, 'notifyPhilgeps' => SUB_NOTIFY_PHILGEPS,
+            'noExpiry' => SUB_NO_EXPIRY];
 }
 
 /* ------------------------------------------------------------------ reading */
@@ -396,7 +400,7 @@ function sub_overview(PDO $pdo, $company, $today = null) {
     foreach ($items as $i) {
         if ($i['status'] !== 'active') { continue; }
         $stats['active']++;
-        if (!$i['expiresOn']) { $stats['noDate']++; }
+        if (!$i['expiresOn'] && !in_array($i['category'], SUB_NO_EXPIRY, true)) { $stats['noDate']++; }
         if (!$i['autoRenew'] && $i['category'] !== 'philgeps' && $i['cycle'] > 0) { $stats['autoOff']++; }
     }
     $stats['due30Cost'] = round($stats['due30Cost'], 2);
@@ -526,6 +530,10 @@ function sub_item_save(PDO $pdo, array $d, array $scope, $actor) {
     $notify = trim((string) ($d['notifyDays'] ?? '')) === '' ? ($cat === 'philgeps' ? SUB_NOTIFY_PHILGEPS : SUB_NOTIFY_DEFAULT) : (int) $d['notifyDays'];
     if ($notify < 1 || $notify > 365) { return sub_fail('Reminders can start 1 to 365 days before expiry.'); }
 
+    if (in_array($cat, SUB_NO_EXPIRY, true)) {     // nothing to renew: drop whatever the form still carried
+        $expires = null; $cycle = 0; $cost = null; $d['autoRenew'] = 0; $d['paymentNote'] = ''; $d['renewUrl'] = '';
+    }
+
     $url = trim((string) ($d['renewUrl'] ?? ''));
     if ($url !== '' && !preg_match('#^https?://[^\s<>"]+$#i', $url)) { return sub_fail('The renewal link must start with http:// or https://.'); }
     if (mb_strlen($url) > 255) { return sub_fail('The renewal link is too long.'); }
@@ -631,6 +639,7 @@ function sub_renew(PDO $pdo, $itemId, $reqId, array $d, ?array $file, array $sco
     $item = sub_item_row($pdo, $itemId);
     if (!$item || !sub_in_scope($item, $scope)) { return sub_fail('That subscription no longer exists.'); }
     if ($item['Status'] !== 'active') { return sub_fail('Resume tracking this subscription before renewing it.'); }
+    if (in_array($item['Category'], SUB_NO_EXPIRY, true)) { return sub_fail('Infrastructure items do not expire, so there is nothing to renew.'); }
     $req = null;
     if ($reqId) {
         $st = $pdo->prepare("SELECT * FROM sub_requirements WHERE id = :id AND ItemID = :i");
@@ -1082,7 +1091,10 @@ function sub_cred_save(PDO $pdo, array $d, array $scope, $actor) {
     $notes = trim((string) ($d['notes'] ?? ''));
     if ($label === '') { return sub_fail('Give the login a name, e.g. Registrar account or cPanel.'); }
     if (mb_strlen($label) > 100) { return sub_fail('The name is too long (100 characters at most).'); }
-    if ($url !== '' && !preg_match('#^https?://\S+$#i', $url)) { return sub_fail('The sign-in page must be a web address starting with https://'); }
+    // a web page, or a bare address for devices on the office network (router, CCTV, FTP): 192.168.1.1, 126.209.8.38:21
+    if ($url !== '' && !preg_match('#^(https?://\S+|[a-z0-9][a-z0-9.-]*(:\d{1,5})?(/\S*)?)$#i', $url)) {
+        return sub_fail('The sign-in address must be a web address (https://...) or a host or IP, e.g. 192.168.1.1.');
+    }
     if (strlen($url) > 255) { return sub_fail('The sign-in page address is too long.'); }
     if (mb_strlen($user) > 255 || strlen($secret) > 1000 || mb_strlen($notes) > 2000) { return sub_fail('One of the fields is too long.'); }
     if ($user === '' && $secret === '' && $notes === '') { return sub_fail('Enter at least a username or a password.'); }

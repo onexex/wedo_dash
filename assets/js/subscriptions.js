@@ -16,7 +16,9 @@
   var pickedMonth = null;   // timeline month shown under the bars
   var openId = 0;           // item open in the panel
 
-  var ICON = { domain: 'fa-globe', hosting: 'fa-server', security: 'fa-shield-halved', philgeps: 'fa-landmark' };
+  var ICON = { domain: 'fa-globe', hosting: 'fa-server', security: 'fa-shield-halved', philgeps: 'fa-landmark', infra: 'fa-network-wired' };
+  /** Kinds that never expire (Infrastructure): they hold logins; no dates, cost or reminders. */
+  function noExp(c) { return !!look && (look.noExpiry || []).indexOf(c) >= 0; }
 
   function $id(id) { return document.getElementById(id); }
   function each(box, sel, fn) { Array.prototype.forEach.call(box.querySelectorAll(sel), fn); }
@@ -280,16 +282,17 @@
       var showCo = company === 'all';
       box.innerHTML = chip + '<div class="wd-tablewrap"><table class="wd-table lcy-table sub-table"><thead><tr><th>Name</th><th>Kind</th>' + (showCo ? '<th>Company</th>' : '')
         + '<th>Expires</th><th>Cost</th><th>Renewal</th><th>Owner</th></tr></thead><tbody>' + rows.map(function (i) {
-          var exp = i.expiresOn ? esc(L.fmtDate(i.expiresOn)) : '<span class="lcy-muted">not set</span>';
+          var never = noExp(i.category);
+          var exp = never ? '<span class="lcy-muted">never</span>' : i.expiresOn ? esc(L.fmtDate(i.expiresOn)) : '<span class="lcy-muted">not set</span>';
           var extra = i.eligibility ? '<br>' + (i.eligibility.canBid ? pill('ok', 'Can bid') : pill('danger', 'Cannot bid')) : '';
           return '<tr class="sub-tr" data-open="' + i.id + '">'
             + '<td data-label="Name"><span class="sub-name">' + catIcon(i.category) + ' <b>' + esc(i.name) + '</b></span>'
             + (i.provider || i.plan ? '<br><span class="lcy-muted">' + esc([i.provider, i.plan].filter(Boolean).join(' · ')) + '</span>' : '') + '</td>'
             + '<td data-label="Kind">' + esc(i.categoryLabel) + '</td>'
             + (showCo ? '<td data-label="Company">' + esc(i.company) + '</td>' : '')
-            + '<td data-label="Expires">' + exp + '<br>' + duePill(i.tone, i.days) + extra + '</td>'
+            + '<td data-label="Expires">' + exp + (never && i.status === 'active' ? '' : '<br>' + duePill(i.tone, i.days)) + extra + '</td>'
             + '<td data-label="Cost">' + (i.cost !== null ? esc(money(i.cost)) + '<br><span class="lcy-muted">' + esc(i.cycleLabel.toLowerCase()) + '</span>' : '<span class="lcy-muted">—</span>') + '</td>'
-            + '<td data-label="Renewal">' + (i.category === 'philgeps' ? '<span class="lcy-muted">manual</span>' : (i.autoRenew ? '<i class="fa-solid fa-rotate"></i> Auto' : '<span class="sub-manual">Manual</span>'))
+            + '<td data-label="Renewal">' + (never ? '<span class="lcy-muted">—</span>' : i.category === 'philgeps' ? '<span class="lcy-muted">manual</span>' : (i.autoRenew ? '<i class="fa-solid fa-rotate"></i> Auto' : '<span class="sub-manual">Manual</span>'))
             + (i.paymentNote ? '<br><span class="lcy-muted">' + esc(i.paymentNote) + '</span>' : '') + '</td>'
             + '<td data-label="Owner">' + (i.owner ? esc(i.owner) : '<span class="sub-manual">No owner</span>') + '</td></tr>';
         }).join('') + '</tbody></table></div>';
@@ -369,6 +372,7 @@
       var i = res.item, h = '';
       var big;
       if (i.status === 'cancelled') { big = '<div class="sub-count sub-count--cancelled"><b>Cancelled</b><span>No reminders. Resume tracking to renew it.</span></div>'; }
+      else if (noExp(i.category)) { big = '<div class="sub-count sub-count--none"><b>Never expires</b><span>Keeps its logins in one place. No reminders.</span></div>'; }
       else if (i.days === null) { big = '<div class="sub-count sub-count--none"><b>No expiry date</b><span>Add one so reminders can start.</span></div>'; }
       else {
         var n = i.days < 0 ? -i.days : i.days;
@@ -377,7 +381,7 @@
           + '<br>' + esc(L.fmtDate(i.expiresOn)) + (i.cycle ? ' · ' + esc(i.cycleLabel.toLowerCase()) : '') + '</span></div>';
       }
       h += '<div class="sub-top">' + big + '<div class="sub-top__btns">'
-        + (i.status === 'active' ? '<button type="button" class="wd-btn wd-btn--primary" data-act="renew"><i class="fa-solid fa-check"></i> Mark renewed</button>' : '<button type="button" class="wd-btn wd-btn--primary" data-act="resume"><i class="fa-solid fa-rotate-left"></i> Resume tracking</button>')
+        + (i.status === 'active' ? (noExp(i.category) ? '' : '<button type="button" class="wd-btn wd-btn--primary" data-act="renew"><i class="fa-solid fa-check"></i> Mark renewed</button>') : '<button type="button" class="wd-btn wd-btn--primary" data-act="resume"><i class="fa-solid fa-rotate-left"></i> Resume tracking</button>')
         + (i.renewUrl ? '<a class="wd-btn wd-btn--ghost" href="' + esc(i.renewUrl) + '" target="_blank" rel="noopener"><i class="fa-solid fa-arrow-up-right-from-square"></i> Renewal page</a>' : '')
         + '</div></div>';
 
@@ -404,7 +408,7 @@
         rem = (r.active ? 'Reminding ' : 'Daily reminders from ' + L.fmtDate(r.from) + ' to ') + r.people.join(', ') + (r.active ? ' every day until it is marked renewed.' : '.')
           + ' ' + (r.withApp === r.people.length ? '' : (r.withApp === 0 ? 'None of them has' : (r.withApp === 1 ? '1 of them has' : r.withApp + ' of them have')) + ' the WeDo app; the others see it on the website.');
       }
-      h += '<h4 class="sub-h">Reminders</h4><p class="sub-remline' + (r.problems.length ? ' sub-remline--warn' : '') + '"><i class="fa-solid fa-bell"></i> ' + esc(rem)
+      if (!noExp(i.category)) h += '<h4 class="sub-h">Reminders</h4><p class="sub-remline' + (r.problems.length ? ' sub-remline--warn' : '') + '"><i class="fa-solid fa-bell"></i> ' + esc(rem)
         + (r.problems.length ? '<br><b>' + esc(r.problems.join('; ').replace(/^./, function (c) { return c.toUpperCase(); })) + '.</b>' : '') + '</p>';
 
       // PhilGEPS documents
@@ -425,9 +429,9 @@
       h += '<h4 class="sub-h">Details</h4><dl class="lcy-facts">'
         + fact('Kind', esc(i.categoryLabel)) + fact('Company', esc(i.company)) + fact('Provider', esc(i.provider)) + fact('Plan', esc(i.plan))
         + fact('Account / login', esc(i.accountRef)) + fact('Cost', i.cost !== null ? esc(money(i.cost) + ' · ' + i.cycleLabel.toLowerCase()) : '')
-        + fact('Renews', i.category === 'philgeps' ? 'Manually' : (i.autoRenew ? 'Automatically' : 'Manually')) + fact('Payment', esc(i.paymentNote))
+        + (noExp(i.category) ? '' : fact('Renews', i.category === 'philgeps' ? 'Manually' : (i.autoRenew ? 'Automatically' : 'Manually')) + fact('Payment', esc(i.paymentNote)))
         + fact('Owner', esc(i.owner || 'No owner')) + fact('Watchers', esc(i.watcherNames.join(', ')))
-        + fact('Reminders start', i.notifyDays + ' days before expiry') + '</dl>';
+        + (noExp(i.category) ? '' : fact('Reminders start', i.notifyDays + ' days before expiry')) + '</dl>';
       if (i.notes) { h += '<h4 class="sub-h">Notes</h4><p class="sub-notes">' + esc(i.notes) + '</p>'; }
       h += vaultHtml(i);
 
@@ -438,7 +442,7 @@
         + '<label class="wd-btn wd-btn--ghost wd-btn--sm"><i class="fa-solid fa-paperclip"></i> Attach file<input type="file" name="file" accept=".pdf,.jpg,.jpeg,.png"></label></form>';
 
       // history
-      h += '<h4 class="sub-h">Renewal history</h4>' + (i.renewals.length ? '<ul class="lcy-timeline sub-history">' + i.renewals.map(function (x) {
+      if (!noExp(i.category) || i.renewals.length) h += '<h4 class="sub-h">Renewal history</h4>' + (i.renewals.length ? '<ul class="lcy-timeline sub-history">' + i.renewals.map(function (x) {
         return '<li class="is-hired"><div class="t-date">' + esc(L.fmtDateTime(x.at)) + ' · ' + esc(x.by) + '</div><div class="t-what">' + (x.what ? esc(x.what) + ': ' : '')
           + (x.oldExpiry ? esc(L.fmtDate(x.oldExpiry)) + ' → ' : 'until ') + esc(L.fmtDate(x.newExpiry)) + '</div><div class="t-note">'
           + esc([x.amount !== null ? money(x.amount) + ' paid' + (x.paidOn ? ' on ' + L.fmtDate(x.paidOn) : '') : '', x.reference ? 'ref ' + x.reference : '', x.notes].filter(Boolean).join(' · ')) + '</div></li>';
@@ -448,7 +452,7 @@
         + (i.status === 'active' ? '<button type="button" class="wd-btn wd-btn--ghost wd-btn--sm" data-act="cancel">Stop tracking</button>' : '')
         + '<button type="button" class="wd-btn wd-btn--ghost wd-btn--sm sub-danger" data-act="delete">Delete</button></div>'
         + '<button type="button" class="wd-btn wd-btn--ghost" data-act="edit"><i class="fa-solid fa-pen"></i> Edit</button>'
-        + (i.status === 'active' ? '<button type="button" class="wd-btn wd-btn--primary" data-act="renew"><i class="fa-solid fa-check"></i> Mark renewed</button>' : '');
+        + (i.status === 'active' && !noExp(i.category) ? '<button type="button" class="wd-btn wd-btn--primary" data-act="renew"><i class="fa-solid fa-check"></i> Mark renewed</button>' : '');
       showPanel(i.name, h, foot, false);
 
       var root = document.getElementById('subModal');
@@ -506,7 +510,9 @@
       h += '<ul class="sub-creds">' + v.creds.map(function (c) {
         return '<li class="sub-cred" data-cred="' + c.id + '">'
           + '<div class="sub-cred__head"><b>' + esc(c.label) + '</b>'
-          + (c.url ? ' <a href="' + esc(c.url) + '" target="_blank" rel="noopener noreferrer" class="sub-cred__link"><i class="fa-solid fa-arrow-up-right-from-square"></i> Sign-in page</a>' : '')
+          + (c.url ? (/^https?:\/\//i.test(c.url)
+              ? ' <a href="' + esc(c.url) + '" target="_blank" rel="noopener noreferrer" class="sub-cred__link"><i class="fa-solid fa-arrow-up-right-from-square"></i> Sign-in page</a>'
+              : ' <span class="sub-cred__link sub-cred__addr"><i class="fa-solid fa-network-wired"></i> ' + esc(c.url) + '</span>') : '')
           + '<span class="sub-cred__tools"><button type="button" class="sub-x" data-credit="' + c.id + '" title="Edit" aria-label="Edit ' + esc(c.label) + '"><i class="fa-solid fa-pen"></i></button></span></div>'
           + (c.unreadable ? '<p class="sub-remline sub-remline--warn">This login cannot be read with this server\'s key. Edit it and enter it again.</p>' : '')
           + (c.username ? '<div class="sub-cred__row"><span class="sub-cred__k">Username</span><span class="sub-cred__v">' + esc(c.username) + '</span>'
@@ -602,7 +608,8 @@
   }
 
   var CRED_LABELS = { domain: ['Registrar account', 'DNS / Cloudflare'], hosting: ['cPanel', 'Hosting account', 'FTP', 'Database'],
-    security: ['Security dashboard', 'Vendor account'], philgeps: ['PhilGEPS portal', 'Authorized user'] };
+    security: ['Security dashboard', 'Vendor account'], philgeps: ['PhilGEPS portal', 'Authorized user'],
+    infra: ['Server SSH', 'Root / admin', 'Database', 'Control panel', 'API key'] };
   function genPassword() {
     var chars = 'ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz23456789!@#$%^&*-_=+', out = '', a = new Uint32Array(20);
     crypto.getRandomValues(a);
@@ -614,7 +621,7 @@
     var labels = (CRED_LABELS[i.category] || []).concat(['Other']);
     var html = field('Name', input('label', c.label || (c.id ? '' : labels[0]), 'text', ' maxlength="100" required list="subCredLabels"')
         + '<datalist id="subCredLabels">' + labels.map(function (l) { return '<option value="' + esc(l) + '">'; }).join('') + '</datalist>', 'which account this is')
-      + field('Sign-in page', input('url', c.url || (c.id ? '' : i.renewUrl || ''), 'url', ' maxlength="255" placeholder="https://"'))
+      + field('Sign-in page or IP', input('url', c.url || (c.id ? '' : i.renewUrl || ''), 'text', ' maxlength="255" autocomplete="off" placeholder="https://… or 192.168.1.1"'))
       + field('Username or e-mail', input('username', c.username || (c.id ? '' : i.accountRef || ''), 'text', ' maxlength="255" autocomplete="off" autocapitalize="off" spellcheck="false"'))
       + field('Password', '<div class="sub-pass">' + input('secret', c.secret || '', 'password', ' maxlength="1000" autocomplete="new-password" spellcheck="false"')
         + '<button type="button" class="wd-btn wd-btn--ghost" id="subPassEye" aria-label="Show password"><i class="fa-regular fa-eye"></i></button>'
@@ -729,7 +736,9 @@
     security: { tip: 'SSL, malware scan, firewall', name: 'SiteLock / SSL certificate', providers: ['SiteLock', 'Sucuri', 'Cloudflare', 'Sectigo'],
                 impacts: ['Browsers show "Not secure"', 'Site loses malware scanning and firewall'] },
     philgeps: { tip: 'Certificate + eligibility documents', name: 'PhilGEPS Platinum registration', providers: ['PhilGEPS'],
-                impacts: ['Cannot join government biddings'] }
+                impacts: ['Cannot join government biddings'] },
+    infra:    { tip: 'Servers, code, API keys — logins only, never expires', name: 'Production server', providers: ['GoDaddy', 'GitHub', 'Brevo', 'Cloudflare'],
+                impacts: ['WeDo site and app go down', 'E-mails stop sending'] }
   };
   var CYCLE_PICKS = [[1, 'Monthly'], [12, 'Yearly'], [24, '2 years'], [36, '3 years']];
   var LEAD_PICKS = [14, 30, 45, 60, 90];
@@ -785,7 +794,7 @@
       + '</section>'
 
       // renewal
-      + '<section class="sub-sec"><h4 class="sub-h">When does it renew?</h4>'
+      + '<section class="sub-sec" id="subRenewSec"><h4 class="sub-h">When does it renew?</h4>'
       + '<div class="wd-field"><label>Expires on <span class="lcy-muted" id="subExpHelp">' + (i.category === 'philgeps' ? 'the certificate' : '') + '</span></label>'
       + input('expiresOn', i.expiresOn, 'date')
       + '<div class="sub-picks"><button type="button" class="sub-pick" id="subBoughtToday"><i class="fa-solid fa-bolt"></i> <span></span></button></div></div>'
@@ -803,7 +812,7 @@
       + '</section>'
 
       // people
-      + '<section class="sub-sec"><h4 class="sub-h">Who gets reminded?</h4>'
+      + '<section class="sub-sec" id="subPeopleSec"><h4 class="sub-h">Who gets reminded?</h4>'
       + '<div class="wd-field"><label>Owner <span class="lcy-muted">renews it and gets the daily reminder</span></label><div class="sub-people" id="subOwners">'
       + chipRadio('ownerId', '', '<i class="sub-av sub-av--none">?</i> Nobody yet', !i.ownerId)
       + look.people.map(function (p) { return chipRadio('ownerId', p.id, '<i class="sub-av">' + esc(initials(p.name)) + '</i> ' + esc(p.name) + (p.id === BOOT.me ? ' <small>(you)</small>' : ''), i.ownerId === p.id); }).join('')
@@ -848,6 +857,8 @@
       $id('subExpHelp').textContent = c === 'philgeps' ? 'the certificate' : '';
       $id('subAutoRow').classList.toggle('lcy-hidden', c === 'philgeps');
       $id('subPgNote').classList.toggle('lcy-hidden', editing || c !== 'philgeps');
+      $id('subRenewSec').classList.toggle('lcy-hidden', noExp(c));     // nothing to renew, nobody to remind
+      $id('subPeopleSec').classList.toggle('lcy-hidden', noExp(c));
       if (!first && c === 'philgeps' && !el.provider.value) { el.provider.value = 'PhilGEPS'; }
       if (!first && !leadTouched) {                     // follow the kind's default lead until it is chosen by hand
         var d = String(defLead(c)), r = f.querySelector('input[name="notifyDays"][value="' + d + '"]');
@@ -874,7 +885,9 @@
       bought.classList.toggle('lcy-hidden', !cyc);
       if (cyc) { bought.querySelector('span').textContent = 'Bought today: expires ' + L.fmtDate(isoAddMonths(BOOT.today, cyc)); }
       var lines = [], tone = 'ok';
-      if (!exp) {
+      if (noExp(c)) {
+        lines.push(['fa-key', 'Never expires, so no reminders. Add its logins after saving.']);
+      } else if (!exp) {
         lines.push(['fa-calendar-xmark', 'No expiry date yet, so no reminders can start.']);
         tone = 'none';
       } else {
@@ -886,7 +899,7 @@
           : (from <= BOOT.today ? 'Reminders start today' : 'Reminders start ' + L.fmtDate(from)) + ' for ' + who + ', every day']);
       }
       var cost = el.cost.value.replace(/[^\d.]/g, '');
-      if (cost) {
+      if (cost && !noExp(c)) {
         lines.push(['fa-peso-sign', money(+cost) + ' ' + (cyc ? look.cycles[cyc].toLowerCase() : 'one time')
           + (c === 'philgeps' ? '' : el.autoRenew.checked ? ' · renews automatically' : ' · renewed by hand')]);
       }

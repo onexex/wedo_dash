@@ -75,7 +75,7 @@ $v = function ($f) { return @filemtime(__DIR__ . '/' . $f) ?: 0; };
       <div class="wd-pagehead sub-head">
         <div>
           <h1>Subscriptions</h1>
-          <p>Domains, hosting, security services and PhilGEPS: what needs renewing, what it costs, and who's on it.</p>
+          <p>Domains, hosting, security services, PhilGEPS and infrastructure logins: what needs renewing, what it costs, and who's on it.</p>
         </div>
 <?php if (sub_ready($subpdo)): ?>
         <div class="sub-headtools">
@@ -109,6 +109,7 @@ $v = function ($f) { return @filemtime(__DIR__ . '/' . $f) ?: 0; };
           <button type="button" class="lcy-tab" data-tab="hosting"><i class="fa-solid fa-server"></i> Hosting</button>
           <button type="button" class="lcy-tab" data-tab="security"><i class="fa-solid fa-shield-halved"></i> Security</button>
           <button type="button" class="lcy-tab" data-tab="philgeps"><i class="fa-solid fa-landmark"></i> PhilGEPS</button>
+          <button type="button" class="lcy-tab" data-tab="infra"><i class="fa-solid fa-network-wired"></i> Infrastructure</button>
           <button type="button" class="lcy-tab" data-tab="reminders"><i class="fa-solid fa-bell"></i> Reminders</button>
         </div>
 
