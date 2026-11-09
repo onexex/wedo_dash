@@ -39,6 +39,13 @@
  * Database Backup (Maintenance, see includes/db-backup-lib.php): the last
  * 'backup_keep' backups (default 10) stay in uploads/backups/ so they can be
  * downloaded again from the page. Env var WEDO_BACKUP_KEEP wins over this.
+ *
+ * Subscriptions logins vault (see includes/subscriptions-lib.php): 'sub_vault_key'
+ * encrypts the saved usernames, passwords and notes. 64 random hex characters,
+ * make one with  php -r "echo bin2hex(random_bytes(32));". One key per server,
+ * never commit it, keep a copy somewhere safe (a password manager): if it is lost
+ * or changed, the saved logins cannot be read and must be entered again. Env var
+ * WEDO_SUB_VAULT_KEY wins over this. No key = the vault says it is locked.
  * -------------------------------------------------------------------------- */
 return [
     'host' => 'localhost',
@@ -53,4 +60,5 @@ return [
     // 'mail_from_name' => 'WeDo BPO Inc.',
     // 'mail_reply_to'  => 'hr@wedoinc.ph',
     // 'backup_keep' => 10,               // kept database backups (uploads/backups/)
+    // 'sub_vault_key' => '<64 random hex characters>',   // secret — never commit it
 ];

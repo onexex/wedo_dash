@@ -97,6 +97,10 @@ FROM (
   UNION ALL SELECT '2026-11-05-add-inventory', CONCAT_WS(' ',
          IF((SELECT COUNT(*) FROM information_schema.COLUMNS WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'accessrights' AND COLUMN_NAME = 'inventory') = 0, 'accessrights.inventory', NULL),
          IF((SELECT COUNT(*) FROM information_schema.TABLES WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME IN ('inv_categories','inv_locations','inv_items','inv_movements','inv_stock_moves','inv_repairs','inv_files','inv_counts','inv_count_lines')) < 9, 'inv_* tables', NULL))
+  UNION ALL SELECT '2026-11-09-add-subscriptions', CONCAT_WS(' ',
+         IF((SELECT COUNT(*) FROM information_schema.COLUMNS WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'accessrights' AND COLUMN_NAME = 'subscriptions') = 0, 'accessrights.subscriptions', NULL),
+         IF((SELECT COUNT(*) FROM information_schema.COLUMNS WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'accessrights' AND COLUMN_NAME = 'subcreds') = 0, 'accessrights.subcreds', NULL),
+         IF((SELECT COUNT(*) FROM information_schema.TABLES WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME IN ('sub_items','sub_requirements','sub_renewals','sub_files','sub_watchers','sub_runs','sub_notify_log','sub_creds','sub_cred_log')) < 9, 'sub_* tables', NULL))
   UNION ALL SELECT 'security fix (remember-me hash, see wedo-security-fixes)',
          IF((SELECT COUNT(*) FROM information_schema.COLUMNS WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'empdetails' AND COLUMN_NAME = 'remember_hash') = 0, 'empdetails.remember_hash', '')
 ) AS m;

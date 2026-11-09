@@ -584,6 +584,8 @@ try {
         </div>
       </div>
 
+      <?php include 'includes/sub-card.php'; /* renewals due (Subscriptions), only when something is */ ?>
+
       <!-- ===== KPI STATS ===== -->
       <section class="wd-stats">
         <div class="wd-stat dash-drill" data-drill="active" data-title="<?php echo $scope==='team'?'Direct reports':'Active employees'; ?>" role="button" tabindex="0" title="Click to see who">

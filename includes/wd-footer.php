@@ -27,6 +27,7 @@
 <?php include __DIR__ . '/corner-bubble.php'; /* floating Corner bubble (announcements + calendar) */ ?>
 <?php include __DIR__ . '/msg-heads.php'; /* message chat heads (before call-widget: its check-in carries them) */ ?>
 <?php include __DIR__ . '/call-widget.php'; /* video calls: incoming ringer + call window */ ?>
+<?php include __DIR__ . '/sub-remind.php'; /* once-a-day renewal reminder pop-up (Subscriptions) */ ?>
 
 <!-- Change password modal (Bootstrap; handled by assets/js/script.js .btnchangepass) -->
 <div class="modal" id="changepass">
