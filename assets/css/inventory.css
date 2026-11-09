@@ -108,6 +108,11 @@
 
 .inv-tagline { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; margin-bottom: 14px; padding: 9px 12px; border-radius: var(--radius); background: var(--surface-2); font-size: 13px; color: var(--text-2); }
 .inv-tagline span { flex: 1 1 180px; }
+.inv-eachunit { margin: -2px 0 14px; padding: 9px 12px; border-radius: var(--radius); background: var(--surface-2); }
+.inv-eachunit small { display: block; margin-top: 2px; color: var(--text-3); font-size: 11.5px; }
+.inv-unitsok { margin: 0 0 12px; }
+.inv-unitstags { display: flex; flex-wrap: wrap; gap: 6px; margin: 0; }
+
 .inv-link { border: 0; background: none; padding: 0; color: var(--brand); font-weight: 600; font-size: 13px; cursor: pointer; }
 .inv-link:hover { text-decoration: underline; }
 

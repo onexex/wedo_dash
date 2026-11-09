@@ -386,6 +386,21 @@
     }).join('');
   }
 
+  function tagRange(units) { return units[0].tag + ' to ' + units[units.length - 1].tag; }
+
+  /** Several units saved as separate items: the next job is their labels. */
+  function unitsSaved(res) {
+    var n = res.units.length;
+    showModal(n + ' items added', '<p class="inv-unitsok"><b>' + esc(res.name) + '</b> is saved as ' + n + ' separate items, ' + esc(tagRange(res.units)) + '.</p>'
+      + '<p class="inv-unitstags">' + res.units.map(function (u) { return '<span class="inv-tag">' + esc(u.tag) + '</span>'; }).join('') + '</p>',
+      '<button type="button" class="wd-btn wd-btn--ghost" id="invUnitsClose">Close</button>'
+      + '<button type="button" class="wd-btn wd-btn--primary" id="invUnitsLabels"><i class="fa-solid fa-qrcode"></i> Print ' + n + ' labels</button>', true);
+    $id('invUnitsClose').addEventListener('click', closeModal);
+    $id('invUnitsLabels').addEventListener('click', function () {
+      printLabels(res.units.map(function (u) { return { tag: u.tag, name: res.name }; }));
+    });
+  }
+
   /** i: edit it; dup: start a new item from it; supply: a new consumable. */
   function itemForm(i, dup, supply) {
     var editing = !!i && !dup, v = i || {}, isSup = i ? i.kind === 'consumable' : !!supply;
@@ -413,9 +428,10 @@
         + '<button type="button" data-step="1" aria-label="One more"><i class="fa-solid fa-plus"></i></button></div></div>';
     var unitField = '<div class="wd-field"><label for="invUnit">Unit</label><input class="wd-input" id="invUnit" name="unit" maxlength="20" list="invUnits" value="' + esc(v.unit || 'pc') + '">'
       + '<datalist id="invUnits">' + UNITS.map(function (u) { return '<option value="' + u + '">'; }).join('') + '</datalist></div>';
+    var eachField = editing || isSup ? '' : '<div class="inv-eachunit lcy-hidden" id="invEachBox"><label class="lcy-check"><input type="checkbox" name="eachUnit" value="1"> Give each one its own tag and QR label</label><small id="invEachHint"></small></div>';
 
     var basics = section('Basics', text('name', 'Name', v.name, { required: true, max: 150, placeholder: isSup ? 'e.g. Bond paper A4, Printer ink' : 'e.g. Split-type aircon, Monobloc chair, Business permit' })
-      + two(qtyField, unitField)
+      + two(qtyField, unitField) + eachField
       + '<div class="wd-field" data-kind="asset"><label>Condition</label><div class="inv-segs" role="radiogroup" aria-label="Condition">' + radios('condition', kv(look.conditions), v.condition || 'good') + '</div></div>');
 
     var place = editing
@@ -441,13 +457,14 @@
     var notes = fold('Description and notes', 'Anything else worth keeping',
       text('description', 'Description', v.description, { type: 'textarea', max: 500 }) + text('notes', 'Notes', v.notes, { type: 'textarea', max: 500 }), !!(v.description || v.notes));
 
+    var submit = editing ? 'Save changes' : (isSup ? 'Save supply' : 'Save item');
     form({ title: editing ? 'Edit ' + v.tag : (isSup ? 'Add supply' : 'Add item'), action: 'item_save', data: { id: editing ? v.id : '' }, panel: true,
-      back: i ? function () { openItem(i.id); } : null, submit: editing ? 'Save changes' : (isSup ? 'Save supply' : 'Save item'),
+      back: i ? function () { openItem(i.id); } : null, submit: submit,
       body: picker + basics + where + product + paper + stock + purchase + notes,
-      done: function (res) { refresh(); openItem(res.id); },
+      done: function (res) { refresh(); if (res.units) { unitsSaved(res); } else { openItem(res.id); } },
       another: editing ? null : function (res) {
         ['name', 'tag', 'serial', 'warrantyUntil', 'docNumber', 'docIssuedOn', 'expiresOn', 'reference', 'description', 'notes'].forEach(function (n) { el[n].value = ''; });
-        $id('invFormOk').textContent = 'Saved ' + res.tag + '. Ready for the next one.';
+        $id('invFormOk').textContent = 'Saved ' + (res.units ? res.units.length + ' items, ' + tagRange(res.units) : res.tag) + '. Ready for the next one.';
         $id('invModalBody').scrollTop = 0;
         el.name.focus();
         refresh();
@@ -457,13 +474,35 @@
     function fit() {
       var c = catOf(el.categoryId.value);
       each(box, '[data-kind]', function (s) { s.classList.toggle('lcy-hidden', s.getAttribute('data-kind').split(' ').indexOf(c.kind) < 0); });
-      if ($id('invTagHint')) { $id('invTagHint').innerHTML = 'Gets the next <b>' + esc(c.code) + '</b> tag number when you save'; }
+      var q = $id('invQty'), n = q ? parseInt(q.value, 10) || 0 : 0, can = !!el.eachUnit && c.kind === 'asset' && n > 1;
+      if (el.eachUnit) {
+        $id('invEachBox').classList.toggle('lcy-hidden', !can);
+        if (!can) { el.eachUnit.checked = false; }
+      }
+      var apart = can && el.eachUnit.checked;
+      if (can) { $id('invEachHint').textContent = apart ? 'Saves ' + n + ' separate items of 1 ' + (el.unit.value || 'pc') + ' each.' : 'Leave this off to keep them as one row.'; }
+      el.serial.closest('.wd-field').classList.toggle('lcy-hidden', apart);   // one serial cannot be true of every unit
+      if ($id('invTagHint')) {
+        $id('invTagHint').innerHTML = apart ? 'Gets ' + n + ' <b>' + esc(c.code) + '</b> tag numbers when you save' : 'Gets the next <b>' + esc(c.code) + '</b> tag number when you save';
+        $id('invTagOwn').classList.toggle('lcy-hidden', apart);
+      }
+      if (apart) {
+        el.serial.value = '';
+        if ($id('invTagBox')) {
+          el.tag.value = '';
+          $id('invTagBox').classList.add('lcy-hidden');
+          $id('invTagOwn').closest('.inv-tagline').classList.remove('lcy-hidden');
+        }
+      }
+      $id('invFormGo').lastChild.textContent = ' ' + (apart ? 'Save ' + n + ' items' : submit);
     }
-    box.addEventListener('change', function (ev) { if (ev.target.name === 'categoryId') { fit(); } });
+    box.addEventListener('change', function (ev) { if (ev.target.name === 'categoryId' || ev.target.name === 'eachUnit') { fit(); } });
+    box.addEventListener('input', function (ev) { if (ev.target.name === 'qty' || ev.target.name === 'unit') { fit(); } });
     each(box, '[data-step]', function (b) {
       b.addEventListener('click', function () {
         var q = $id('invQty'), n = (parseInt(q.value, 10) || 0) + +b.getAttribute('data-step');
         q.value = Math.max(+q.min, n);
+        fit();
       });
     });
     if ($id('invTagOwn')) {
