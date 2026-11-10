@@ -43,6 +43,8 @@ $boot = [
     'today'     => date('Y-m-d'),
     'me'        => (string) $_SESSION['id'],
     'open'      => (int) ($_GET['id'] ?? 0),
+    'canCreds'  => sub_can_creds($subpdo),
+    'vaultOpen' => sub_vault_key() !== null,
     'maxUpload' => (int) min($iniBytes(ini_get('upload_max_filesize')), $iniBytes(ini_get('post_max_size'))),
 ];
 $e = function ($s) { return htmlspecialchars((string) $s, ENT_QUOTES, 'UTF-8'); };
@@ -80,6 +82,9 @@ $v = function ($f) { return @filemtime(__DIR__ . '/' . $f) ?: 0; };
 <?php if (sub_ready($subpdo)): ?>
         <div class="sub-headtools">
           <select class="wd-select sub-company lcy-hidden" id="subCompany" aria-label="Company"></select>
+<?php if (sub_can_creds($subpdo)): ?>
+          <button type="button" class="wd-btn wd-btn--ghost" id="subImport"><i class="fa-solid fa-file-import"></i> Import logins</button>
+<?php endif; ?>
           <button type="button" class="wd-btn wd-btn--primary" id="subAdd"><i class="fa-solid fa-plus"></i> Add subscription</button>
         </div>
 <?php endif; ?>

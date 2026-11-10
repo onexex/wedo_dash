@@ -974,7 +974,9 @@ function sub_reminder_log(PDO $pdo, array $scope, $days = 14) {
    asks to see or copy them, and every such request is logged (sub_cred_log).
    ------------------------------------------------------------------ */
 
-const SUB_CRED_ACTIONS = ['view' => 'Viewed', 'copy' => 'Copied', 'add' => 'Added', 'edit' => 'Changed', 'delete' => 'Deleted'];
+const SUB_CRED_ACTIONS = ['view' => 'Viewed', 'copy' => 'Copied', 'add' => 'Added', 'edit' => 'Changed', 'delete' => 'Deleted', 'import' => 'Imported'];
+const SUB_IMPORT_MAX_ROWS   = 400;
+const SUB_IMPORT_MAX_GROUPS = 80;
 
 /** May this viewer see and change saved logins? (needs both rights) */
 function sub_can_creds(PDO $pdo) {
@@ -1074,16 +1076,8 @@ function sub_cred_reveal(PDO $pdo, $id, $why, array $scope, $actor) {
             'username' => $vals['user'], 'secret' => $vals['secret'], 'notes' => $vals['notes']]];
 }
 
-/** Add (id 0) or change a login. Every field is written as given: an empty password removes it. */
-function sub_cred_save(PDO $pdo, array $d, array $scope, $actor) {
-    $id = (int) ($d['id'] ?? 0);
-    $old = $id ? sub_cred_row($pdo, $id) : null;
-    if ($id && !$old) { return sub_fail('That login no longer exists.'); }
-    $itemId = $old ? (int) $old['ItemID'] : (int) ($d['itemId'] ?? 0);
-    $item = sub_item_row($pdo, $itemId);
-    if (!$item || !sub_in_scope($item, $scope)) { return sub_fail('That subscription no longer exists.'); }
-    $key = sub_vault_key();
-    if ($key === null) { return sub_fail('The logins vault is locked on this server (no key set up).'); }
+/** One login's fields, trimmed and checked: ['ok' => true, label, url, user, secret, notes] or sub_fail(). */
+function sub_cred_clean(array $d) {
     $label = trim((string) ($d['label'] ?? ''));
     $url = trim((string) ($d['url'] ?? ''));
     $user = trim((string) ($d['username'] ?? ''));
@@ -1098,8 +1092,113 @@ function sub_cred_save(PDO $pdo, array $d, array $scope, $actor) {
     if (strlen($url) > 255) { return sub_fail('The sign-in page address is too long.'); }
     if (mb_strlen($user) > 255 || strlen($secret) > 1000 || mb_strlen($notes) > 2000) { return sub_fail('One of the fields is too long.'); }
     if ($user === '' && $secret === '' && $notes === '') { return sub_fail('Enter at least a username or a password.'); }
-    $vals = [$label, $url !== '' ? $url : null, sub_seal($user, $key, $itemId, 'user'), sub_seal($secret, $key, $itemId, 'secret'),
-             sub_seal($notes, $key, $itemId, 'notes'), sub_now(), (string) $actor];
+    return ['ok' => true, 'label' => $label, 'url' => $url, 'user' => $user, 'secret' => $secret, 'notes' => $notes];
+}
+
+/** sub_creds values for a cleaned login, in column order: Label, Url, UserEnc, SecretEnc, NotesEnc, time, by. */
+function sub_cred_vals(array $c, $key, $itemId, $actor) {
+    return [$c['label'], $c['url'] !== '' ? $c['url'] : null, sub_seal($c['user'], $key, $itemId, 'user'),
+            sub_seal($c['secret'], $key, $itemId, 'secret'), sub_seal($c['notes'], $key, $itemId, 'notes'), sub_now(), (string) $actor];
+}
+
+/**
+ * Bring in many logins at once (pasted from a spreadsheet). $groups: each
+ *   ['target' => 'new' | item id, 'name' => the new item's name, 'category' => the new item's kind,
+ *    'rows' => [['label', 'url', 'username', 'secret', 'notes'], ...]].
+ * Everything is checked first, then it is all saved in one transaction (or nothing is).
+ * New items have no expiry date; each login is logged as imported.
+ */
+function sub_cred_import(PDO $pdo, array $groups, $companyId, array $scope, $actor) {
+    $key = sub_vault_key();
+    if ($key === null) { return sub_fail('The logins vault is locked on this server (no key set up).'); }
+    if (!$groups) { return sub_fail('Nothing to import.'); }
+    if (count($groups) > SUB_IMPORT_MAX_GROUPS) { return sub_fail('Too many groups at once (' . SUB_IMPORT_MAX_GROUPS . ' at most). Import it in parts.'); }
+
+    $company = $scope['all'] ? (string) $companyId : $scope['company'];
+    $plan = []; $total = 0; $needCompany = false;
+    foreach (array_values($groups) as $n => $g) {
+        $g = is_array($g) ? $g : [];
+        $name = lcy_text($g['name'] ?? '', 150);
+        $where = $name !== '' ? $name : 'Group ' . ($n + 1);
+        $target = (string) ($g['target'] ?? 'new');
+        $item = null; $cat = null;
+        if ($target === 'new') {
+            $cat = (string) ($g['category'] ?? 'infra');
+            if (!isset(SUB_CATEGORIES[$cat]) || $cat === 'philgeps') { return sub_fail("$where: choose Infrastructure, Hosting, Domain or Security service."); }
+            if ($name === '') { return sub_fail('Give every new item a name.'); }
+            $needCompany = true;
+        } else {
+            $item = sub_item_row($pdo, (int) $target);
+            if (!$item || !sub_in_scope($item, $scope)) { return sub_fail("$where: the item to add them to no longer exists."); }
+        }
+        $rows = [];
+        foreach ((array) ($g['rows'] ?? []) as $r) {
+            $r = is_array($r) ? $r : [];
+            $c = sub_cred_clean($r);
+            if (!$c['ok']) {
+                $lbl = trim((string) ($r['label'] ?? ''));
+                return sub_fail($where . ($lbl !== '' ? ' › ' . $lbl : '') . ': ' . $c['msg']);
+            }
+            $rows[] = $c;
+        }
+        if (!$rows) { continue; }
+        $total += count($rows);
+        $plan[] = ['item' => $item, 'name' => $name, 'cat' => $cat, 'rows' => $rows];
+    }
+    if (!$total) { return sub_fail('Nothing to import: every row is empty.'); }
+    if ($total > SUB_IMPORT_MAX_ROWS) { return sub_fail('Too many logins at once (' . SUB_IMPORT_MAX_ROWS . ' at most). Import it in parts.'); }
+    if ($needCompany) {
+        if ($company === '') { return sub_fail('Choose the company these belong to.'); }
+        $st = $pdo->prepare("SELECT COUNT(*) FROM companies WHERE CompanyID = :c");
+        $st->execute([':c' => $company]);
+        if (!(int) $st->fetchColumn()) { return sub_fail('That company no longer exists.'); }
+    }
+
+    $made = 0; $saved = 0; $ids = [];
+    $newItem = $pdo->prepare("INSERT INTO sub_items (CompanyID, Category, Name, ExpiresOn, CycleMonths, Cost, AutoRenew, OwnerEmpID, NotifyDays, Status, CreatedAt, CreatedBy)
+        VALUES (?, ?, ?, NULL, ?, NULL, 0, ?, ?, 'active', ?, ?)");
+    $newCred = $pdo->prepare("INSERT INTO sub_creds (Label, Url, UserEnc, SecretEnc, NotesEnc, CreatedAt, CreatedBy, ItemID) VALUES (?,?,?,?,?,?,?,?)");
+    $pdo->beginTransaction();
+    try {
+        foreach ($plan as $g) {
+            if ($g['item']) {
+                $itemId = (int) $g['item']['id'];
+            } else {
+                $newItem->execute([$company, $g['cat'], $g['name'], in_array($g['cat'], SUB_NO_EXPIRY, true) ? 0 : 12, (string) $actor,
+                                   SUB_NOTIFY_DEFAULT, sub_now(), (string) $actor]);
+                $itemId = (int) $pdo->lastInsertId();
+                $made++;
+            }
+            $ids[] = $itemId;
+            foreach ($g['rows'] as $c) {
+                $newCred->execute(array_merge(sub_cred_vals($c, $key, $itemId, $actor), [$itemId]));
+                sub_cred_log_add($pdo, ['id' => (int) $pdo->lastInsertId(), 'ItemID' => $itemId, 'Label' => $c['label']], $actor, 'import');
+                $saved++;
+            }
+        }
+        $pdo->commit();
+    } catch (Throwable $e) {
+        $pdo->rollBack();
+        throw $e;
+    }
+    sub_audit($pdo, "imported $saved logins" . ($made ? " into $made new items" : ''));
+    return ['ok' => true, 'logins' => $saved, 'items' => $made, 'itemIds' => array_values(array_unique($ids))];
+}
+
+/** Add (id 0) or change a login. Every field is written as given: an empty password removes it. */
+function sub_cred_save(PDO $pdo, array $d, array $scope, $actor) {
+    $id = (int) ($d['id'] ?? 0);
+    $old = $id ? sub_cred_row($pdo, $id) : null;
+    if ($id && !$old) { return sub_fail('That login no longer exists.'); }
+    $itemId = $old ? (int) $old['ItemID'] : (int) ($d['itemId'] ?? 0);
+    $item = sub_item_row($pdo, $itemId);
+    if (!$item || !sub_in_scope($item, $scope)) { return sub_fail('That subscription no longer exists.'); }
+    $key = sub_vault_key();
+    if ($key === null) { return sub_fail('The logins vault is locked on this server (no key set up).'); }
+    $c = sub_cred_clean($d);
+    if (!$c['ok']) { return $c; }
+    $vals = sub_cred_vals($c, $key, $itemId, $actor);
+    $label = $c['label'];
     if ($old) {
         $pdo->prepare("UPDATE sub_creds SET Label = ?, Url = ?, UserEnc = ?, SecretEnc = ?, NotesEnc = ?, UpdatedAt = ?, UpdatedBy = ? WHERE id = ?")
             ->execute(array_merge($vals, [$id]));
