@@ -301,6 +301,129 @@ final class SubscriptionsTest extends AppTestCase
         }
     }
 
+    // ------------------------------------------------------------------ contacts and IP addresses
+
+    public function testBlockMaths(): void
+    {
+        $b = sub_parse_cidr('126.209.8.32/28');
+        $this->assertTrue($b['ok']);
+        $this->assertSame(['255.255.255.240', '126.209.8.33', '126.209.8.46', '126.209.8.47', 14],
+                          [$b['mask'], $b['first'], $b['last'], $b['broadcast'], $b['usable']]);
+        $b = sub_parse_cidr('209.146.22.56 / 30');
+        $this->assertSame(['255.255.255.252', '209.146.22.57', '209.146.22.58', 2], [$b['mask'], $b['first'], $b['last'], $b['usable']]);
+        $this->assertSame(1, sub_parse_cidr('10.0.0.5/32')['usable']);
+        $this->assertStringContainsString('126.209.8.32/28', sub_parse_cidr('126.209.8.33/28')['msg'], 'suggests the real start');
+        $this->assertStringContainsString('/28', sub_parse_cidr('126.209.8.32')['msg'], 'asks for the size');
+        $this->assertFalse(sub_parse_cidr('10.0.0.0/16')['ok'], 'too big to list');
+        $this->assertFalse(sub_parse_cidr('300.1.1.0/24')['ok']);
+    }
+
+    public function testIpBlocksAndAddresses(): void
+    {
+        $id = $this->add(['category' => 'infra', 'name' => 'Infinivan internet']);
+        $save = function (array $d) use ($id) { return $this->act('ipblock_save', $d + ['itemId' => $id]); };
+
+        $r = $save(['cidr' => '126.209.8.32/28', 'gateway' => '126.209.8.33', 'assign' => json_encode([['ip' => '126.209.8.33', 'note' => 'Router']])]);
+        $this->assertSame(422, $r['status'], 'the gateway cannot be assigned');
+        $this->assertNull($this->row('SELECT id FROM sub_ipblocks'), 'nothing half-saved');
+        $this->assertSame(422, $save(['cidr' => '126.209.8.32/28', 'gateway' => '126.209.9.1'])['status'], 'gateway outside the block');
+
+        $r = $save(['cidr' => '126.209.8.32/28', 'gateway' => '126.209.8.33', 'dns' => '8.8.8.8', 'label' => 'Public block',
+                    'assign' => json_encode([['ip' => '126.209.8.38', 'note' => 'CCTV'], ['ip' => '126.209.8.37', 'state' => 'conflict', 'note' => 'IP conflict'],
+                                             ['ip' => '126.209.8.36', 'note' => '']])]);
+        $this->assertSame(200, $r['status'], $r['body']);
+        $block = (int) $r['json']['id'];
+
+        $net = $this->act('item', ['id' => $id])['json']['item']['network'][0];
+        $this->assertSame('255.255.255.240', $net['mask']);
+        $this->assertSame(['used' => 1, 'reserved' => 0, 'conflict' => 1, 'free' => 11], $net['counts'], 'blank lines are not stored');
+        $this->assertSame(['gateway', 'free 34-36', 'conflict', 'used', 'free 39-46'], array_map(function ($row) {
+            if (!empty($row['gateway'])) { return 'gateway'; }
+            if (!empty($row['free'])) { return 'free ' . substr($row['from'], 10) . '-' . substr($row['to'], 10); }
+            return $row['state'];
+        }, $net['rows']), 'runs of free addresses fold into one row');
+
+        // blocks of one company never overlap
+        $other = $this->add(['category' => 'infra', 'name' => 'Office LAN']);
+        $r = $this->act('ipblock_save', ['itemId' => $other, 'cidr' => '126.209.8.40/29']);
+        $this->assertSame(422, $r['status']);
+        $this->assertStringContainsString('Infinivan internet', $r['json']['msg']);
+
+        // one address at a time
+        $ip = function (array $d) use ($block) { return $this->act('ip_save', $d + ['blockId' => $block]); };
+        $this->assertSame(422, $ip(['ip' => '126.209.8.47', 'note' => 'x'])['status'], 'the broadcast address is not usable');
+        $this->assertSame(422, $ip(['ip' => '126.209.8.45'])['status'], 'say what uses it');
+        $this->assertSame(200, $ip(['ip' => '126.209.8.45', 'note' => 'Backup Dialer 3'])['status']);
+        $this->assertSame(200, $ip(['ip' => '126.209.8.40', 'state' => 'reserved'])['status'], 'reserved needs no note');
+        $this->assertSame('Backup Dialer 3', $this->row("SELECT Note FROM sub_ips WHERE Ip = '126.209.8.45'")['Note']);
+        $this->assertSame(200, $this->act('ip_free', ['blockId' => $block, 'ip' => '126.209.8.45'])['status']);
+        $this->assertNull($this->row("SELECT id FROM sub_ips WHERE Ip = '126.209.8.45'"));
+
+        // shrinking must keep every address that is set
+        $r = $save(['id' => $block, 'cidr' => '126.209.8.32/30', 'gateway' => '126.209.8.33']);
+        $this->assertSame(422, $r['status']);
+        $this->assertStringContainsString('126.209.8.37', $r['json']['msg']);
+
+        // a login can be linked by those who may see logins; deleting it clears the link
+        $this->assertSame(200, $ip(['ip' => '126.209.8.38', 'note' => 'CCTV', 'credId' => 999])['status'], 'ignored without the logins right');
+        $this->assertNull($this->row("SELECT CredID FROM sub_ips WHERE Ip = '126.209.8.38'")['CredID']);
+        $this->vaultKey(self::VAULT_KEY);
+        $this->grantCreds();
+        $cred = (int) $this->act('cred_save', ['itemId' => $id, 'label' => '3004-A CCTV', 'url' => '126.209.8.38', 'username' => 'admin', 'secret' => 'x'])['json']['id'];
+        $this->assertSame(422, $ip(['ip' => '126.209.8.38', 'note' => 'CCTV', 'credId' => 999])['status']);
+        $this->assertSame(200, $ip(['ip' => '126.209.8.38', 'note' => 'CCTV', 'credId' => $cred])['status']);
+        $item = $this->act('item', ['id' => $id])['json']['item'];
+        $row = array_values(array_filter($item['network'][0]['rows'], function ($x) { return ($x['ip'] ?? '') === '126.209.8.38'; }))[0];
+        $this->assertSame('3004-A CCTV', $row['credLabel']);
+        $this->assertContains($cred, array_column($item['credOptions'], 'id'));
+        $this->act('cred_delete', ['id' => $cred]);
+        $this->assertNull($this->row("SELECT CredID FROM sub_ips WHERE Ip = '126.209.8.38'")['CredID']);
+
+        // deleting the item takes its blocks and addresses with it
+        $this->assertSame(200, $this->act('item_delete', ['id' => $id])['status']);
+        $this->assertNull($this->row('SELECT id FROM sub_ipblocks WHERE ItemID = ?', [$id]));
+        $this->assertNull($this->row('SELECT id FROM sub_ips WHERE BlockID = ?', [$block]));
+    }
+
+    public function testContacts(): void
+    {
+        $id = $this->add(['category' => 'infra', 'name' => 'Infinivan internet']);
+        $r = $this->act('contact_save', ['itemId' => $id, 'name' => 'Jen', 'role' => 'Account manager', 'phone' => '#09178469655']);
+        $this->assertSame(200, $r['status'], $r['body']);
+        $this->assertSame('09178469655', $this->row("SELECT Phone FROM sub_contacts WHERE Name = 'Jen'")['Phone'], 'the sheet\'s # is dropped');
+
+        $this->assertSame(422, $this->act('contact_save', ['itemId' => $id, 'name' => 'Nobody'])['status'], 'a phone or e-mail is needed');
+        $this->assertSame(422, $this->act('contact_save', ['itemId' => $id, 'name' => 'X', 'email' => 'not-an-email'])['status']);
+        $this->assertSame(422, $this->act('contact_save', ['itemId' => $id, 'name' => 'X', 'phone' => 'call me'])['status']);
+        $this->assertSame(200, $this->act('contact_save', ['itemId' => $id, 'name' => 'Office', 'phone' => '(02) 8634-7482 loc 12'])['status']);
+
+        // several at once (pasted), all or nothing
+        $list = [['name' => 'Ma\'am Maricel', 'role' => 'Building admin', 'phone' => '09770236870'], ['name' => 'Storage', 'email' => 'bad@']];
+        $this->assertSame(422, $this->act('contact_save', ['itemId' => $id, 'list' => json_encode($list)])['status']);
+        $this->assertNull($this->row("SELECT id FROM sub_contacts WHERE Name = 'Ma''am Maricel'"));
+        $list[1]['email'] = 'storage@example.com';
+        $r = $this->act('contact_save', ['itemId' => $id, 'list' => json_encode($list)]);
+        $this->assertSame(200, $r['status'], $r['body']);
+        $this->assertSame(2, $r['json']['count']);
+
+        $item = $this->act('item', ['id' => $id])['json']['item'];
+        $this->assertSame(['Jen', 'Office', 'Ma\'am Maricel', 'Storage'], array_column($item['contacts'], 'name'), 'in the order added');
+
+        // the Contacts tab: every item's contacts, with the item
+        $all = $this->act('contacts')['json']['contacts'];
+        $this->assertCount(4, $all);
+        $this->assertSame('Infinivan internet', $all[0]['item']);
+
+        $jen = (int) $item['contacts'][0]['id'];
+        $this->assertSame(200, $this->act('contact_save', ['id' => $jen, 'name' => 'Jen', 'phone' => '09170000000'])['status']);
+        $this->assertSame('09170000000', $this->row('SELECT Phone FROM sub_contacts WHERE id = ?', [$jen])['Phone']);
+        $this->assertSame(200, $this->act('contact_delete', ['id' => $jen])['status']);
+        $this->assertCount(3, $this->act('contacts')['json']['contacts']);
+
+        $this->act('item_delete', ['id' => $id]);
+        $this->assertCount(0, $this->act('contacts')['json']['contacts'], 'they go with the item');
+    }
+
     public function testDateHelpers(): void
     {
         $this->assertSame('2027-02-28', sub_add_months('2027-01-31', 1));
