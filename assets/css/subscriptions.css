@@ -365,3 +365,43 @@ html.wdapp .sub-summary .wd-stat__label, html.wdapp .sub-summary .wd-stat__value
 .sub-imp__rows li.is-skip label { opacity: .55; cursor: default; }
 .sub-imp-done { list-style: none; margin: 12px 0 0; padding: 0; display: grid; gap: 6px; }
 .sub-imp-done a { display: inline-flex; align-items: center; gap: 8px; }
+
+/* ---- contacts and IP addresses (item panel, Contacts tab) ---- */
+.sub-h__btns { display: inline-flex; gap: 6px; }
+.sub-contacts { list-style: none; margin: 0; padding: 0; }
+.sub-contact { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; padding: 8px 0; border-bottom: 1px solid var(--border); }
+.sub-contact:last-child { border-bottom: 0; }
+.sub-contact__who { flex: 1 1 180px; min-width: 0; font-size: 13.5px; overflow-wrap: anywhere; }
+.sub-contact__who b { color: var(--text); }
+.sub-contact__how { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; }
+.sub-contact__how .wd-btn { max-width: 100%; overflow-wrap: anywhere; }
+.sub-cgroup { padding: 12px 0; border-bottom: 1px solid var(--border); }
+.sub-cgroup:last-child { border-bottom: 0; }
+.sub-cgroup__item { font-weight: 700; display: inline-flex; align-items: center; gap: 6px; }
+.sub-block { border: 1px solid var(--border); border-radius: var(--radius-lg); padding: 12px; margin: 0 0 10px; }
+.sub-block__head { display: flex; align-items: flex-start; justify-content: space-between; gap: 10px; }
+.sub-block__head b { font-size: 14.5px; color: var(--text); font-family: ui-monospace, SFMono-Regular, Consolas, monospace; }
+.sub-block__facts { margin-top: 3px; font-size: 12px; color: var(--text-3); overflow-wrap: anywhere; }
+.sub-block__counts { display: flex; gap: 6px; flex-wrap: wrap; margin: 8px 0; }
+.sub-ips { list-style: none; margin: 0; padding: 0; border-top: 1px solid var(--border); }
+.sub-ip { display: flex; align-items: center; gap: 10px; padding: 6px 2px; border-bottom: 1px solid var(--border); font-size: 13px; }
+.sub-ip:last-child { border-bottom: 0; }
+.sub-ip__addr { flex: 0 0 auto; min-width: 120px; font-family: ui-monospace, SFMono-Regular, Consolas, monospace; color: var(--text); }
+.sub-ip__what { flex: 1 1 auto; min-width: 0; overflow-wrap: anywhere; }
+.sub-ip__login { font-size: 12px; white-space: nowrap; }
+.sub-ip .sub-x, .sub-ip .wd-btn { margin-left: auto; flex: 0 0 auto; }
+.sub-ip--free, .sub-ip--gw { background: var(--surface-2); }
+.sub-ip--free .sub-ip__addr, .sub-ip--gw .sub-ip__addr { color: var(--text-3); }
+.sub-ip--conflict { background: var(--danger-bg); }
+.sub-netcalc { display: flex; flex-direction: column; gap: 4px; margin: -4px 0 14px; font-size: 12.5px; color: var(--text-2); }
+.sub-netcalc:empty { display: none; }
+.sub-netcalc__warn { color: var(--danger-text); font-weight: 600; }
+.sub-imp-prev { margin-top: 8px; font-size: 12.5px; }
+.sub-imp-prev:empty { display: none; }
+.sub-imp-prev ul { list-style: none; margin: 6px 0; padding: 0; max-height: 220px; overflow-y: auto; }
+.sub-imp-prev li { padding: 3px 0; border-top: 1px solid var(--border); overflow-wrap: anywhere; }
+.sub-imp-prev li.is-skip { opacity: .55; }
+@media (max-width: 640px) {
+  .sub-ip__addr { min-width: 104px; }
+  .sub-ip__login { white-space: normal; }
+}

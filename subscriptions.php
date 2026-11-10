@@ -115,6 +115,7 @@ $v = function ($f) { return @filemtime(__DIR__ . '/' . $f) ?: 0; };
           <button type="button" class="lcy-tab" data-tab="security"><i class="fa-solid fa-shield-halved"></i> Security</button>
           <button type="button" class="lcy-tab" data-tab="philgeps"><i class="fa-solid fa-landmark"></i> PhilGEPS</button>
           <button type="button" class="lcy-tab" data-tab="infra"><i class="fa-solid fa-network-wired"></i> Infrastructure</button>
+          <button type="button" class="lcy-tab" data-tab="contacts"><i class="fa-solid fa-address-book"></i> Contacts</button>
           <button type="button" class="lcy-tab" data-tab="reminders"><i class="fa-solid fa-bell"></i> Reminders</button>
         </div>
 
@@ -124,6 +125,13 @@ $v = function ($f) { return @filemtime(__DIR__ . '/' . $f) ?: 0; };
             <label class="lcy-check"><input type="checkbox" id="subShowCancelled"> Show cancelled</label>
           </div>
           <div id="subList"><div class="lcy-empty">Loading&hellip;</div></div>
+        </section>
+
+        <section class="wd-card sub-pane lcy-hidden" id="subPaneContacts">
+          <div class="sub-toolbar">
+            <input type="search" class="wd-input" id="subCQ" placeholder="Search name, phone, company&hellip;" aria-label="Search contacts">
+          </div>
+          <div id="subContacts"></div>
         </section>
 
         <section class="wd-card sub-pane lcy-hidden" id="subPaneReminders">

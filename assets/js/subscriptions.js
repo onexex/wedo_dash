@@ -253,9 +253,10 @@
   function setTab(t) {
     tab = t;
     each($id('subTabs'), '.lcy-tab', function (b) { b.classList.toggle('is-on', b.getAttribute('data-tab') === t); });
-    $id('subPaneList').classList.toggle('lcy-hidden', t === 'reminders');
+    $id('subPaneList').classList.toggle('lcy-hidden', t === 'reminders' || t === 'contacts');
     $id('subPaneReminders').classList.toggle('lcy-hidden', t !== 'reminders');
-    if (t === 'reminders') { loadReminders(); } else { filterBy = ''; drawList(); }
+    $id('subPaneContacts').classList.toggle('lcy-hidden', t !== 'contacts');
+    if (t === 'reminders') { loadReminders(); } else if (t === 'contacts') { loadContacts(); } else { filterBy = ''; drawList(); }
   }
 
   function drawList() {
@@ -433,7 +434,7 @@
         + fact('Owner', esc(i.owner || 'No owner')) + fact('Watchers', esc(i.watcherNames.join(', ')))
         + (noExp(i.category) ? '' : fact('Reminders start', i.notifyDays + ' days before expiry')) + '</dl>';
       if (i.notes) { h += '<h4 class="sub-h">Notes</h4><p class="sub-notes">' + esc(i.notes) + '</p>'; }
-      h += vaultHtml(i);
+      h += contactsHtml(i) + vaultHtml(i) + networkHtml(i);
 
       // files
       var loose = i.files.filter(function (f) { return !f.reqId; });
@@ -481,6 +482,7 @@
         });
       });
       wireVault(i);
+      wireNet(i);
       var up = $id('subUpload');
       up.elements.file.addEventListener('change', function () {
         if (!up.elements.file.files.length) { return; }
@@ -724,6 +726,302 @@
     return f;
   }
 
+  /* ------------------------------------------------------------ contacts and IP addresses
+     Contacts: who to call about an item. IP addresses: an item's IPv4 blocks and what each usable
+     address is for; free ones are worked out from the block, not stored. Neither holds a password,
+     so the Subscriptions right is enough. Both can be pasted straight from the team's sheet. */
+  function ipInt(s) {
+    var m = /^(\d{1,3})\.(\d{1,3})\.(\d{1,3})\.(\d{1,3})$/.exec(String(s || '').trim());
+    if (!m || m.slice(1).some(function (x) { return +x > 255; })) { return null; }
+    return ((+m[1] << 24) >>> 0) + (+m[2] << 16) + (+m[3] << 8) + (+m[4]);
+  }
+  function intIp(n) { return [n >>> 24, (n >>> 16) & 255, (n >>> 8) & 255, n & 255].join('.'); }
+  /** Same rules as sub_parse_cidr(): {cidr, mask, first, last, broadcast, usable} plus error when it is not a usable block. */
+  function blockMath(text) {
+    var t = String(text || '').replace(/\s+/g, ''), m = /^([\d.]+)\/(\d{1,2})$/.exec(t);
+    if (!t) { return { error: '' }; }
+    if (!m) { return { error: ipInt(t) !== null ? 'Add the block size after the address, e.g. ' + t + '/28.' : 'Enter the block as address/size, e.g. 126.209.8.32/28.' }; }
+    var ip = ipInt(m[1]), p = +m[2];
+    if (ip === null) { return { error: m[1] + ' is not an IPv4 address.' }; }
+    if (p < 22 || p > 32) { return { error: 'Blocks from /22 to /32 only.' }; }
+    var mask = (0xFFFFFFFF << (32 - p)) >>> 0, net = (ip & mask) >>> 0, bc = (net | (~mask >>> 0)) >>> 0, small = p >= 31;
+    var b = { cidr: intIp(net) + '/' + p, mask: intIp(mask), first: small ? net : net + 1, last: small ? bc : bc - 1, broadcast: small ? '' : intIp(bc) };
+    b.usable = b.last - b.first + 1;
+    if (net !== ip) { b.error = m[1] + '/' + p + ' does not start a block. Did you mean ' + b.cidr + '?'; }
+    return b;
+  }
+  /** "126.209.8.39" .. "126.209.8.46" -> ".46" (the part that differs) */
+  function tailOf(a, b) { var x = a.split('.'), y = b.split('.'), k = 0; while (k < 3 && x[k] === y[k]) { k++; } return '.' + y.slice(k).join('.'); }
+  function telHref(p) { return p.replace(/\s*(ext|loc|local)\.?\s*(\d+)$/i, ',$2').replace(/[^\d+,]/g, ''); }
+
+  function contactLine(c, editable) {
+    return '<li class="sub-contact"><div class="sub-contact__who"><b>' + esc(c.name) + '</b>' + (c.role ? ' <span class="lcy-muted">· ' + esc(c.role) + '</span>' : '')
+      + (c.notes ? '<br><span class="lcy-muted">' + esc(c.notes) + '</span>' : '') + '</div><div class="sub-contact__how">'
+      + (c.phone ? '<a class="wd-btn wd-btn--ghost wd-btn--sm" href="tel:' + esc(telHref(c.phone)) + '"><i class="fa-solid fa-phone"></i> ' + esc(c.phone) + '</a>' : '')
+      + (c.email ? '<a class="wd-btn wd-btn--ghost wd-btn--sm" href="mailto:' + esc(c.email) + '"><i class="fa-regular fa-envelope"></i> ' + esc(c.email) + '</a>' : '')
+      + (editable ? '<button type="button" class="sub-x" data-contact="' + c.id + '" title="Edit" aria-label="Edit ' + esc(c.name) + '"><i class="fa-solid fa-pen"></i></button>' : '')
+      + '</div></li>';
+  }
+  function contactsHtml(i) {
+    if (!i.netReady) { return ''; }
+    var h = '<h4 class="sub-h">Contacts <span class="sub-h__btns">'
+      + '<button type="button" class="wd-btn wd-btn--ghost wd-btn--sm" data-net="contactpaste"><i class="fa-solid fa-paste"></i> Paste</button>'
+      + '<button type="button" class="wd-btn wd-btn--ghost wd-btn--sm" data-net="contactadd"><i class="fa-solid fa-plus"></i> Add</button></span></h4>';
+    if (!i.contacts.length) { return h + '<p class="lcy-muted">Who to call about it: the support line, an account manager, the building admin.</p>'; }
+    return h + '<ul class="sub-contacts">' + i.contacts.map(function (c) { return contactLine(c, true); }).join('') + '</ul>';
+  }
+
+  function networkHtml(i) {
+    if (!i.netReady || (!i.network.length && i.category !== 'infra' && i.category !== 'hosting')) { return ''; }
+    var h = '<h4 class="sub-h">IP addresses <button type="button" class="wd-btn wd-btn--ghost wd-btn--sm" data-net="blockadd"><i class="fa-solid fa-plus"></i> Add block</button></h4>';
+    if (!i.network.length) { return h + '<p class="lcy-muted">Add the block your provider gave you (e.g. 126.209.8.32/28) and note what each address is used for.</p>'; }
+    return h + i.network.map(function (b) {
+      var c = b.counts;
+      return '<div class="sub-block"><div class="sub-block__head"><div><b>' + esc(b.cidr) + '</b>' + (b.label ? ' <span class="lcy-muted">' + esc(b.label) + '</span>' : '')
+        + '<div class="sub-block__facts">Mask ' + esc(b.mask) + (b.gateway ? ' · Gateway ' + esc(b.gateway) : '')
+        + ' · Usable ' + esc(b.first) + (b.usable > 1 ? '–' + esc(tailOf(b.first, b.last)) : '') + ' (' + b.usable + ')'
+        + (b.broadcast ? ' · Broadcast ' + esc(b.broadcast) : '') + (b.dns ? ' · DNS ' + esc(b.dns) : '') + '</div></div>'
+        + '<button type="button" class="sub-x" data-block="' + b.id + '" title="Edit block" aria-label="Edit ' + esc(b.cidr) + '"><i class="fa-solid fa-pen"></i></button></div>'
+        + '<div class="sub-block__counts">' + pill('ok', c.used + ' in use') + (c.reserved ? pill('info', c.reserved + ' reserved') : '')
+        + (c.conflict ? pill('danger', c.conflict + (c.conflict === 1 ? ' conflict' : ' conflicts')) : '') + pill('info', c.free + ' free') + '</div>'
+        + '<ul class="sub-ips">' + b.rows.map(function (r) {
+          if (r.gateway) { return '<li class="sub-ip sub-ip--gw"><span class="sub-ip__addr">' + esc(r.ip) + '</span><span class="sub-ip__what lcy-muted">Gateway</span></li>'; }
+          if (r.free) {
+            return '<li class="sub-ip sub-ip--free"><span class="sub-ip__addr">' + esc(r.from) + (r.count > 1 ? '–' + esc(tailOf(r.from, r.to)) : '') + '</span>'
+              + '<span class="sub-ip__what lcy-muted">' + (r.count > 1 ? r.count + ' free' : 'free') + '</span>'
+              + '<button type="button" class="wd-btn wd-btn--ghost wd-btn--sm" data-ipnew="' + b.id + '" data-ip="' + esc(r.from) + '">Assign</button></li>';
+          }
+          return '<li class="sub-ip sub-ip--' + esc(r.state) + '"><span class="sub-ip__addr">' + esc(r.ip) + '</span><span class="sub-ip__what">' + esc(r.note || r.stateLabel)
+            + (r.credLabel ? ' <span class="lcy-muted sub-ip__login"><i class="fa-solid fa-key"></i> ' + esc(r.credLabel) + '</span>' : '') + '</span>'
+            + (r.state !== 'used' ? pill(r.state === 'conflict' ? 'danger' : 'info', r.stateLabel) : '')
+            + '<button type="button" class="sub-x" data-ipedit="' + b.id + '" data-ip="' + esc(r.ip) + '" title="Edit" aria-label="Edit ' + esc(r.ip) + '"><i class="fa-solid fa-pen"></i></button></li>';
+        }).join('') + '</ul></div>';
+    }).join('');
+  }
+
+  function wireNet(i) {
+    var root = $id('subModalBody');
+    var blockOf = function (id) { return i.network.filter(function (b) { return b.id === +id; })[0]; };
+    each(root, '[data-net]', function (b) {
+      b.addEventListener('click', function () {
+        var a = b.getAttribute('data-net');
+        if (a === 'contactadd') { contactForm(i, null); }
+        if (a === 'contactpaste') { contactPaste(i); }
+        if (a === 'blockadd') { blockForm(i, null); }
+      });
+    });
+    each(root, '[data-contact]', function (b) {
+      b.addEventListener('click', function () { contactForm(i, i.contacts.filter(function (c) { return c.id === +b.getAttribute('data-contact'); })[0]); });
+    });
+    each(root, '[data-block]', function (b) { b.addEventListener('click', function () { blockForm(i, blockOf(b.getAttribute('data-block'))); }); });
+    each(root, '[data-ipnew],[data-ipedit]', function (b) {
+      b.addEventListener('click', function () {
+        var editing = b.hasAttribute('data-ipedit'), blk = blockOf(b.getAttribute(editing ? 'data-ipedit' : 'data-ipnew')), ip = b.getAttribute('data-ip');
+        ipForm(i, blk, blk.rows.filter(function (r) { return r.ip === ip; })[0] || { ip: ip, state: 'used', note: '' }, editing);
+      });
+    });
+  }
+
+  function contactForm(i, c) {
+    var editing = !!c;
+    c = c || {};
+    var html = field('Name', input('name', c.name, 'text', ' maxlength="100" required placeholder="Jen, Support line, Building admin"'))
+      + field('Role', input('role', c.role, 'text', ' maxlength="100" placeholder="Account manager, Technical support"'), 'optional')
+      + '<div class="sub-2col">' + field('Phone', input('phone', c.phone, 'tel', ' maxlength="50" placeholder="0917 123 4567"'))
+      + field('E-mail', input('email', c.email, 'email', ' maxlength="150"')) + '</div>'
+      + field('Notes', input('notes', c.notes, 'text', ' maxlength="255" placeholder="Office hours, account number…"'), 'optional')
+      + (editing ? '<button type="button" class="wd-btn wd-btn--ghost wd-btn--sm sub-danger" id="subContactDel"><i class="fa-regular fa-trash-can"></i> Delete contact</button>' : '');
+    var back = function () { openItem(i.id); };
+    formPanel(editing ? 'Edit contact' : 'Add contact · ' + i.name, html, 'contact_save', editing ? { id: c.id } : { itemId: i.id }, editing ? 'Save' : 'Add contact', back, back);
+    if (editing) {
+      $id('subContactDel').addEventListener('click', function () {
+        if (!confirm('Delete ' + c.name + '?')) { return; }
+        L.post('contact_delete', { id: c.id }).then(function (res) { if (res.status !== 'ok') { alert(res.msg); return; } back(); });
+      });
+    }
+  }
+
+  /** "Infinivan - Jen #09178469655", "name@example.com - Malibay Storage": phone and e-mail picked out, the rest is the name. */
+  function readContacts(text) {
+    return String(text || '').split(/\r?\n/).map(function (raw) {
+      var line = raw.replace(/\t+/g, ' - ').trim();
+      if (!line) { return null; }
+      var email = (line.match(/[^\s<>()"',;]+@[^\s<>()"',;]+\.[a-z]{2,}/i) || [''])[0];
+      var phone = (line.match(/#?\s*\+?\(?\d[\d\s().\/-]{5,}\d(\s*(ext|loc|local)\.?\s*\d+)?/i) || [''])[0];
+      var name = [email, phone].reduce(function (t, x) { return x ? t.split(x).join(' ') : t; }, line)
+        .replace(/\s{2,}/g, ' ').replace(/^[\s\-–—:·|,#]+|[\s\-–—:·|,#]+$/g, '').replace(/\s+[\-–—]\s+[\-–—]\s+/g, ' - ').trim();
+      phone = phone.replace(/^#\s*/, '').trim();
+      return { name: (name || email || phone).slice(0, 100), phone: phone, email: email, skip: !phone && !email };
+    }).filter(Boolean);
+  }
+  function contactPaste(i) {
+    var html = '<p class="lcy-muted sub-help">One contact per line, as in your sheet, e.g. <i>Infinivan - Jen #0917…</i> or <i>name@example.com - Malibay Storage</i>. '
+      + 'Phone numbers and e-mails are picked out; the rest becomes the name. You can edit each one afterwards.</p>'
+      + '<textarea class="wd-textarea sub-imp-paste" name="paste" rows="7" spellcheck="false" autocomplete="off" placeholder="Paste here (Ctrl+V)"></textarea>'
+      + '<div class="sub-imp-prev" id="subPastePrev"></div>';
+    var back = function () { openItem(i.id); };
+    var f = formPanel('Paste contacts · ' + i.name, html, 'contact_save', function (form) {
+      return { itemId: i.id, list: JSON.stringify(readContacts(form.elements.paste.value).filter(function (c) { return !c.skip; })
+        .map(function (c) { return { name: c.name, phone: c.phone, email: c.email }; })) };
+    }, 'Add contacts', back, back);
+    f.elements.paste.addEventListener('input', function () {
+      var list = readContacts(f.elements.paste.value), n = list.filter(function (c) { return !c.skip; }).length;
+      $id('subPastePrev').innerHTML = !list.length ? '' : '<b>' + esc(plural(n, 'contact')) + ' to add</b><ul>' + list.map(function (c) {
+        return '<li' + (c.skip ? ' class="is-skip"' : '') + '><b>' + esc(c.name) + '</b> ' + esc(c.skip ? '· no phone or e-mail, left out' : [c.phone, c.email].filter(Boolean).join(' · ')) + '</li>';
+      }).join('') + '</ul>';
+    });
+    f.elements.paste.focus();
+  }
+
+  /**
+   * An IP sheet, in sections: "Network : 209.146.22.56/30" starts one; "Gateway: …", "Subnet: …", "dns …"
+   * belong to it; "126.209.8.38<tab>CCTV" (or "Usable: 126.209.8.34 WIFI") says what an address is for.
+   */
+  function readIpSheet(text) {
+    var secs = [], cur = null;
+    var sec = function () { if (!cur) { cur = { cidr: '', gateway: '', masks: [], dns: [], lines: [] }; secs.push(cur); } return cur; };
+    String(text || '').split(/\r?\n/).forEach(function (raw) {
+      var line = raw.replace(/\t+/g, ' ').trim();
+      var cidr = /(\d{1,3}(?:\.\d{1,3}){3})\s*\/\s*(\d{1,2})/.exec(line);
+      if (cidr) { cur = null; sec().cidr = cidr[1] + '/' + cidr[2]; return; }
+      var ip = /\d{1,3}(?:\.\d{1,3}){3}/.exec(line);
+      if (!ip) { return; }
+      if (/gate\s*way/i.test(line)) { sec().gateway = ip[0]; return; }
+      if (/subnet|mask/i.test(line)) { sec().masks.push(ip[0]); return; }
+      if (/\bdns\b/i.test(line)) { sec().dns.push(ip[0]); return; }
+      var at = line.indexOf(ip[0]);     // a label before the address ("Usable:") is not part of the note
+      var note = (line.slice(0, at).replace(/\b(usable|ip|address)\b\s*:?/ig, ' ') + ' ' + line.slice(at + ip[0].length))
+        .replace(/^[\s:\-–·|]+|[\s:\-–·|]+$/g, '').replace(/\s{2,}/g, ' ');
+      sec().lines.push({ ip: ip[0], note: note.slice(0, 150), state: /conflict/i.test(note) ? 'conflict' : 'used' });
+    });
+    return secs;
+  }
+
+  function blockForm(i, blk) {
+    var editing = !!blk;
+    blk = blk || {};
+    var html = '<div class="sub-2col">' + field('Block', input('cidr', blk.cidr, 'text', ' maxlength="18" required autocomplete="off" spellcheck="false" placeholder="126.209.8.32/28"'), 'address/size')
+      + field('Gateway', input('gateway', blk.gateway, 'text', ' maxlength="15" autocomplete="off" placeholder="126.209.8.33"'), 'optional') + '</div>'
+      + '<div class="sub-netcalc" id="subNetCalc" aria-live="polite"></div>'
+      + '<div class="sub-2col">' + field('DNS', input('dns', blk.dns, 'text', ' maxlength="100" placeholder="From the provider"'), 'optional')
+      + field('Label', input('label', blk.label, 'text', ' maxlength="100" placeholder="Infinivan public IPs"'), 'optional') + '</div>'
+      + '<details class="sub-fold"' + (editing ? '' : ' open') + '><summary><span><b>Paste from your sheet</b><small>Network, gateway and what each address is used for (optional)</small></span>'
+      + '<i class="fa-solid fa-chevron-down"></i></summary><div class="sub-fold__body">'
+      + '<textarea class="wd-textarea sub-imp-paste" name="paste" rows="8" spellcheck="false" autocomplete="off" placeholder="Network: 126.209.8.32/28&#10;Gateway: 126.209.8.33&#10;126.209.8.38&#9;CCTV"></textarea>'
+      + '<div class="sub-imp-prev" id="subIpPrev"></div></div></details>'
+      + (editing ? '<button type="button" class="wd-btn wd-btn--ghost wd-btn--sm sub-danger" id="subBlockDel"><i class="fa-regular fa-trash-can"></i> Delete block</button>' : '');
+    var assign = [], back = function () { openItem(i.id); };
+    var f = formPanel(editing ? 'Edit IP block' : 'Add IP block · ' + i.name, html, 'ipblock_save', function () {
+      return { id: editing ? blk.id : '', itemId: i.id, assign: JSON.stringify(assign) };
+    }, editing ? 'Save' : 'Add block', back, back);
+    var el = f.elements;
+
+    function refresh() {
+      var secs = readIpSheet(el.paste.value), blocks = secs.filter(function (s) { return s.cidr; });
+      if (!el.cidr.value.trim() && blocks.length) {
+        el.cidr.value = blockMath(blocks[0].cidr).cidr || blocks[0].cidr;
+        if (!el.gateway.value.trim()) { el.gateway.value = blocks[0].gateway; }
+      }
+      var b = blockMath(el.cidr.value), gw = ipInt(el.gateway.value), warn = [];
+      var mine = blocks.filter(function (s) { return !b.error && blockMath(s.cidr).cidr === b.cidr; })[0] || (blocks.length ? null : secs[0]);
+      if (mine && mine.gateway && !el.gateway.value.trim()) { el.gateway.value = mine.gateway; gw = ipInt(mine.gateway); }
+      if (mine && mine.dns.length && !el.dns.value.trim()) { el.dns.value = mine.dns.join(', '); }
+
+      // the block, worked out
+      var calc = '';
+      if (b.error) { calc = b.error ? '<span class="sub-netcalc__warn"><i class="fa-solid fa-triangle-exclamation"></i> ' + esc(b.error) + '</span>' : ''; }
+      else {
+        calc = '<i class="fa-solid fa-calculator"></i> Mask <b>' + esc(b.mask) + '</b> · Usable <b>' + esc(intIp(b.first)) + (b.usable > 1 ? '–' + esc(tailOf(intIp(b.first), intIp(b.last))) : '')
+          + '</b> (' + b.usable + ')' + (b.broadcast ? ' · Broadcast ' + esc(b.broadcast) : '');
+        if (el.gateway.value.trim() && (gw === null || gw < b.first || gw > b.last)) { warn.push('The gateway is not inside ' + b.cidr + '.'); }
+        if (mine) {
+          mine.masks.filter(function (m) { return m !== b.mask; }).forEach(function (m) {
+            warn.push('Your sheet says subnet ' + m + ', but a /' + b.cidr.split('/')[1] + ' is ' + b.mask + '. Check which one the router uses.');
+          });
+        }
+      }
+      $id('subNetCalc').innerHTML = calc + warn.map(function (w) { return '<span class="sub-netcalc__warn"><i class="fa-solid fa-triangle-exclamation"></i> ' + esc(w) + '</span>'; }).join('');
+
+      // what the paste will set: only lines inside this block, never the gateway, never blank
+      assign = [];
+      var outside = 0;
+      secs.forEach(function (s) {
+        s.lines.forEach(function (l) {
+          var n = ipInt(l.ip);
+          if (b.error || n === null || n < b.first || n > b.last || n === gw) { outside++; return; }
+          if (l.note) { assign.push(l); }
+        });
+      });
+      var others = blocks.filter(function (s) { return s !== mine; });
+      $id('subIpPrev').innerHTML = (!el.paste.value.trim() ? '' : '<b>' + esc(plural(assign.length, 'address', 'addresses')) + ' to set</b>'
+        + (assign.length ? '<ul>' + assign.map(function (a) { return '<li><b>' + esc(a.ip) + '</b> ' + esc(a.note) + (a.state === 'conflict' ? ' ' + pill('danger', 'Conflict') : '') + '</li>'; }).join('') + '</ul>' : '')
+        + (outside ? '<p class="lcy-muted">' + esc(plural(outside, 'line is', 'lines are')) + ' outside this block and left out.</p>' : '')
+        + (others.length ? '<p class="lcy-muted">This paste has ' + (others.length === 1 ? 'another block' : 'other blocks') + ': '
+          + others.map(function (s) { return '<button type="button" class="sub-pick" data-useblock="' + esc(s.cidr) + '" data-gw="' + esc(s.gateway) + '">' + esc(s.cidr) + '</button>'; }).join(' ')
+          + '. Add it as its own block after saving this one, or switch to it now.</p>' : ''));
+      each($id('subIpPrev'), '[data-useblock]', function (x) {
+        x.addEventListener('click', function () { el.cidr.value = x.getAttribute('data-useblock'); el.gateway.value = x.getAttribute('data-gw'); el.dns.value = ''; refresh(); });
+      });
+    }
+    ['cidr', 'gateway', 'paste'].forEach(function (n) { el[n].addEventListener('input', refresh); });
+    refresh();
+    if (editing) {
+      $id('subBlockDel').addEventListener('click', function () {
+        if (!confirm('Delete ' + blk.cidr + ' and what its addresses are used for?')) { return; }
+        L.post('ipblock_delete', { id: blk.id }).then(function (res) { if (res.status !== 'ok') { alert(res.msg); return; } back(); });
+      });
+    } else { el.cidr.focus(); }
+  }
+
+  function ipForm(i, blk, r, editing) {
+    var opts = [['', 'None']].concat((i.credOptions || []).map(function (c) { return [c.id, c.label]; }));
+    var html = '<p class="sub-renewing"><i class="fa-solid fa-network-wired"></i> <b>' + esc(blk.cidr) + '</b>' + (blk.label ? ' · ' + esc(blk.label) : '') + '</p>'
+      + field('Address', input('ip', r.ip, 'text', ' maxlength="15" required autocomplete="off"' + (editing ? ' readonly' : '')), editing ? '' : blk.first + ' to ' + blk.last)
+      + '<div class="wd-field"><label>State</label><div class="sub-segs">' + Object.keys(look.ipStates).map(function (k) {
+          return chipRadio('state', k, esc(look.ipStates[k]), (r.state || 'used') === k, ' sub-seg');
+        }).join('') + '</div></div>'
+      + field('Used for', input('note', r.note, 'text', ' maxlength="150" placeholder="CCTV, WiFi, Dialer (VICIDIAL)"'))
+      + (opts.length > 1 ? field('Login', select('credId', opts, r.credId || ''), 'the login for what is on it') : '')
+      + (editing ? '<button type="button" class="wd-btn wd-btn--ghost wd-btn--sm sub-danger" id="subIpFree"><i class="fa-solid fa-eraser"></i> Free this address</button>' : '');
+    var back = function () { openItem(i.id); };
+    var f = formPanel((editing ? '' : 'Assign ') + r.ip, html, 'ip_save', { blockId: blk.id }, 'Save', back, back);
+    if (editing) {
+      $id('subIpFree').addEventListener('click', function () {
+        if (!confirm('Mark ' + r.ip + ' as free?')) { return; }
+        L.post('ip_free', { blockId: blk.id, ip: r.ip }).then(function (res) { if (res.status !== 'ok') { alert(res.msg); return; } back(); });
+      });
+      f.elements.note.focus();
+    } else { f.elements.note.focus(); }
+  }
+
+  /* ------------------------------------------------------------ contacts tab: everyone, by item */
+  var contactsAll = [];
+  function loadContacts() {
+    var box = $id('subContacts');
+    box.innerHTML = empty('Loading…');
+    L.post('contacts', { company: company }).then(function (res) {
+      if (res.status !== 'ok') { box.innerHTML = empty(res.msg); return; }
+      contactsAll = res.contacts;
+      drawContacts();
+    });
+  }
+  function drawContacts() {
+    var box = $id('subContacts'), q = $id('subCQ').value.trim().toLowerCase();
+    if (!contactsAll.length) { box.innerHTML = empty('No contacts yet. Open an item (your internet provider, say) and add who to call under Contacts.'); return; }
+    var list = contactsAll.filter(function (c) {
+      return !q || [c.name, c.role, c.phone, c.email, c.notes, c.item, c.company].join(' ').toLowerCase().indexOf(q) >= 0;
+    });
+    if (!list.length) { box.innerHTML = empty('Nothing matches.'); return; }
+    var groups = [], by = {};
+    list.forEach(function (c) { if (!by[c.itemId]) { by[c.itemId] = { c: c, list: [] }; groups.push(by[c.itemId]); } by[c.itemId].list.push(c); });
+    box.innerHTML = groups.map(function (g) {
+      return '<div class="sub-cgroup"><a href="#" class="sub-cgroup__item" data-open="' + g.c.itemId + '">' + catIcon(g.c.category) + ' ' + esc(g.c.item) + '</a>'
+        + (company === 'all' || company === '' ? ' <span class="lcy-muted">' + esc(g.c.company) + '</span>' : '') + (g.c.cancelled ? ' ' + pill('info', 'Cancelled') : '')
+        + '<ul class="sub-contacts">' + g.list.map(function (c) { return contactLine(c, false); }).join('') + '</ul></div>';
+    }).join('');
+    each(box, 'a[data-open]', function (a) { a.addEventListener('click', function (ev) { ev.preventDefault(); openItem(+a.getAttribute('data-open')); }); });
+  }
+
   /* ------------------------------------------------------------ import logins
      Move a spreadsheet of logins (e.g. the team's Google Sheet) into the vault in one go.
      1. Paste: copy the table in Google Sheets and paste it. It is read here, in the browser;
@@ -943,7 +1241,7 @@
 
   function itemForm(i, presetCat) {
     var editing = !!i;
-    i = i || { category: presetCat || (tab !== 'all' && tab !== 'reminders' ? tab : 'domain'), cycle: 12, notifyDays: '', autoRenew: false, watchers: [],
+    i = i || { category: presetCat || (look.categories[tab] ? tab : 'domain'), cycle: 12, notifyDays: '', autoRenew: false, watchers: [],
                companyId: company !== 'all' ? company : look.myCompany, ownerId: BOOT.me };
     var defLead = function (c) { return c === 'philgeps' ? look.notifyPhilgeps : look.notifyDefault; };
     var lead = +i.notifyDays || defLead(i.category);
@@ -1166,11 +1464,13 @@
   });
   $('#subModal').on('hidden.bs.modal', function () { openId = 0; vaultTimers.forEach(clearTimeout); vaultTimers = []; $id('subModalBody').innerHTML = ''; });
   $id('subAdd').addEventListener('click', function () { itemForm(null); });
+  $id('subCQ').addEventListener('input', drawContacts);
   if ($id('subImport')) { $id('subImport').addEventListener('click', function () { importForm(''); }); }
   $id('subCompany').addEventListener('change', function () {
     company = $id('subCompany').value;
     try { localStorage.setItem('wd-sub-company', company); } catch (e) { /* private window */ }
     load();
+    if (tab === 'contacts') { loadContacts(); }
   });
   each($id('subTabs'), '.lcy-tab', function (b) { b.addEventListener('click', function () { setTab(b.getAttribute('data-tab')); }); });
   $id('subQ').addEventListener('input', drawList);

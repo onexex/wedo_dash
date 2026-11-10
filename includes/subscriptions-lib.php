@@ -198,7 +198,7 @@ function sub_lookups(PDO $pdo, array $scope) {
     return ['categories' => SUB_CATEGORIES, 'cycles' => SUB_CYCLES, 'fileKinds' => SUB_FILE_KINDS, 'people' => $people,
             'companies' => $companies, 'allCompanies' => $scope['all'], 'myCompany' => $scope['company'],
             'philgepsDocs' => SUB_PHILGEPS_DOCS, 'notifyDefault' => SUB_NOTIFY_DEFAULT, 'notifyPhilgeps' => SUB_NOTIFY_PHILGEPS,
-            'noExpiry' => SUB_NO_EXPIRY];
+            'noExpiry' => SUB_NO_EXPIRY, 'ipStates' => SUB_IP_STATES, 'netReady' => sub_net_ready($pdo), 'netSql' => SUB_NET_SQL];
 }
 
 /* ------------------------------------------------------------------ reading */
@@ -457,6 +457,12 @@ function sub_item_detail(PDO $pdo, $id, array $scope, $today = null) {
     $item['watcherNames'] = array_values(array_map(function ($w) use ($holders) { return $holders[$w]['name'] ?? $w; }, $item['watchers']));
     $item['reminders'] = sub_reminder_plan($pdo, $item, $holders, $today);
     $item['vault'] = sub_vault_of($pdo, (int) $id);
+    $item['netReady'] = sub_net_ready($pdo);
+    if ($item['netReady']) {
+        $item['contacts'] = sub_contacts_of($pdo, (int) $id);
+        $item['network'] = sub_network_of($pdo, (int) $id);
+        $item['credOptions'] = sub_cred_options($pdo, (string) $r['CompanyID']);
+    }
     return $item;
 }
 
@@ -615,6 +621,12 @@ function sub_item_delete(PDO $pdo, $id, array $scope, ?string $dir = null) {
     $pdo->beginTransaction();
     try {
         foreach ($creds as $c) { sub_cred_log_add($pdo, $c, (string) ($_SESSION['id'] ?? ''), 'delete'); }   // the log outlives the item
+        if (sub_net_ready($pdo)) {
+            $pdo->prepare("DELETE p FROM sub_ips p JOIN sub_ipblocks b ON b.id = p.BlockID WHERE b.ItemID = :i")->execute([':i' => (int) $id]);
+            $pdo->prepare("UPDATE sub_ips p JOIN sub_creds c ON c.id = p.CredID SET p.CredID = NULL WHERE c.ItemID = :i")->execute([':i' => (int) $id]);
+            $pdo->prepare("DELETE FROM sub_ipblocks WHERE ItemID = :i")->execute([':i' => (int) $id]);
+            $pdo->prepare("DELETE FROM sub_contacts WHERE ItemID = :i")->execute([':i' => (int) $id]);
+        }
         foreach (['sub_files', 'sub_renewals', 'sub_requirements', 'sub_watchers', 'sub_creds'] as $t) {
             $pdo->prepare("DELETE FROM `$t` WHERE ItemID = :i")->execute([':i' => (int) $id]);
         }
@@ -1216,6 +1228,347 @@ function sub_cred_delete(PDO $pdo, $id, array $scope, $actor) {
     $item = $c ? sub_item_row($pdo, $c['ItemID']) : null;
     if (!$c || !$item || !sub_in_scope($item, $scope)) { return sub_fail('That login no longer exists.'); }
     $pdo->prepare("DELETE FROM sub_creds WHERE id = :i")->execute([':i' => (int) $id]);
+    if (sub_net_ready($pdo)) { $pdo->prepare("UPDATE sub_ips SET CredID = NULL WHERE CredID = :i")->execute([':i' => (int) $id]); }
     sub_cred_log_add($pdo, $c, $actor, 'delete');
     return ['ok' => true, 'itemId' => (int) $c['ItemID']];
+}
+
+/* ======================================================================
+   Contacts and IP addresses on items (sql/2026-11-10-add-sub-contacts-ips.sql).
+   Anyone with the Subscriptions right sees and edits them: neither holds a password.
+   ====================================================================== */
+const SUB_IP_STATES     = ['used' => 'In use', 'reserved' => 'Reserved', 'conflict' => 'Conflict'];
+const SUB_IP_MIN_PREFIX = 22;     // up to 1,022 usable addresses per block
+const SUB_NET_SQL       = 'sql/2026-11-10-add-sub-contacts-ips.sql';
+
+function sub_net_ready(PDO $pdo) {
+    static $ok = [];
+    $k = spl_object_id($pdo);
+    if (!isset($ok[$k])) {
+        try { $pdo->query("SELECT 1 FROM sub_ips LIMIT 1"); $pdo->query("SELECT 1 FROM sub_contacts LIMIT 1"); $ok[$k] = true; }
+        catch (Throwable $e) { $ok[$k] = false; }
+    }
+    return $ok[$k];
+}
+
+/** A dotted IPv4 address -> integer, or null. */
+function sub_ip_long($ip) {
+    $ip = trim((string) $ip);
+    if (!preg_match('/^(\d{1,3})\.(\d{1,3})\.(\d{1,3})\.(\d{1,3})$/', $ip, $m)) { return null; }
+    for ($i = 1; $i <= 4; $i++) { if ((int) $m[$i] > 255) { return null; } }
+    return (((int) $m[1]) << 24) | (((int) $m[2]) << 16) | (((int) $m[3]) << 8) | (int) $m[4];
+}
+function sub_long_ip($n) { return long2ip((int) $n); }
+
+/** Everything about a block, worked out from its network address and size. */
+function sub_block_math($network, $prefix) {
+    $prefix = (int) $prefix;
+    $mask = $prefix === 0 ? 0 : ((0xFFFFFFFF << (32 - $prefix)) & 0xFFFFFFFF);
+    $net = sub_ip_long($network) & $mask;
+    $bcast = $net | (~$mask & 0xFFFFFFFF);
+    $small = $prefix >= 31;                                  // /31 and /32 have no network or broadcast address
+    $first = $small ? $net : $net + 1;
+    $last = $small ? $bcast : $bcast - 1;
+    return ['network' => sub_long_ip($net), 'prefix' => $prefix, 'cidr' => sub_long_ip($net) . '/' . $prefix, 'mask' => sub_long_ip($mask),
+            'broadcast' => $small ? null : sub_long_ip($bcast), 'first' => sub_long_ip($first), 'last' => sub_long_ip($last),
+            'usable' => $last - $first + 1, 'netInt' => $net, 'bcastInt' => $bcast, 'firstInt' => $first, 'lastInt' => $last];
+}
+
+/** "126.209.8.32/28" -> ['ok' => true] + sub_block_math(), or sub_fail(). */
+function sub_parse_cidr($text) {
+    $text = preg_replace('/\s+/', '', (string) $text);
+    if (!preg_match('#^([\d.]+)/(\d{1,2})$#', $text, $m)) {
+        return sub_fail(sub_ip_long($text) !== null ? 'Add the block size after the address, e.g. ' . $text . '/28.' : 'Enter the block as address/size, e.g. 126.209.8.32/28.');
+    }
+    if (sub_ip_long($m[1]) === null) { return sub_fail($m[1] . ' is not an IPv4 address.'); }
+    $p = (int) $m[2];
+    if ($p < SUB_IP_MIN_PREFIX || $p > 32) { return sub_fail('Blocks from /' . SUB_IP_MIN_PREFIX . ' to /32 only.'); }
+    $b = sub_block_math($m[1], $p);
+    if ($b['network'] !== $m[1]) {
+        return sub_fail($m[1] . '/' . $p . ' does not start a block. Did you mean ' . $b['cidr'] . '?');
+    }
+    return ['ok' => true] + $b;
+}
+
+function sub_ip_in_block($ipInt, array $b) { return $ipInt !== null && $ipInt >= $b['firstInt'] && $ipInt <= $b['lastInt']; }
+
+function sub_block_row(PDO $pdo, $id) {
+    $st = $pdo->prepare("SELECT * FROM sub_ipblocks WHERE id = :i");
+    $st->execute([':i' => (int) $id]);
+    return $st->fetch(PDO::FETCH_ASSOC) ?: null;
+}
+
+/** One assignment's fields, checked against its block: ['ok', ip, state, note] or sub_fail(). */
+function sub_ip_clean(array $d, array $b, $gateway) {
+    $ip = trim((string) ($d['ip'] ?? ''));
+    $n = sub_ip_long($ip);
+    if ($n === null) { return sub_fail(($ip === '' ? 'An address' : $ip) . ' is not an IPv4 address.'); }
+    $ip = sub_long_ip($n);
+    if (!sub_ip_in_block($n, $b)) { return sub_fail($ip . ' is not a usable address of ' . $b['cidr'] . ' (' . $b['first'] . ' to ' . $b['last'] . ').'); }
+    if ($gateway !== null && $gateway !== '' && $ip === $gateway) { return sub_fail($ip . ' is the gateway.'); }
+    $state = (string) ($d['state'] ?? 'used');
+    if (!isset(SUB_IP_STATES[$state])) { return sub_fail('Unknown address state.'); }
+    $note = lcy_text($d['note'] ?? '', 150);
+    return ['ok' => true, 'ip' => $ip, 'state' => $state, 'note' => $note];
+}
+
+/**
+ * Add or change a block. $d: id (0 = new), itemId, cidr, gateway, dns, label, and
+ * optionally assign = [{ip, note, state}] (pasted from a sheet) to set in the same go.
+ */
+function sub_ipblock_save(PDO $pdo, array $d, array $scope, $actor) {
+    $id = (int) ($d['id'] ?? 0);
+    $old = $id ? sub_block_row($pdo, $id) : null;
+    if ($id && !$old) { return sub_fail('That IP block no longer exists.'); }
+    $item = sub_item_row($pdo, $old ? $old['ItemID'] : (int) ($d['itemId'] ?? 0));
+    if (!$item || !sub_in_scope($item, $scope)) { return sub_fail('That item no longer exists.'); }
+
+    $b = sub_parse_cidr($d['cidr'] ?? '');
+    if (!$b['ok']) { return $b; }
+    $gw = trim((string) ($d['gateway'] ?? ''));
+    if ($gw !== '') {
+        $g = sub_ip_long($gw);
+        if ($g === null) { return sub_fail('The gateway must be an IPv4 address.'); }
+        if (!sub_ip_in_block($g, $b)) { return sub_fail('The gateway ' . $gw . ' is not inside ' . $b['cidr'] . '.'); }
+        $gw = sub_long_ip($g);
+    }
+    // blocks of one company never overlap (a typo'd size would otherwise go unnoticed)
+    $st = $pdo->prepare("SELECT b.*, i.Name AS ItemName FROM sub_ipblocks b JOIN sub_items i ON i.id = b.ItemID WHERE i.CompanyID = :c AND b.id <> :id");
+    $st->execute([':c' => $item['CompanyID'], ':id' => $id]);
+    foreach ($st->fetchAll(PDO::FETCH_ASSOC) as $o) {
+        $ob = sub_block_math($o['Network'], $o['Prefix']);
+        if ($b['netInt'] <= $ob['bcastInt'] && $ob['netInt'] <= $b['bcastInt']) {
+            return sub_fail($b['cidr'] . ' overlaps ' . $ob['cidr'] . ' on ' . $o['ItemName'] . '.');
+        }
+    }
+    $assign = [];
+    foreach ((array) ($d['assign'] ?? []) as $a) {
+        $c = sub_ip_clean(is_array($a) ? $a : [], $b, $gw);
+        if (!$c['ok']) { return $c; }
+        if ($c['note'] === '' && $c['state'] === 'used') { continue; }
+        $assign[$c['ip']] = $c;
+    }
+    if ($old) {     // a smaller or moved block must still hold every address already set
+        $q = $pdo->prepare("SELECT Ip FROM sub_ips WHERE BlockID = :b");
+        $q->execute([':b' => $id]);
+        $out = array_values(array_filter($q->fetchAll(PDO::FETCH_COLUMN), function ($ip) use ($b, $gw) { return !sub_ip_in_block(sub_ip_long($ip), $b) || $ip === $gw; }));
+        if ($out) { return sub_fail('Free these first, they would fall outside the block or on the gateway: ' . implode(', ', array_slice($out, 0, 5)) . (count($out) > 5 ? ' …' : '') . '.'); }
+    }
+
+    $pdo->beginTransaction();
+    try {
+        $f = [$item['id'], $b['network'], $b['prefix'], $gw === '' ? null : $gw, sub_opt($d['dns'] ?? '', 100), sub_opt($d['label'] ?? '', 100), sub_now(), (string) $actor];
+        if ($old) {
+            $pdo->prepare("UPDATE sub_ipblocks SET ItemID = ?, Network = ?, Prefix = ?, Gateway = ?, Dns = ?, Label = ?, UpdatedAt = ?, UpdatedBy = ? WHERE id = ?")
+                ->execute(array_merge($f, [$id]));
+        } else {
+            $pdo->prepare("INSERT INTO sub_ipblocks (ItemID, Network, Prefix, Gateway, Dns, Label, UpdatedAt, UpdatedBy) VALUES (?,?,?,?,?,?,?,?)")->execute($f);
+            $id = (int) $pdo->lastInsertId();
+        }
+        $up = $pdo->prepare("INSERT INTO sub_ips (BlockID, Ip, State, Note, UpdatedAt, UpdatedBy) VALUES (?,?,?,?,?,?)
+            ON DUPLICATE KEY UPDATE State = VALUES(State), Note = VALUES(Note), UpdatedAt = VALUES(UpdatedAt), UpdatedBy = VALUES(UpdatedBy)");
+        foreach ($assign as $c) { $up->execute([$id, $c['ip'], $c['state'], $c['note'] === '' ? null : $c['note'], sub_now(), (string) $actor]); }
+        $pdo->commit();
+    } catch (Throwable $e) {
+        $pdo->rollBack();
+        throw $e;
+    }
+    sub_audit($pdo, ($old ? 'edited' : 'added') . ' IP block ' . $b['cidr'] . ' on ' . $item['Name'] . ($assign ? ' (' . count($assign) . ' addresses)' : ''));
+    return ['ok' => true, 'id' => $id, 'itemId' => (int) $item['id']];
+}
+
+function sub_ipblock_delete(PDO $pdo, $id, array $scope) {
+    $blk = sub_block_row($pdo, $id);
+    $item = $blk ? sub_item_row($pdo, $blk['ItemID']) : null;
+    if (!$blk || !$item || !sub_in_scope($item, $scope)) { return sub_fail('That IP block no longer exists.'); }
+    $pdo->prepare("DELETE FROM sub_ips WHERE BlockID = :b")->execute([':b' => (int) $id]);
+    $pdo->prepare("DELETE FROM sub_ipblocks WHERE id = :b")->execute([':b' => (int) $id]);
+    sub_audit($pdo, 'deleted IP block ' . $blk['Network'] . '/' . $blk['Prefix'] . ' on ' . $item['Name']);
+    return ['ok' => true, 'itemId' => (int) $item['id']];
+}
+
+/** Set what one address is used for. Only people with the logins right can link a login. */
+function sub_ip_save(PDO $pdo, array $d, array $scope, $actor) {
+    $blk = sub_block_row($pdo, (int) ($d['blockId'] ?? 0));
+    $item = $blk ? sub_item_row($pdo, $blk['ItemID']) : null;
+    if (!$blk || !$item || !sub_in_scope($item, $scope)) { return sub_fail('That IP block no longer exists.'); }
+    $b = sub_block_math($blk['Network'], $blk['Prefix']);
+    $c = sub_ip_clean($d, $b, $blk['Gateway']);
+    if (!$c['ok']) { return $c; }
+    $q = $pdo->prepare("SELECT CredID FROM sub_ips WHERE BlockID = :b AND Ip = :ip");
+    $q->execute([':b' => (int) $blk['id'], ':ip' => $c['ip']]);
+    $had = $q->fetchColumn();
+    $cred = $had === false || $had === null ? null : (int) $had;
+    if (sub_can_creds($pdo)) {
+        $cred = (int) ($d['credId'] ?? 0) ?: null;
+        if ($cred !== null) {
+            $cr = sub_cred_row($pdo, $cred);
+            $ci = $cr ? sub_item_row($pdo, $cr['ItemID']) : null;
+            if (!$ci || !sub_in_scope($ci, $scope) || $ci['CompanyID'] !== $item['CompanyID']) { return sub_fail('That login no longer exists.'); }
+        }
+    }
+    if ($c['state'] === 'used' && $c['note'] === '' && $cred === null) { return sub_fail('Say what uses ' . $c['ip'] . ', e.g. CCTV.'); }
+    $pdo->prepare("INSERT INTO sub_ips (BlockID, Ip, State, Note, CredID, UpdatedAt, UpdatedBy) VALUES (?,?,?,?,?,?,?)
+        ON DUPLICATE KEY UPDATE State = VALUES(State), Note = VALUES(Note), CredID = VALUES(CredID), UpdatedAt = VALUES(UpdatedAt), UpdatedBy = VALUES(UpdatedBy)")
+        ->execute([(int) $blk['id'], $c['ip'], $c['state'], $c['note'] === '' ? null : $c['note'], $cred, sub_now(), (string) $actor]);
+    sub_audit($pdo, 'set ' . $c['ip'] . ' (' . SUB_IP_STATES[$c['state']] . ($c['note'] !== '' ? ': ' . $c['note'] : '') . ') on ' . $item['Name']);
+    return ['ok' => true, 'itemId' => (int) $item['id']];
+}
+
+function sub_ip_free(PDO $pdo, $blockId, $ip, array $scope) {
+    $blk = sub_block_row($pdo, $blockId);
+    $item = $blk ? sub_item_row($pdo, $blk['ItemID']) : null;
+    if (!$blk || !$item || !sub_in_scope($item, $scope)) { return sub_fail('That IP block no longer exists.'); }
+    $pdo->prepare("DELETE FROM sub_ips WHERE BlockID = :b AND Ip = :ip")->execute([':b' => (int) $blockId, ':ip' => trim((string) $ip)]);
+    sub_audit($pdo, 'freed ' . trim((string) $ip) . ' on ' . $item['Name']);
+    return ['ok' => true, 'itemId' => (int) $item['id']];
+}
+
+/**
+ * An item's blocks for the panel: the worked-out facts, counts, and one row per
+ * usable address, with runs of free addresses folded into one row.
+ */
+function sub_network_of(PDO $pdo, $itemId) {
+    $st = $pdo->prepare("SELECT * FROM sub_ipblocks WHERE ItemID = :i ORDER BY INET_ATON(Network)");
+    $st->execute([':i' => (int) $itemId]);
+    $blocks = $st->fetchAll(PDO::FETCH_ASSOC);
+    if (!$blocks) { return []; }
+    $can = sub_can_creds($pdo);
+    $ids = array_map(function ($x) { return (int) $x['id']; }, $blocks);
+    $in = implode(',', array_fill(0, count($ids), '?'));
+    $q = $pdo->prepare("SELECT p.*, c.Label AS CredLabel, c.ItemID AS CredItem FROM sub_ips p LEFT JOIN sub_creds c ON c.id = p.CredID WHERE p.BlockID IN ($in)");
+    $q->execute($ids);
+    $set = [];
+    foreach ($q->fetchAll(PDO::FETCH_ASSOC) as $p) { $set[(int) $p['BlockID']][$p['Ip']] = $p; }
+    $out = [];
+    foreach ($blocks as $blk) {
+        $b = sub_block_math($blk['Network'], $blk['Prefix']);
+        $mine = $set[(int) $blk['id']] ?? [];
+        $rows = []; $free = null; $n = ['used' => 0, 'reserved' => 0, 'conflict' => 0, 'free' => 0];
+        for ($x = $b['firstInt']; $x <= $b['lastInt']; $x++) {
+            $ip = sub_long_ip($x);
+            if ($ip === $blk['Gateway']) { $free = null; $rows[] = ['ip' => $ip, 'gateway' => true]; continue; }
+            if (!isset($mine[$ip])) {
+                $n['free']++;
+                if ($free !== null) { $rows[$free]['to'] = $ip; $rows[$free]['count']++; }
+                else { $rows[] = ['free' => true, 'from' => $ip, 'to' => $ip, 'count' => 1]; $free = count($rows) - 1; }
+                continue;
+            }
+            $free = null;
+            $p = $mine[$ip];
+            $n[$p['State']] = ($n[$p['State']] ?? 0) + 1;
+            $rows[] = ['ip' => $ip, 'state' => $p['State'], 'stateLabel' => SUB_IP_STATES[$p['State']] ?? $p['State'], 'note' => (string) $p['Note'],
+                       'credId' => $p['CredID'] === null ? null : (int) $p['CredID'], 'credItem' => $p['CredItem'] === null ? null : (int) $p['CredItem'],
+                       'credLabel' => $can ? (string) $p['CredLabel'] : ($p['CredID'] !== null ? 'a saved login' : '')];
+        }
+        $out[] = ['id' => (int) $blk['id'], 'cidr' => $b['cidr'], 'mask' => $b['mask'], 'gateway' => (string) $blk['Gateway'], 'broadcast' => $b['broadcast'],
+                  'first' => $b['first'], 'last' => $b['last'], 'usable' => $b['usable'], 'dns' => (string) $blk['Dns'], 'label' => (string) $blk['Label'],
+                  'counts' => $n, 'rows' => $rows];
+    }
+    return $out;
+}
+
+/** Logins an address can point at: every login of the item's company (names only). */
+function sub_cred_options(PDO $pdo, $companyId) {
+    if (!sub_can_creds($pdo)) { return []; }
+    $st = $pdo->prepare("SELECT c.id, c.Label, i.Name FROM sub_creds c JOIN sub_items i ON i.id = c.ItemID WHERE i.CompanyID = :c ORDER BY i.Name, c.Label");
+    $st->execute([':c' => $companyId]);
+    return array_map(function ($r) { return ['id' => (int) $r['id'], 'label' => $r['Label'] . ' (' . $r['Name'] . ')']; }, $st->fetchAll(PDO::FETCH_ASSOC));
+}
+
+/* ------------------------------------------------------------ contacts */
+
+function sub_contact_clean(array $d) {
+    $name = lcy_text($d['name'] ?? '', 100);
+    $phone = trim(preg_replace('/^#\s*/', '', (string) ($d['phone'] ?? '')));
+    $email = trim((string) ($d['email'] ?? ''));
+    if ($name === '') { return sub_fail('Enter the contact\'s name.'); }
+    if ($phone !== '' && (mb_strlen($phone) > 50 || !preg_match('/^\+?[\d\s().\/-]{3,}((\s*(ext|loc|local)\.?\s*)\d+)?$/i', $phone))) {
+        return sub_fail($name . ': the phone number can only have digits, spaces, + ( ) - and "loc 123".');
+    }
+    if ($email !== '' && (mb_strlen($email) > 150 || !filter_var($email, FILTER_VALIDATE_EMAIL))) { return sub_fail($name . ': ' . $email . ' is not an e-mail address.'); }
+    $notes = lcy_text($d['notes'] ?? '', 255);
+    if ($phone === '' && $email === '' && $notes === '') { return sub_fail($name . ': add a phone number or an e-mail.'); }
+    return ['ok' => true, 'name' => $name, 'role' => lcy_text($d['role'] ?? '', 100), 'phone' => $phone, 'email' => strtolower($email), 'notes' => $notes];
+}
+
+function sub_contact_row(PDO $pdo, $id) {
+    $st = $pdo->prepare("SELECT * FROM sub_contacts WHERE id = :i");
+    $st->execute([':i' => (int) $id]);
+    return $st->fetch(PDO::FETCH_ASSOC) ?: null;
+}
+
+/** Add one contact (id 0) or change one; or, with $d['list'], add several (pasted), all or nothing. */
+function sub_contact_save(PDO $pdo, array $d, array $scope, $actor) {
+    $id = (int) ($d['id'] ?? 0);
+    $old = $id ? sub_contact_row($pdo, $id) : null;
+    if ($id && !$old) { return sub_fail('That contact no longer exists.'); }
+    $item = sub_item_row($pdo, $old ? $old['ItemID'] : (int) ($d['itemId'] ?? 0));
+    if (!$item || !sub_in_scope($item, $scope)) { return sub_fail('That item no longer exists.'); }
+    $list = isset($d['list']) ? (array) $d['list'] : [$d];
+    if ($old && count($list) !== 1) { return sub_fail('Change one contact at a time.'); }
+    if (!$list) { return sub_fail('Nothing to add.'); }
+    if (count($list) > 100) { return sub_fail('Add at most 100 contacts at once.'); }
+    $clean = [];
+    foreach ($list as $c) {
+        $c = sub_contact_clean(is_array($c) ? $c : []);
+        if (!$c['ok']) { return $c; }
+        $clean[] = $c;
+    }
+    $q = $pdo->prepare("SELECT COALESCE(MAX(SortOrder), 0) FROM sub_contacts WHERE ItemID = :i");
+    $q->execute([':i' => (int) $item['id']]);
+    $sort = (int) $q->fetchColumn();
+    $pdo->beginTransaction();
+    try {
+        foreach ($clean as $c) {
+            $v = [$c['name'], sub_opt($c['role'], 100), $c['phone'] === '' ? null : $c['phone'], $c['email'] === '' ? null : $c['email'],
+                  sub_opt($c['notes'], 255), sub_now(), (string) $actor];
+            if ($old) {
+                $pdo->prepare("UPDATE sub_contacts SET Name = ?, Role = ?, Phone = ?, Email = ?, Notes = ?, UpdatedAt = ?, UpdatedBy = ? WHERE id = ?")
+                    ->execute(array_merge($v, [$id]));
+            } else {
+                $pdo->prepare("INSERT INTO sub_contacts (Name, Role, Phone, Email, Notes, UpdatedAt, UpdatedBy, ItemID, SortOrder) VALUES (?,?,?,?,?,?,?,?,?)")
+                    ->execute(array_merge($v, [(int) $item['id'], ++$sort]));
+            }
+        }
+        $pdo->commit();
+    } catch (Throwable $e) {
+        $pdo->rollBack();
+        throw $e;
+    }
+    sub_audit($pdo, ($old ? 'edited contact ' : 'added ' . (count($clean) === 1 ? 'contact ' : count($clean) . ' contacts: ')) . implode(', ', array_column($clean, 'name')) . ' on ' . $item['Name']);
+    return ['ok' => true, 'itemId' => (int) $item['id'], 'count' => count($clean)];
+}
+
+function sub_contact_delete(PDO $pdo, $id, array $scope) {
+    $c = sub_contact_row($pdo, $id);
+    $item = $c ? sub_item_row($pdo, $c['ItemID']) : null;
+    if (!$c || !$item || !sub_in_scope($item, $scope)) { return sub_fail('That contact no longer exists.'); }
+    $pdo->prepare("DELETE FROM sub_contacts WHERE id = :i")->execute([':i' => (int) $id]);
+    sub_audit($pdo, 'deleted contact ' . $c['Name'] . ' on ' . $item['Name']);
+    return ['ok' => true, 'itemId' => (int) $item['id']];
+}
+
+function sub_contact_out(array $r) {
+    return ['id' => (int) $r['id'], 'itemId' => (int) $r['ItemID'], 'name' => $r['Name'], 'role' => (string) $r['Role'], 'phone' => (string) $r['Phone'],
+            'email' => (string) $r['Email'], 'notes' => (string) $r['Notes']];
+}
+
+function sub_contacts_of(PDO $pdo, $itemId) {
+    $st = $pdo->prepare("SELECT * FROM sub_contacts WHERE ItemID = :i ORDER BY SortOrder, id");
+    $st->execute([':i' => (int) $itemId]);
+    return array_map('sub_contact_out', $st->fetchAll(PDO::FETCH_ASSOC));
+}
+
+/** Every contact the viewer can see ('' = every company), for the Contacts tab. */
+function sub_contacts_all(PDO $pdo, $company) {
+    $sql = "SELECT c.*, i.Name AS ItemName, i.Category, i.Status, co.CompanyDesc FROM sub_contacts c JOIN sub_items i ON i.id = c.ItemID
+            LEFT JOIN companies co ON co.CompanyID = i.CompanyID WHERE 1 = 1";
+    $args = [];
+    if ($company !== '') { $sql .= " AND i.CompanyID = :c"; $args[':c'] = $company; }
+    $st = $pdo->prepare($sql . " ORDER BY i.Name, c.SortOrder, c.id");
+    $st->execute($args);
+    return array_map(function ($r) {
+        return sub_contact_out($r) + ['item' => $r['ItemName'], 'category' => $r['Category'], 'cancelled' => $r['Status'] === 'cancelled', 'company' => (string) $r['CompanyDesc']];
+    }, $st->fetchAll(PDO::FETCH_ASSOC));
 }

@@ -90,6 +90,35 @@ try {
         if ($action === 'cred_save') { $result(sub_cred_save($pdo, $_POST, $scope, $actor)); }
         $result(sub_cred_delete($pdo, (int) $p('id'), $scope, $actor));
 
+    // contacts and IP addresses (no passwords: the Subscriptions right is enough)
+    case 'contacts':
+    case 'contact_save':
+    case 'contact_delete':
+    case 'ipblock_save':
+    case 'ipblock_delete':
+    case 'ip_save':
+    case 'ip_free':
+        if (!sub_net_ready($pdo)) { sub_out(503, ['status' => 'error', 'msg' => 'Contacts and IP addresses are not set up on this server yet (run ' . SUB_NET_SQL . ').']); }
+        if ($action === 'contacts') { sub_out(200, ['status' => 'ok', 'contacts' => sub_contacts_all($pdo, sub_company_filter($scope, $p('company')))]); }
+        if ($action === 'contact_save') {
+            $d = $_POST;
+            if (isset($_POST['list'])) {
+                $d['list'] = json_decode($p('list'), true);
+                if (!is_array($d['list'])) { sub_out(422, ['status' => 'error', 'msg' => 'The contacts could not be read. Paste them again.']); }
+            }
+            $result(sub_contact_save($pdo, $d, $scope, $actor));
+        }
+        if ($action === 'contact_delete') { $result(sub_contact_delete($pdo, (int) $p('id'), $scope)); }
+        if ($action === 'ipblock_save') {
+            $d = $_POST;
+            $d['assign'] = $p('assign') === '' ? [] : json_decode($p('assign'), true);
+            if (!is_array($d['assign'])) { sub_out(422, ['status' => 'error', 'msg' => 'The pasted addresses could not be read. Paste them again.']); }
+            $result(sub_ipblock_save($pdo, $d, $scope, $actor));
+        }
+        if ($action === 'ipblock_delete') { $result(sub_ipblock_delete($pdo, (int) $p('id'), $scope)); }
+        if ($action === 'ip_save') { $result(sub_ip_save($pdo, $_POST, $scope, $actor)); }
+        $result(sub_ip_free($pdo, (int) $p('blockId'), $p('ip'), $scope));
+
     case 'item_cancel':
         $result(sub_item_status($pdo, (int) $p('id'), 'cancelled', $scope, $actor));
 
