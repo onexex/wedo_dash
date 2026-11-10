@@ -262,7 +262,7 @@ function wd_can($ar, $k) { return isset($ar[$k]) && $ar[$k] == 2; }
       ['payeereg',   'payeereg',        'payeereg',         'book-user',      'Payee Management System'],
       ['schedv',     'schedviewer',     'schedviewer',      'calendar-clock', 'Schedule Viewer'],
       ['separation', 'separation',      'separation',       'user-minus',     'Separation & Lifecycle'],
-      ['subscriptions', 'subscriptions', 'subscriptions',   'globe',          'Subscriptions', $wdSubCount],
+      ['subscriptions', 'subscriptions', 'subscriptions',   'globe',          'Subscriptions & Logins', $wdSubCount],
     ]],
     ['key' => 'maintenance', 'label' => 'Maintenance', 'icon' => 'wrench', 'tone' => 'mnt', 'items' => [
       ['agncy',      'agency',                'maintenance?agency',                'building-2',      'Agencies'],
