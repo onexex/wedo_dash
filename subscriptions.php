@@ -53,7 +53,7 @@ $v = function ($f) { return @filemtime(__DIR__ . '/' . $f) ?: 0; };
 <!DOCTYPE html>
 <html lang="en">
   <head>
-    <title><?php echo ($_SESSION['CompanyName'] ?? '') == "" ? "Subscriptions" : $e($_SESSION['CompanyName']); ?></title>
+    <title><?php echo ($_SESSION['CompanyName'] ?? '') == "" ? "Subscriptions &amp; Logins" : $e($_SESSION['CompanyName']); ?></title>
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <link rel="icon" href="<?php echo (($_SESSION['CompanyLogo'] ?? '') != "") ? $e($_SESSION['CompanyLogo']) : "assets/images/logos/logo-2.png"; ?>" type="image/x-icon">
@@ -76,7 +76,7 @@ $v = function ($f) { return @filemtime(__DIR__ . '/' . $f) ?: 0; };
 
       <div class="wd-pagehead sub-head">
         <div>
-          <h1>Subscriptions</h1>
+          <h1>Subscriptions &amp; Logins</h1>
           <p>Domains, hosting, security services, PhilGEPS and infrastructure logins: what needs renewing, what it costs, and who's on it.</p>
         </div>
 <?php if (sub_ready($subpdo)): ?>
