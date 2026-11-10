@@ -88,6 +88,9 @@ final class SubscriptionsTest extends AppTestCase
         $this->assertStringContainsString('id="subAnswer"', $page['body']);
         $this->assertStringContainsString('assets/js/subscriptions.js', $page['body']);
         $this->assertStringContainsString('href="subscriptions"', $page['body'], 'menu entry');
+        $this->assertStringNotContainsString('id="subImport"', $page['body'], 'importing logins needs the logins right');
+        $this->grantCreds();
+        $this->assertStringContainsString('id="subImport"', $this->request('subscriptions.php', [], [], $this->admin())['body']);
     }
 
     // ------------------------------------------------------------------ register
@@ -506,6 +509,68 @@ final class SubscriptionsTest extends AppTestCase
         $this->assertSame(200, $this->act('item_delete', ['id' => $id])['status']);
         $this->assertSame([], $this->rows('SELECT id FROM sub_creds WHERE ItemID = ?', [$id]));
         $this->assertSame('delete', $this->row('SELECT Action FROM sub_cred_log WHERE CredID = ? ORDER BY id DESC LIMIT 1', [$cid])['Action']);
+    }
+
+    public function testImportLoginsFromASpreadsheet(): void
+    {
+        $groups = function (array $g) { return ['groups' => json_encode($g), 'companyId' => 'TC']; };
+        $routers = ['target' => 'new', 'category' => 'infra', 'name' => 'Office routers', 'rows' => [
+            ['label' => 'Router A', 'url' => '192.168.1.1', 'username' => 'WEDO-A', 'secret' => 'r0uter!', 'notes' => ''],
+            ['label' => 'Router B', 'url' => '192.168.35.1:8080', 'username' => 'WEDO-B', 'secret' => 'r0uter2', 'notes' => 'Back room'],
+        ]];
+
+        // the logins right and an open vault come first
+        $this->assertSame(403, $this->act('cred_import', $groups([$routers]))['status'], 'Subscriptions alone is not enough');
+        $this->grantCreds();
+        $this->vaultKey(null);
+        $this->assertSame(422, $this->act('cred_import', $groups([$routers]))['status'], 'locked vault');
+        $this->vaultKey(self::VAULT_KEY);
+
+        $hosting = $this->add(['category' => 'hosting', 'name' => 'WeDo hosting']);
+        $count = function () { return (int) $this->row('SELECT COUNT(*) AS n FROM sub_creds')['n']; };
+
+        // one bad row stops everything: nothing is half-imported
+        $bad = ['target' => (string) $hosting, 'name' => 'cPanel', 'rows' => [['label' => 'cPanel', 'url' => 'javascript:alert(1)', 'secret' => 'x']]];
+        $r = $this->act('cred_import', $groups([$routers, $bad]));
+        $this->assertSame(422, $r['status']);
+        $this->assertStringContainsString('cPanel', $r['json']['msg'], 'says which row');
+        $this->assertSame(0, $count());
+        $this->assertNull($this->row("SELECT id FROM sub_items WHERE Name = 'Office routers'"));
+
+        $this->assertSame(422, $this->act('cred_import', $groups([['target' => 'new', 'category' => 'philgeps', 'name' => 'PG', 'rows' => $routers['rows']]]))['status'],
+            'a PhilGEPS registration is not made by an import');
+        $this->assertSame(422, $this->act('cred_import', ['groups' => 'not json'])['status']);
+        $this->assertSame(422, $this->act('cred_import', $groups([['target' => 'new', 'name' => 'Empty', 'rows' => []]]))['status'], 'nothing to import');
+
+        // a new Infrastructure item + logins onto an existing item, in one go
+        $cpanel = ['target' => (string) $hosting, 'name' => 'cPanel', 'rows' => [
+            ['label' => 'WeDo cPanel', 'url' => 'https://host.example.com:2083', 'username' => 'wedocp', 'secret' => 'cp-secret'],
+        ]];
+        $r = $this->act('cred_import', $groups([$routers, $cpanel]));
+        $this->assertSame(200, $r['status'], $r['body']);
+        $this->assertSame(3, $r['json']['logins']);
+        $this->assertSame(1, $r['json']['items']);
+        $this->assertCount(2, $r['json']['itemIds']);
+        $this->assertSame(3, $count());
+
+        $item = $this->row("SELECT * FROM sub_items WHERE Name = 'Office routers'");
+        $this->assertSame('infra', $item['Category']);
+        $this->assertSame('TC', $item['CompanyID']);
+        $this->assertNull($item['ExpiresOn']);
+        $this->assertSame(0, (int) $item['CycleMonths']);
+
+        // encrypted like any other login, and readable again
+        $cred = $this->row("SELECT * FROM sub_creds WHERE Label = 'Router A'");
+        $this->assertStringStartsWith('v1:', $cred['SecretEnc']);
+        $this->assertStringNotContainsString('r0uter', implode(' ', $cred));
+        $this->assertSame((int) $item['id'], (int) $cred['ItemID']);
+        $v = $this->act('cred_reveal', ['id' => $cred['id'], 'why' => 'view'])['json']['cred'];
+        $this->assertSame('r0uter!', $v['secret']);
+        $this->assertSame('192.168.1.1', $v['url']);
+        $this->assertSame((string) $hosting, (string) $this->row("SELECT ItemID FROM sub_creds WHERE Label = 'WeDo cPanel'")['ItemID']);
+
+        // each login is logged as imported
+        $this->assertSame(3, (int) $this->row("SELECT COUNT(*) AS n FROM sub_cred_log WHERE Action = 'import'")['n']);
     }
 
     public function testVaultFollowsTheCompanyScope(): void

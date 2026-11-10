@@ -698,7 +698,7 @@
     }).join('') + '</select>';
   }
 
-  /** Shows a form in the panel; submit posts it (multipart) and calls done(res). */
+  /** Shows a form in the panel; submit posts it (multipart) and calls done(res). action may be a function(form) -> res to check it here instead. */
   function formPanel(title, html, action, extra, submitText, done, back) {
     showPanel(title, '<form id="subForm" autocomplete="off">' + html + '<p class="lcy-modal-error" id="subFormErr" role="alert"></p><button type="submit" class="lcy-hidden" tabindex="-1" aria-hidden="true"></button></form>',
       '<button type="button" class="wd-btn wd-btn--ghost" id="subFormBack">' + (back ? 'Back' : 'Cancel') + '</button>'
@@ -712,7 +712,8 @@
       var b = $id('subFormGo');
       b.disabled = true;
       $id('subFormErr').textContent = '';
-      postForm(action, f, typeof extra === 'function' ? extra(f) : extra).then(function (res) {
+      var sent = typeof action === 'function' ? Promise.resolve(action(f)) : postForm(action, f, typeof extra === 'function' ? extra(f) : extra);
+      sent.then(function (res) {
         b.disabled = false;
         if (res.status !== 'ok') { $id('subFormErr').textContent = res.msg; return; }
         done(res);
@@ -721,6 +722,182 @@
     f.addEventListener('submit', function (ev) { ev.preventDefault(); go(); });
     $id('subFormGo').addEventListener('click', go);
     return f;
+  }
+
+  /* ------------------------------------------------------------ import logins
+     Move a spreadsheet of logins (e.g. the team's Google Sheet) into the vault in one go.
+     1. Paste: copy the table in Google Sheets and paste it. It is read here, in the browser;
+        nothing is uploaded or stored until Import.
+     2. Preview: each group (the first column; merged cells carry down) becomes one item, a new
+        Infrastructure item unless it is pointed at an existing one. Rows with nothing to save are
+        left out. 3. Import: one request, all or nothing, every login encrypted and logged. */
+  var IMP_ADDR = /^(https?:\/\/\S+|[a-z0-9][a-z0-9.-]*(:\d{1,5})?(\/\S*)?)$/i;   // = sub_cred_clean()
+  var IMP_COLS = [
+    ['secret', /pass|pwd|pin\b/i],
+    ['user', /user|login|e-?mail|account id/i],
+    ['url', /access\s*\/\s*ip|(^|[^a-z])(ip|url|address|link|host|server|website|sign.?in)([^a-z]|$)/i],
+    ['notes', /note|remark|comment|detail/i],
+    ['group', /group|categor|type|section|kind/i],
+    ['label', /name|label|access|system|service|account/i]
+  ];
+
+  /** Tab-separated text (what Google Sheets and Excel put on the clipboard) -> rows of cells. */
+  function parseTsv(text) {
+    var rows = [], row = [], cell = '', q = false, i = 0, ch;
+    text = String(text || '').replace(/\r\n?/g, '\n');
+    for (; i < text.length; i++) {
+      ch = text.charAt(i);
+      if (q) {
+        if (ch === '"' && text.charAt(i + 1) === '"') { cell += '"'; i++; }
+        else if (ch === '"') { q = false; }
+        else { cell += ch; }
+      } else if (ch === '"' && cell === '') { q = true; }
+      else if (ch === '\t') { row.push(cell); cell = ''; }
+      else if (ch === '\n') { row.push(cell); rows.push(row); row = []; cell = ''; }
+      else { cell += ch; }
+    }
+    if (cell !== '' || row.length) { row.push(cell); rows.push(row); }
+    return rows.map(function (r) { return r.map(function (c) { return c.trim(); }); });
+  }
+
+  /** Rows of cells -> [{name, rows: [{label, url, username, secret, notes, skip}]}]. */
+  function readSheet(text) {
+    var rows = parseTsv(text).filter(function (r) { return r.some(function (c) { return c !== ''; }); });
+    if (!rows.length) { return { error: 'Nothing was pasted. Copy the table in Google Sheets (headers included) and paste it here.' }; }
+    var width = Math.max.apply(null, rows.map(function (r) { return r.length; }));
+    rows = rows.map(function (r) { while (r.length < width) { r.push(''); } return r; });
+    // drop columns that are empty everywhere (a blank column A, say)
+    var used = [];
+    for (var c = 0; c < width; c++) { if (rows.some(function (r) { return r[c] !== ''; })) { used.push(c); } }
+    rows = rows.map(function (r) { return used.map(function (k) { return r[k]; }); });
+    width = used.length;
+
+    // headers: the first row (of the first five) that names a password column
+    var head = -1, map = {};
+    for (var h = 0; h < Math.min(5, rows.length) && head < 0; h++) {
+      if (rows[h].some(function (x) { return /pass|pwd/i.test(x); })) { head = h; }
+    }
+    if (head >= 0) {
+      rows[head].forEach(function (title, k) {
+        if (!title) { return; }
+        for (var j = 0; j < IMP_COLS.length; j++) {
+          if (map[IMP_COLS[j][0]] === undefined && IMP_COLS[j][1].test(title)) { map[IMP_COLS[j][0]] = k; return; }
+        }
+      });
+      // an unnamed first column in front of the names is the group (merged "ROUTER", "GoDaddy" ...)
+      if (map.group === undefined && rows[head][0] === '' && map.label !== 0) { map.group = 0; }
+    } else {
+      var order = width >= 5 ? ['group', 'label', 'url', 'user', 'secret', 'notes'] : ['label', 'url', 'user', 'secret', 'notes'];
+      order.forEach(function (k, n) { if (n < width) { map[k] = n; } });
+    }
+    if (map.secret === undefined && map.user === undefined) {
+      return { error: 'Could not find a Username or Password column. Include the header row when you copy.' };
+    }
+    var known = Object.keys(map).map(function (k) { return map[k]; });
+    var titles = head >= 0 ? rows[head] : [];
+
+    var groups = [], byName = {}, last = '';
+    rows.slice(head + 1).forEach(function (r) {
+      var get = function (k) { return map[k] === undefined ? '' : r[map[k]]; };
+      var g = get('group') || last || 'Imported logins';
+      last = g;
+      var notes = get('notes') ? [get('notes')] : [];
+      r.forEach(function (v, k) {     // anything in an unrecognised column is kept in the notes
+        if (v !== '' && known.indexOf(k) < 0) { notes.push((titles[k] ? titles[k] + ': ' : '') + v); }
+      });
+      var url = get('url');
+      if (url && !IMP_ADDR.test(url)) { notes.unshift('Address: ' + url); url = ''; }
+      var row = { label: (get('label') || g).slice(0, 100), url: url, username: get('user'), secret: get('secret'), notes: notes.join('\n') };
+      row.skip = !row.username && !row.secret && !row.notes;
+      if (!byName[g.toLowerCase()]) { byName[g.toLowerCase()] = { name: g, rows: [] }; groups.push(byName[g.toLowerCase()]); }
+      byName[g.toLowerCase()].rows.push(row);
+    });
+    if (!groups.length) { return { error: 'Only a header row was pasted.' }; }
+    return { groups: groups };
+  }
+
+  /** A sensible first guess of where a group goes: an existing item of that name, else a new item of a likely kind. */
+  function importGuess(name) {
+    var n = name.toLowerCase(), items = data.items.filter(function (x) { return x.status === 'active'; });
+    var same = items.filter(function (x) { return x.name.toLowerCase() === n; })[0]
+      || (/philgeps/.test(n) ? items.filter(function (x) { return x.category === 'philgeps'; })[0] : null);
+    if (same) { return { target: String(same.id), cat: 'infra' }; }
+    return { target: 'new', cat: /cpanel|godaddy|hosting|ipower|hostinger/.test(n) ? 'hosting' : /sophos|firewall|ssl|sitelock|security/.test(n) ? 'security' : 'infra' };
+  }
+
+  function importForm(pasted) {
+    if (!BOOT.vaultOpen) {
+      showPanel('Import logins', '<p class="sub-remline sub-remline--warn"><i class="fa-solid fa-lock"></i> The logins vault is locked on this server: its key (sub_vault_key in config.local.php) is not set up, so nothing can be imported yet.</p>',
+        '<button type="button" class="wd-btn wd-btn--ghost" data-dismiss="modal">Close</button>', false);
+      return;
+    }
+    var html = '<ol class="sub-imp-how">'
+      + '<li>In Google Sheets, select the whole table <b>including the header row</b> (Access Name, Access/IP, Username, Password …) and copy it.</li>'
+      + '<li>Paste it below. It is only read in this browser; nothing is saved until you press Import on the next step.</li></ol>'
+      + '<textarea class="wd-textarea sub-imp-paste" name="paste" rows="10" spellcheck="false" autocomplete="off" placeholder="Paste here (Ctrl+V)">' + esc(pasted || '') + '</textarea>'
+      + '<p class="lcy-muted sub-help">The first column is the group (Router, GoDaddy, cPanel …); rows under a merged cell stay in its group. Each group becomes one item.</p>';
+    var f = formPanel('Import logins', html, function (form) {
+      var r = readSheet(form.elements.paste.value);
+      return r.error ? { status: 'error', msg: r.error } : { status: 'ok', groups: r.groups, text: form.elements.paste.value };
+    }, null, 'Next', function (res) { importPreview(res.groups, res.text); }, null);
+    f.elements.paste.focus();
+  }
+
+  function importPreview(groups, pasted) {
+    var items = data.items.filter(function (x) { return x.status === 'active'; });
+    var into = [['new', 'A new item']].concat(items.map(function (x) { return [String(x.id), x.name + ' (' + x.categoryLabel + ')']; }));
+    var kinds = ['infra', 'hosting', 'domain', 'security'].map(function (k) { return [k, look.categories[k]]; });
+    var total = 0, skipped = 0;
+    groups.forEach(function (g) { g.rows.forEach(function (r) { if (r.skip) { skipped++; } else { total++; } }); });
+
+    var html = '<div class="sub-preview sub-preview--ok"><span class="sub-preview__icon"><i class="fa-solid fa-key"></i></span><div><b>'
+      + esc(plural(total, 'login')) + ' in ' + esc(plural(groups.length, 'group')) + '</b>'
+      + '<span><i class="fa-solid fa-lock"></i> Encrypted when saved; every login is logged as imported.</span>'
+      + (skipped ? '<span><i class="fa-solid fa-forward"></i> ' + esc(plural(skipped, 'row has', 'rows have')) + ' no username, password or notes and ' + (skipped === 1 ? 'is' : 'are') + ' left out.</span>' : '')
+      + '</div></div>'
+      + (look.allCompanies && look.companies.length > 1
+        ? field('Company for new items', select('companyId', look.companies.map(function (c) { return [c.id, c.name]; }), company !== 'all' && company ? company : look.myCompany)) : '')
+      + groups.map(function (g, n) {
+        var guess = importGuess(g.name);
+        return '<section class="sub-imp" data-group="' + n + '">'
+          + '<div class="sub-imp__head">' + input('name_' + n, g.name, 'text', ' maxlength="150" aria-label="Item name" required')
+          + '<span class="lcy-muted">' + esc(plural(g.rows.filter(function (r) { return !r.skip; }).length, 'login')) + '</span></div>'
+          + '<div class="sub-2col">' + field('Put into', select('target_' + n, into, guess.target))
+          + '<div class="wd-field" data-kindbox' + (guess.target === 'new' ? '' : ' hidden') + '><label>Kind</label>' + select('cat_' + n, kinds, guess.cat) + '</div></div>'
+          + '<ul class="sub-imp__rows">' + g.rows.map(function (r, k) {
+            var bits = [r.url, r.username, r.secret ? 'password ••••' : 'no password'].filter(Boolean);
+            return '<li' + (r.skip ? ' class="is-skip"' : '') + '><label><input type="checkbox" name="keep_' + n + '_' + k + '" value="1"' + (r.skip ? ' disabled' : ' checked') + '>'
+              + '<span><b>' + esc(r.label) + '</b><small>' + esc(r.skip ? 'nothing to save' : bits.join(' · ')) + (r.notes && !r.skip ? ' · notes' : '') + '</small></span></label></li>';
+          }).join('') + '</ul></section>';
+      }).join('');
+
+    var f = formPanel('Import logins: check and import', html, 'cred_import', function (form) {
+      var out = [];
+      groups.forEach(function (g, n) {
+        var rows = g.rows.filter(function (r, k) { var c = form.elements['keep_' + n + '_' + k]; return c && c.checked; })
+          .map(function (r) { return { label: r.label, url: r.url, username: r.username, secret: r.secret, notes: r.notes }; });
+        if (!rows.length) { return; }
+        out.push({ target: form.elements['target_' + n].value, category: form.elements['cat_' + n].value, name: form.elements['name_' + n].value.trim(), rows: rows });
+      });
+      return { groups: JSON.stringify(out) };
+    }, 'Import ' + plural(total, 'login'), function (res) {
+      pasted = ''; groups = null;
+      load().then(function () {
+        var made = data.items.filter(function (x) { return res.itemIds.indexOf(x.id) >= 0; });
+        showPanel('Logins imported', '<div class="sub-preview sub-preview--ok"><span class="sub-preview__icon"><i class="fa-solid fa-circle-check"></i></span><div><b>'
+          + esc(plural(res.logins, 'login')) + ' saved' + (res.items ? ', ' + esc(plural(res.items, 'new item')) : '') + '</b>'
+          + '<span><i class="fa-solid fa-trash-can"></i> Now delete the spreadsheet (and empty its trash) so the passwords only live here.</span>'
+          + '<span><i class="fa-solid fa-rotate"></i> Change the passwords that were shared widely: hosting, router, server root.</span></div></div>'
+          + '<ul class="sub-imp-done">' + made.map(function (x) { return '<li><a href="#" data-open="' + x.id + '">' + catIcon(x.category) + ' ' + esc(x.name) + '</a></li>'; }).join('') + '</ul>',
+          '<button type="button" class="wd-btn wd-btn--primary" data-dismiss="modal">Done</button>', false);
+        each($id('subModalBody'), '[data-open]', function (a) { a.addEventListener('click', function (ev) { ev.preventDefault(); openItem(+a.getAttribute('data-open')); }); });
+      });
+    }, function () { importForm(pasted); });
+
+    each(f, '[data-group]', function (sec) {
+      var n = sec.getAttribute('data-group'), t = f.elements['target_' + n];
+      t.addEventListener('change', function () { sec.querySelector('[data-kindbox]').hidden = t.value !== 'new'; });
+    });
   }
 
   /* ------------------------------------------------------------ add / edit a subscription
@@ -989,6 +1166,7 @@
   });
   $('#subModal').on('hidden.bs.modal', function () { openId = 0; vaultTimers.forEach(clearTimeout); vaultTimers = []; $id('subModalBody').innerHTML = ''; });
   $id('subAdd').addEventListener('click', function () { itemForm(null); });
+  if ($id('subImport')) { $id('subImport').addEventListener('click', function () { importForm(''); }); }
   $id('subCompany').addEventListener('change', function () {
     company = $id('subCompany').value;
     try { localStorage.setItem('wd-sub-company', company); } catch (e) { /* private window */ }

@@ -344,3 +344,24 @@ html.wdapp .sub-summary .wd-stat__label, html.wdapp .sub-summary .wd-stat__value
   .sub-kind span { grid-template-rows: auto; padding: 10px; }
   .sub-kind i { grid-row: auto; }
 }
+
+/* Import logins: paste -> preview -> import */
+.sub-imp-how { margin: 0 0 12px; padding-left: 20px; font-size: 13px; color: var(--text-2); }
+.sub-imp-how li { margin-bottom: 4px; }
+.sub-imp-paste { width: 100%; font-family: ui-monospace, SFMono-Regular, Consolas, monospace; font-size: 12px; white-space: pre; overflow: auto; }
+.sub-imp { border: 1px solid var(--border); border-radius: var(--radius-lg, 12px); padding: 12px; margin: 0 0 10px; }
+.sub-imp__head { display: flex; align-items: center; gap: 10px; margin-bottom: 8px; }
+.sub-imp__head .wd-input { flex: 1; min-width: 0; font-weight: 700; }
+.sub-imp__head .lcy-muted { white-space: nowrap; font-size: 12px; }
+.sub-imp .sub-2col { margin-bottom: 4px; }
+.sub-imp__rows { list-style: none; margin: 0; padding: 0; border-top: 1px solid var(--border); }
+.sub-imp__rows li { border-bottom: 1px solid var(--border); }
+.sub-imp__rows li:last-child { border-bottom: 0; }
+.sub-imp__rows label { display: flex; align-items: flex-start; gap: 10px; margin: 0; padding: 8px 2px; font-weight: 400; cursor: pointer; }
+.sub-imp__rows input { margin-top: 3px; }
+.sub-imp__rows span { display: flex; flex-direction: column; min-width: 0; }
+.sub-imp__rows b { font-size: 13px; color: var(--text); }
+.sub-imp__rows small { font-size: 12px; color: var(--text-3); overflow-wrap: anywhere; }
+.sub-imp__rows li.is-skip label { opacity: .55; cursor: default; }
+.sub-imp-done { list-style: none; margin: 12px 0 0; padding: 0; display: grid; gap: 6px; }
+.sub-imp-done a { display: inline-flex; align-items: center; gap: 8px; }

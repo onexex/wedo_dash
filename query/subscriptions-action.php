@@ -79,7 +79,13 @@ try {
     case 'cred_reveal':
     case 'cred_save':
     case 'cred_delete':
+    case 'cred_import':
         if (!sub_can_creds($pdo)) { sub_out(403, ['status' => 'error', 'msg' => 'You do not have access to saved logins.']); }
+        if ($action === 'cred_import') {
+            $groups = json_decode($p('groups'), true);
+            if (!is_array($groups)) { sub_out(422, ['status' => 'error', 'msg' => 'The import could not be read. Paste it again.']); }
+            $result(sub_cred_import($pdo, $groups, $p('companyId'), $scope, $actor));
+        }
         if ($action === 'cred_reveal') { $result(sub_cred_reveal($pdo, (int) $p('id'), $p('why'), $scope, $actor)); }
         if ($action === 'cred_save') { $result(sub_cred_save($pdo, $_POST, $scope, $actor)); }
         $result(sub_cred_delete($pdo, (int) $p('id'), $scope, $actor));
