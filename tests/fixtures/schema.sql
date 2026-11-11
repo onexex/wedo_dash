@@ -1173,6 +1173,47 @@ CREATE TABLE `inv_count_lines` (
   KEY `ix_inv_line_item` (`ItemID`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
 
+CREATE TABLE `inv_tsdr` (
+  `id` int(11) NOT NULL AUTO_INCREMENT,
+  `TsdrNo` varchar(20) NOT NULL,
+  `Seq` int(11) NOT NULL,
+  `EmpID` varchar(50) NOT NULL,
+  `Requisitioner` varchar(150) NOT NULL,
+  `AccountDept` varchar(120) DEFAULT NULL,
+  `DateNeeded` date DEFAULT NULL,
+  `Services` varchar(250) DEFAULT NULL,
+  `OtherService` varchar(200) DEFAULT NULL,
+  `ApprovedByEmpID` varchar(50) DEFAULT NULL,
+  `ApprovedBy` varchar(150) DEFAULT NULL,
+  `RequestedFrom` varchar(8) NOT NULL DEFAULT 'it',
+  `ReceivedBy` varchar(150) DEFAULT NULL,
+  `SysadEmpID` varchar(50) DEFAULT NULL,
+  `Sysad` varchar(150) DEFAULT NULL,
+  `Status` varchar(8) NOT NULL DEFAULT 'done',
+  `StatusDetails` varchar(300) DEFAULT NULL,
+  `Evaluation` varchar(500) DEFAULT NULL,
+  `Recommendation` varchar(500) DEFAULT NULL,
+  `AccomplishedAt` datetime DEFAULT NULL,
+  `Source` varchar(16) NOT NULL DEFAULT 'wedo',
+  `CreatedBy` varchar(50) DEFAULT NULL,
+  `CreatedAt` datetime NOT NULL DEFAULT current_timestamp(),
+  `UpdatedAt` datetime DEFAULT NULL,
+  PRIMARY KEY (`id`),
+  UNIQUE KEY `ux_inv_tsdr_no` (`TsdrNo`),
+  KEY `ix_inv_tsdr_emp` (`EmpID`,`CreatedAt`),
+  KEY `ix_inv_tsdr_seq` (`Seq`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
+
+CREATE TABLE `inv_tsdr_items` (
+  `id` int(11) NOT NULL AUTO_INCREMENT,
+  `TsdrID` int(11) NOT NULL,
+  `ItemID` int(11) DEFAULT NULL,
+  `ItemText` varchar(250) NOT NULL,
+  PRIMARY KEY (`id`),
+  KEY `ix_inv_tsdr_items_tsdr` (`TsdrID`),
+  KEY `ix_inv_tsdr_items_item` (`ItemID`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
+
 CREATE TABLE `jobdescription` (
   `JD_ID` int(11) NOT NULL AUTO_INCREMENT,
   `JDescription` varchar(100) NOT NULL,

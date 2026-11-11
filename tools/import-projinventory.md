@@ -2,7 +2,8 @@
 
 `tools/import-projinventory.php` copies the IT equipment register of the old
 Laravel app **projInventory** (database `dbinventory`) into Inventory. Rules:
-`includes/inventory-import-lib.php`. Tests: `tests/InventoryImportTest.php`.
+`includes/inventory-import-lib.php`. Tests: `tests/InventoryImportTest.php` and
+`tests/InventoryTsdrTest.php`.
 
 ## What comes over
 
@@ -21,8 +22,23 @@ Laravel app **projInventory** (database `dbinventory`) into Inventory. Rules:
 
 Every item is kept in one location, **IT Room** (created when missing). Items can
 be moved from Inventory afterwards. Purchase data (`tb_assets`, `tb_supplier`) is
-empty in projInventory, and the TSDR forms (`tbl_tsdr*`) have no Inventory
-equivalent, so neither is imported.
+empty in projInventory, so it is not imported.
+
+### TSDR forms
+
+Once the TSDR tables exist (`sql/2026-11-11-add-inventory-tsdr.sql`), the same run
+also brings over the old TSDR forms, after the items:
+
+| projInventory | Inventory |
+|---|---|
+| `tbl_tsdr` | `inv_tsdr`, same number (`240501_5`), *Source* projInventory, original dates |
+| `tbl_tsdrsbr` (last row per TSDR) | the ticked services; *Others* keeps its "specify" text |
+| `tbl_tsdritem` → deployment → equipment | item lines, matched to Inventory items by serial number; an unmatched line (deleted equipment) stays as text |
+| requisitioner / approver EmpID | names from `employees` |
+| `tsdr_SPA` (IT user name) | SysAd, through `tb_user.ESID` when the name matches |
+
+TSDRs made in WeDo continue the numbering after the highest imported one. Without
+the TSDR tables the tool imports the items and prints a note to run the migration.
 
 ## Run
 
@@ -35,7 +51,7 @@ equivalent, so neither is imported.
    php tools/import-projinventory.php --actor=<your EmpID>
    ```
 
-4. Import:
+4. Import (items, then TSDRs when their tables exist):
 
    ```bash
    php tools/import-projinventory.php --actor=<your EmpID> --apply
@@ -47,7 +63,7 @@ Override it with `--src-host= --src-user= --src-pass= --src-db=` or `SRC_DB_HOST
 `SRC_DB_USER`, `SRC_DB_PASS` and `SRC_DB_NAME`. Use `--location="Name"` for a different location.
 
 Running it again is safe: an item whose serial number is already in Inventory is
-skipped, so a later dump only adds the units created since. Changes made in
+skipped (and a TSDR whose number is already there), so a later dump only adds the units created since. Changes made in
 projInventory to items that were already imported (a new deployment, a disposal) are
 **not** carried over. Stop using projInventory for equipment once the import is done.
 
