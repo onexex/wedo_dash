@@ -234,6 +234,42 @@ function inv_tsdr_list(PDO $pdo, array $f = []) {
     return array_map(function ($r) { return _inv_tsdr_out($r) + ['itemCount' => (int) $r['ItemCount']]; }, $st->fetchAll(PDO::FETCH_ASSOC));
 }
 
+/**
+ * For issued items: the newest TSDR made for their current holder since the
+ * issue that lists them (the same rule as "No TSDR yet"). Adds 'tsdr' =>
+ * {id, no, status, statusLabel, createdAt} or null to each item.
+ */
+function inv_tsdr_attach(PDO $pdo, array $items) {
+    $ids = [];
+    foreach ($items as $i) { if (!empty($i['holderId'])) { $ids[] = (int) $i['id']; } }
+    $map = [];
+    if ($ids) {
+        $rows = $pdo->query("SELECT ti.ItemID, t.id, t.TsdrNo, t.Status, t.CreatedAt FROM inv_tsdr_items ti
+            JOIN inv_tsdr t ON t.id = ti.TsdrID JOIN inv_items i ON i.id = ti.ItemID
+            WHERE ti.ItemID IN (" . implode(',', $ids) . ") AND t.EmpID = i.HolderEmpID
+              AND DATE(t.CreatedAt) >= COALESCE(i.IssuedOn, '1000-01-01')
+            ORDER BY t.Seq, t.id")->fetchAll(PDO::FETCH_ASSOC);
+        foreach ($rows as $r) {   // the newest one wins
+            $map[(int) $r['ItemID']] = ['id' => (int) $r['id'], 'no' => $r['TsdrNo'], 'status' => $r['Status'],
+                'statusLabel' => INV_TSDR_STATUS[$r['Status']] ?? $r['Status'], 'createdAt' => $r['CreatedAt']];
+        }
+    }
+    foreach ($items as &$i) { $i['tsdr'] = $map[(int) $i['id']] ?? null; }
+    unset($i);
+    return $items;
+}
+
+/** The TSDRs an item is on, newest first. */
+function inv_tsdr_for_item(PDO $pdo, $itemId) {
+    $st = $pdo->prepare("SELECT DISTINCT t.id, t.TsdrNo, t.Requisitioner, t.Status, t.CreatedAt, t.Seq FROM inv_tsdr t
+        JOIN inv_tsdr_items ti ON ti.TsdrID = t.id WHERE ti.ItemID = :i ORDER BY t.Seq DESC, t.id DESC");
+    $st->execute([':i' => (int) $itemId]);
+    return array_map(function ($r) {
+        return ['id' => (int) $r['id'], 'no' => $r['TsdrNo'], 'requisitioner' => $r['Requisitioner'], 'status' => $r['Status'],
+                'statusLabel' => INV_TSDR_STATUS[$r['Status']] ?? $r['Status'], 'createdAt' => $r['CreatedAt']];
+    }, $st->fetchAll(PDO::FETCH_ASSOC));
+}
+
 /** Lists for the form's choices. */
 function inv_tsdr_lookups() {
     return ['services' => INV_TSDR_SERVICES, 'from' => INV_TSDR_FROM, 'statuses' => INV_TSDR_STATUS];

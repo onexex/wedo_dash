@@ -131,6 +131,7 @@ $v = function ($f) { return @filemtime(__DIR__ . '/' . $f) ?: 0; };
         <div class="inv-bulk lcy-hidden" id="invBulk">
           <span id="invBulkCount"></span>
           <button type="button" class="wd-btn wd-btn--ghost wd-btn--sm" id="invBulkLabels"><i class="fa-solid fa-qrcode"></i> Print labels</button>
+          <button type="button" class="wd-btn wd-btn--ghost wd-btn--sm" id="invBulkIssue"><i class="fa-solid fa-hand-holding"></i> Issue</button>
           <button type="button" class="wd-btn wd-btn--ghost wd-btn--sm" id="invBulkMove"><i class="fa-solid fa-right-left"></i> Move</button>
         </div>
         <div id="invItems"><div class="lcy-empty">Loading&hellip;</div></div>
@@ -171,7 +172,7 @@ $v = function ($f) { return @filemtime(__DIR__ . '/' . $f) ?: 0; };
         <div class="inv-toolbar">
           <input type="search" class="wd-input" id="invTsdrQ" placeholder="Search TSDR #, name, account, item&hellip;" aria-label="Search TSDRs">
           <span class="inv-spacer"></span>
-          <span class="lcy-muted">Make one from People &rsaquo; an employee &rsaquo; Make TSDR</span>
+          <button type="button" class="wd-btn wd-btn--primary" id="invTsdrNew"><i class="fa-solid fa-file-signature"></i> Make TSDR</button>
         </div>
         <div id="invTsdrs"></div>
       </section>

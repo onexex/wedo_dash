@@ -288,6 +288,9 @@
 .inv-tsdr-items { margin: 0; padding-left: 18px; }
 .inv-tsdr-items li { margin-bottom: 4px; }
 .inv-tsdr-sub { margin-top: 18px; }
+.inv-group td { background: var(--surface-2); font-weight: 600; }
+.inv-group a { text-decoration: none; }
+.inv-tablewrap .wd-table tr.inv-group td::before { display: none; }   /* phones: a group heading is not a "Tag" cell */
 @media (max-width: 600px) { .inv-tsdr-svcs { grid-template-columns: 1fr 1fr; } }
 
 /* ---- printing: labels and the accountability form ---- */

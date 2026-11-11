@@ -622,20 +622,54 @@ function inv_issue(PDO $pdo, $id, $empId, $qty, $date, $notes, $actor) {
     if ($emp['statusId'] !== 1) { return inv_fail($emp['name'] . ' is no longer employed (' . $emp['status'] . ').'); }
     $on = lcy_date($date) ?: inv_today();
     $r = _inv_tx($pdo, function () use ($pdo, $id, $emp, $qty, $on, $notes, $actor) {
-        $row = _inv_lock_tx($pdo, $id);
-        if (!$row) { return inv_fail('That item no longer exists.'); }
-        if (!_inv_held_kind($row)) { return inv_fail('Supplies are released with Stock out, not issued.'); }
-        if ($row['Status'] !== 'active') { return inv_fail('Only an item in service can be issued (this one is: ' . (INV_STATUSES[$row['Status']] ?? $row['Status']) . ').'); }
-        if ($row['HolderEmpID']) { return inv_fail('This item is already issued — return it first.'); }
-        $part = inv_part_qty($qty, $row);
-        if ($part === false) { return inv_fail('Issue between 1 and ' . $row['Qty'] . '.'); }
-        $target = _inv_portion_tx($pdo, $row, $part, $actor);
-        $pdo->prepare("UPDATE inv_items SET HolderEmpID = :e, IssuedOn = :d, AckAt = NULL, UpdatedAt = :u WHERE id = :id")
-            ->execute([':e' => $emp['empId'], ':d' => $on, ':u' => inv_now(), ':id' => (int) $target['id']]);
-        _inv_move_tx($pdo, (int) $target['id'], 'issued', ['toEmp' => $emp['empId'], 'qty' => (int) $target['Qty'], 'notes' => inv_opt($notes, 500)], $actor);
-        return ['ok' => true, 'id' => (int) $target['id'], 'tag' => $target['TagNo'], 'itemName' => $target['Name'], 'empId' => $emp['empId']];
+        return _inv_issue_tx($pdo, $id, $emp, $qty, $on, $notes, $actor);
     });
     if ($r['ok']) { inv_audit($pdo, 'issued ' . $r['tag'] . ' to ' . $emp['empId']); }
+    return $r;
+}
+
+/** One item (or part of a lot) to $emp, inside the caller's transaction. */
+function _inv_issue_tx(PDO $pdo, $id, array $emp, $qty, $on, $notes, $actor) {
+    $row = _inv_lock_tx($pdo, $id);
+    if (!$row) { return inv_fail('That item no longer exists.'); }
+    if (!_inv_held_kind($row)) { return inv_fail('Supplies are released with Stock out, not issued.'); }
+    if ($row['Status'] !== 'active') { return inv_fail('Only an item in service can be issued (this one is: ' . (INV_STATUSES[$row['Status']] ?? $row['Status']) . ').'); }
+    if ($row['HolderEmpID']) { return inv_fail('This item is already issued — return it first.'); }
+    $part = inv_part_qty($qty, $row);
+    if ($part === false) { return inv_fail('Issue between 1 and ' . $row['Qty'] . '.'); }
+    $target = _inv_portion_tx($pdo, $row, $part, $actor);
+    $pdo->prepare("UPDATE inv_items SET HolderEmpID = :e, IssuedOn = :d, AckAt = NULL, UpdatedAt = :u WHERE id = :id")
+        ->execute([':e' => $emp['empId'], ':d' => $on, ':u' => inv_now(), ':id' => (int) $target['id']]);
+    _inv_move_tx($pdo, (int) $target['id'], 'issued', ['toEmp' => $emp['empId'], 'qty' => (int) $target['Qty'], 'notes' => inv_opt($notes, 500)], $actor);
+    return ['ok' => true, 'id' => (int) $target['id'], 'tag' => $target['TagNo'], 'itemName' => $target['Name'], 'empId' => $emp['empId']];
+}
+
+/**
+ * Several whole items to one employee in one go: all of them or none (the
+ * first one that cannot be issued says why, with its tag).
+ * @return array{ok:bool, msg?:string, ids?:int[], tags?:string[], empId?:string}
+ */
+function inv_issue_many(PDO $pdo, array $ids, $empId, $date, $notes, $actor) {
+    $ids = array_values(array_unique(array_filter(array_map('intval', $ids))));
+    if (!$ids) { return inv_fail('Choose what to issue.'); }
+    $emp = lcy_employee($pdo, $empId);
+    if (!$emp) { return inv_fail('Choose an employee.'); }
+    if ($emp['statusId'] !== 1) { return inv_fail($emp['name'] . ' is no longer employed (' . $emp['status'] . ').'); }
+    $on = lcy_date($date) ?: inv_today();
+    $r = _inv_tx($pdo, function () use ($pdo, $ids, $emp, $on, $notes, $actor) {
+        $out = ['ok' => true, 'ids' => [], 'tags' => [], 'empId' => $emp['empId']];
+        foreach ($ids as $id) {
+            $one = _inv_issue_tx($pdo, $id, $emp, null, $on, $notes, $actor);
+            if (!$one['ok']) {
+                $tag = $pdo->query("SELECT TagNo FROM inv_items WHERE id = " . (int) $id)->fetchColumn();
+                return inv_fail(($tag ? $tag . ': ' : '') . $one['msg']);
+            }
+            $out['ids'][] = $one['id'];
+            $out['tags'][] = $one['tag'];
+        }
+        return $out;
+    });
+    if ($r['ok']) { inv_audit($pdo, 'issued ' . implode(', ', $r['tags']) . ' to ' . $emp['empId']); }
     return $r;
 }
 

@@ -77,6 +77,7 @@ try {
     switch ($action) {
     /* ---------- TSDR */
     case 'tsdr_draft':
+        if (trim((string) $p('emp')) === '') { inv_out(422, ['status' => 'error', 'msg' => 'Choose the employee.']); }
         $dr = inv_tsdr_draft($pdo, $p('emp'), $actor);
         if (!$dr) { inv_out(404, ['status' => 'error', 'msg' => 'That employee no longer exists.']); }
         inv_out(200, ['status' => 'ok'] + $dr + inv_tsdr_lookups());
@@ -102,7 +103,9 @@ try {
 
     case 'items':
         $f = ['category' => $p('category'), 'location' => $p('location'), 'status' => $p('filterStatus'), 'q' => $p('q'), 'kind' => $p('kind')];
-        inv_out(200, ['status' => 'ok', 'items' => inv_list($pdo, $f), 'stats' => inv_stats($pdo), 'limit' => INV_TABLE_LIMIT]);
+        $items = inv_list($pdo, $f);
+        if (inv_tsdr_ready($pdo)) { $items = inv_tsdr_attach($pdo, $items); }
+        inv_out(200, ['status' => 'ok', 'items' => $items, 'stats' => inv_stats($pdo), 'limit' => INV_TABLE_LIMIT]);
 
     case 'stats':
         inv_out(200, ['status' => 'ok', 'stats' => inv_stats($pdo)]);
@@ -110,6 +113,7 @@ try {
     case 'item':
         $d = inv_item_detail($pdo, (int) $p('id'));
         if (!$d) { inv_out(404, ['status' => 'error', 'msg' => 'That item no longer exists.']); }
+        $d['tsdrs'] = inv_tsdr_ready($pdo) ? inv_tsdr_for_item($pdo, $d['item']['id']) : [];
         inv_out(200, ['status' => 'ok'] + $d);
 
     case 'tag_lookup':
@@ -123,6 +127,7 @@ try {
     case 'person':
         $a = inv_accountability($pdo, $p('emp'));
         if (!$a) { inv_out(404, ['status' => 'error', 'msg' => 'That employee no longer exists.']); }
+        if (inv_tsdr_ready($pdo)) { $a['items'] = inv_tsdr_attach($pdo, $a['items']); }
         inv_out(200, ['status' => 'ok'] + $a);
 
     case 'repairs':
@@ -158,6 +163,17 @@ try {
             require_once __DIR__ . '/../includes/push-lib.php';
             if (push_enabled()) {
                 try { push_send($pdo, [$r['empId']], 'Item issued to you', $r['tag'] . ' · ' . $r['itemName'] . ' — confirm receipt in My Items.', ['type' => 'inventory']); }
+                catch (Throwable $e) { error_log('[wedo inventory] push: ' . $e->getMessage()); }   // the issue itself stands
+            }
+        }
+        $result($r);
+
+    case 'issue_many':
+        $r = inv_issue_many($pdo, (array) ($_POST['ids'] ?? []), $p('emp'), $p('date'), $p('notes'), $actor);
+        if ($r['ok']) {
+            require_once __DIR__ . '/../includes/push-lib.php';
+            if (push_enabled()) {
+                try { push_send($pdo, [$r['empId']], 'Items issued to you', count($r['tags']) . ' items (' . implode(', ', $r['tags']) . ') — confirm receipt in My Items.', ['type' => 'inventory']); }
                 catch (Throwable $e) { error_log('[wedo inventory] push: ' . $e->getMessage()); }   // the issue itself stands
             }
         }

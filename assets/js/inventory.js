@@ -213,11 +213,15 @@
         + (h.by ? '<div class="t-note lcy-muted">by ' + esc(h.by) + '</div>' : '') + '</li>';
     }).join('') + '</ul>';
 
+    var tsdrs = !(d.tsdrs || []).length ? '' : '<h5 class="inv-h">TSDRs</h5><ul class="inv-family">' + d.tsdrs.map(function (t) {
+      return '<li><a href="#" data-tsdr="' + t.id + '">TSDR ' + esc(t.no) + '</a> · ' + esc(t.requisitioner) + ' ' + tsdrPill(t) + ' <span class="lcy-muted">' + esc(L.fmtDate(t.createdAt)) + '</span></li>';
+    }).join('') + '</ul>';
+
     var countBar = d.openCount && i.status !== 'disposed' ? '<p class="lcy-note">Count open here: ' + esc(d.openCount.title)
       + ' <button type="button" class="wd-btn wd-btn--ghost wd-btn--sm" id="invCountHere"><i class="fa-solid fa-check"></i> Mark found</button></p>' : '';
 
     var body = '<div class="inv-itemhead"><div><span class="inv-tag">' + esc(i.tag) + '</span> ' + statusPill(i)
-      + (i.low ? ' ' + pill('danger', 'Low stock') : '') + '</div></div>' + countBar + facts + fam + filesHtml + repairs + ledger + hist;
+      + (i.low ? ' ' + pill('danger', 'Low stock') : '') + '</div></div>' + countBar + facts + fam + filesHtml + repairs + tsdrs + ledger + hist;
 
     var list = itemActions(i, d), main = list.filter(function (a) { return a[3] === 'primary'; })[0];
     var button = function (a, cls) {
@@ -256,6 +260,7 @@
     var box = $id('invModalBody');
     each(box, '.inv-thumb a, .inv-paper a', function (a) { a.addEventListener('click', openInApp); });
     each(box, '[data-item]', function (a) { a.addEventListener('click', function (ev) { ev.preventDefault(); openItem(+a.getAttribute('data-item')); }); });
+    each(box, '[data-tsdr]', function (a) { a.addEventListener('click', function (ev) { ev.preventDefault(); openTsdr(+a.getAttribute('data-tsdr'), function () { openItem(i.id); }); }); });
     each(box, '[data-delfile]', function (b) {
       b.addEventListener('click', function () {
         if (!confirm('Delete this file?')) { return; }
@@ -285,7 +290,7 @@
       out.push(['stockIn', 'fa-arrow-down', 'Stock in', 'primary'], ['stockOut', 'fa-arrow-up', 'Stock out'], ['stockAdjust', 'fa-scale-balanced', 'Adjust']);
     } else {
       if (i.status === 'active' && !i.holderId) { out.push(['issue', 'fa-hand-holding', 'Issue', 'primary'], ['transfer', 'fa-right-left', 'Move']); }
-      if (i.holderId && i.status !== 'lost') { out.push(['ret', 'fa-rotate-left', 'Return', 'primary']); }
+      if (i.holderId && i.status !== 'lost') { out.push(['ret', 'fa-rotate-left', 'Return', 'primary'], ['tsdr', 'fa-file-signature', 'Make TSDR']); }
       if (i.status === 'active' && i.kind === 'asset') { out.push(['repair', 'fa-screwdriver-wrench', 'Send to repair']); }
       if (i.status === 'active') { out.push(['lost', 'fa-circle-question', 'Mark lost']); }
       if (i.status === 'lost') { out.push(['found', 'fa-magnifying-glass', 'Mark found', 'primary']); }
@@ -305,11 +310,19 @@
   /* every form a button in the item panel can open */
   var ACTIONS = {
     issue: function (i) {
+      var want = false;
       form({ title: 'Issue ' + i.tag, action: 'issue', data: { id: i.id }, back: backTo(i), submit: 'Issue',
         fields: [{ name: 'emp', label: 'Issue to', type: 'emp' }].concat(partField(i, 'Quantity'), [
-          { name: 'date', label: 'Date issued', type: 'date', value: BOOT.today }, { name: 'notes', label: 'Notes', type: 'textarea', max: 500 }]),
-        done: function (res) { reopen(res, i); } });
+          { name: 'date', label: 'Date issued', type: 'date', value: BOOT.today }, { name: 'notes', label: 'Notes', type: 'textarea', max: 500 },
+          { name: 'tsdr', label: 'Make a TSDR for it next', type: 'checkbox', value: i.kind === 'asset' }]),
+        prepare: function (d) { want = !!d.tsdr; delete d.tsdr; },
+        done: function (res) {
+          if (!want) { reopen(res, i); return; }
+          refresh();
+          makeTsdr(res.empId, function () { openItem(res.id); }, [res.id]);
+        } });
     },
+    tsdr: function (i) { makeTsdr(i.holderId, backTo(i), [i.id]); },
     ret: function (i) {
       form({ title: 'Return ' + i.tag + ' from ' + i.holder, action: 'return', data: { id: i.id }, back: backTo(i), submit: 'Return',
         fields: partField(i, 'Quantity').concat([
@@ -590,7 +603,8 @@
       return '<tr class="inv-row" data-id="' + i.id + '"><td class="inv-tick"><input type="checkbox" data-sel="' + i.id + '" aria-label="Select ' + esc(i.tag) + '"></td>'
         + '<td><span class="inv-tag">' + esc(i.tag) + '</span></td><td><b>' + esc(i.name) + '</b>' + (i.brand || i.model ? '<br><span class="lcy-muted">' + esc((i.brand + ' ' + i.model).trim()) + '</span>' : '') + '</td>'
         + '<td>' + esc(i.category) + '</td><td>' + i.qty + ' ' + esc(i.unit) + '</td><td>' + esc(i.location) + (i.spot ? '<br><span class="lcy-muted">' + esc(i.spot) + '</span>' : '') + '</td>'
-        + '<td>' + esc(i.holder) + (i.holderId && !i.ackAt ? '<br><span class="lcy-muted">not confirmed</span>' : '') + '</td><td>' + statusPill(i) + '</td><td>' + esc(money(i.totalCost)) + '</td></tr>';
+        + '<td>' + esc(i.holder) + (i.holderId && !i.ackAt ? '<br><span class="lcy-muted">not confirmed</span>' : '')
+        + (i.holderId ? '<br><span class="lcy-muted">' + (i.tsdr ? 'TSDR ' + esc(i.tsdr.no) : 'No TSDR yet') + '</span>' : '') + '</td><td>' + statusPill(i) + '</td><td>' + esc(money(i.totalCost)) + '</td></tr>';
     }).join(''), 'inv-grid inv-t-items') + (rows.length >= limit ? '<p class="lcy-muted inv-more">Showing the first ' + limit + '. Narrow the search to see the rest.</p>' : '');
     each(box, 'tr.inv-row', function (tr) {
       tr.addEventListener('click', function (ev) {
@@ -617,6 +631,21 @@
     var n = Object.keys(selected).length;
     $id('invBulk').classList.toggle('lcy-hidden', n === 0);
     $id('invBulkCount').textContent = n + ' selected';
+  }
+
+  /** Several selected items to one person, then (by default) one TSDR for all of them. */
+  function bulkIssue() {
+    var list = selectedRows(), want = false;
+    form({ title: 'Issue ' + list.length + ' item(s)', action: 'issue_many', data: { ids: list.map(function (i) { return i.id; }) }, submit: 'Issue',
+      fields: [{ name: 'emp', label: 'Issue to', type: 'emp' }, { name: 'date', label: 'Date issued', type: 'date', value: BOOT.today },
+        { name: 'notes', label: 'Notes', type: 'textarea', max: 500 }, { name: 'tsdr', label: 'Make one TSDR for them next', type: 'checkbox', value: true }],
+      prepare: function (d) { want = !!d.tsdr; delete d.tsdr; },
+      done: function (res) {
+        refresh();
+        if (want) { makeTsdr(res.empId, null, res.ids); } else { closeModal(); }
+      } });
+    var f = $id('invForm');
+    f.insertAdjacentHTML('afterbegin', '<p class="lcy-muted">' + list.map(function (i) { return esc(i.tag); }).join(', ') + '</p>');
   }
 
   function bulkMove() {
@@ -712,15 +741,13 @@
       if (res.status !== 'ok') { alert(res.msg); return; }
       var e = res.employee;
       var body = '<p class="lcy-muted">' + esc(e.empId) + (e.position ? ' · ' + esc(e.position) : '') + (e.department ? ' · ' + esc(e.department) : '') + '</p>'
-        + (res.items.length ? table(['Tag', 'Item', 'Qty', 'Issued', 'Confirmed', ''], res.items.map(function (i) {
-          return '<tr><td><span class="inv-tag">' + esc(i.tag) + '</span></td><td>' + esc(i.name) + (i.serial ? '<br><span class="lcy-muted">SN ' + esc(i.serial) + '</span>' : '') + '</td><td>' + i.qty + ' ' + esc(i.unit) + '</td><td>' + esc(L.fmtDate(i.issuedOn)) + '</td>'
-            + '<td>' + (i.ackAt ? esc(L.fmtDate(i.ackAt)) : pill('warn', 'No')) + '</td><td><a href="#" data-item="' + i.id + '">Open</a></td></tr>';
-        }).join('')) : empty('Nothing issued.'));
+        + (res.items.length ? table(['Tag', 'Item', 'Qty', 'Issued', 'Confirmed', ''], personRows(res.items)) : empty('Nothing issued.'));
       body += '<h5 class="inv-sec__title inv-tsdr-sub">TSDRs</h5><div id="invPersonTsdrs"><div class="lcy-empty">Loading&hellip;</div></div>';
       showModal(e.name, body, '<button type="button" class="wd-btn wd-btn--ghost" data-dismiss="modal">Close</button>'
         + '<button type="button" class="wd-btn wd-btn--ghost" id="invFormPrint"><i class="fa-solid fa-print"></i> Accountability form</button>'
         + '<button type="button" class="wd-btn wd-btn--primary" id="invMakeTsdr"><i class="fa-solid fa-file-signature"></i> Make TSDR</button>', true);
       each($id('invModalBody'), '[data-item]', function (a) { a.addEventListener('click', function (ev) { ev.preventDefault(); openItem(+a.getAttribute('data-item')); }); });
+      each($id('invModalBody'), '[data-tsdrgroup]', function (a) { a.addEventListener('click', function (ev) { ev.preventDefault(); openTsdr(+a.getAttribute('data-tsdrgroup'), function () { openPerson(e.empId); }); }); });
       $id('invFormPrint').addEventListener('click', function () { printAccountability(res); });
       $id('invMakeTsdr').addEventListener('click', function () { makeTsdr(e.empId, function () { openPerson(e.empId); }); });
       L.post('tsdr_list', { emp: e.empId }).then(function (r) {
@@ -731,6 +758,30 @@
         wireTsdrs(box, function () { openPerson(e.empId); });
       });
     });
+  }
+
+  /** A person's issued items, grouped under the TSDR that covers them (newest first), then the ones without one. */
+  function personRows(items) {
+    var groups = [], by = {};
+    items.forEach(function (i) {
+      var k = i.tsdr ? 't' + i.tsdr.id : 'none';
+      if (!by[k]) { by[k] = { tsdr: i.tsdr || null, items: [] }; groups.push(by[k]); }
+      by[k].items.push(i);
+    });
+    groups.sort(function (a, b) {
+      if (!a.tsdr || !b.tsdr) { return a.tsdr ? -1 : (b.tsdr ? 1 : 0); }
+      return String(b.tsdr.createdAt).localeCompare(String(a.tsdr.createdAt)) || b.tsdr.id - a.tsdr.id;
+    });
+    var many = groups.length > 1 || groups[0].tsdr;   // nothing to group when no item has a TSDR
+    return groups.map(function (g) {
+      var head = !many ? '' : '<tr class="inv-group"><td colspan="6">' + (g.tsdr
+        ? '<a href="#" data-tsdrgroup="' + g.tsdr.id + '"><i class="fa-solid fa-file-signature"></i> TSDR ' + esc(g.tsdr.no) + '</a> ' + tsdrPill(g.tsdr) + ' <span class="lcy-muted">' + esc(L.fmtDate(g.tsdr.createdAt)) + ' · ' + g.items.length + ' item(s)</span>'
+        : '<span class="lcy-muted">No TSDR yet · ' + g.items.length + ' item(s)</span>') + '</td></tr>';
+      return head + g.items.map(function (i) {
+        return '<tr><td><span class="inv-tag">' + esc(i.tag) + '</span></td><td>' + esc(i.name) + (i.serial ? '<br><span class="lcy-muted">SN ' + esc(i.serial) + '</span>' : '') + '</td><td>' + i.qty + ' ' + esc(i.unit) + '</td><td>' + esc(L.fmtDate(i.issuedOn)) + '</td>'
+          + '<td>' + (i.ackAt ? esc(L.fmtDate(i.ackAt)) : pill('warn', 'No')) + '</td><td><a href="#" data-item="' + i.id + '">Open</a></td></tr>';
+      }).join('');
+    }).join('');
   }
 
   function printSheet(html) {
@@ -785,16 +836,17 @@
     return L.post('tsdr_list', { q: $id('invTsdrQ').value }).then(function (res) {
       var box = $id('invTsdrs');
       if (res.status !== 'ok') { box.innerHTML = empty(res.msg); return; }
-      if (!res.tsdrs.length) { box.innerHTML = empty($id('invTsdrQ').value ? 'No TSDR matches.' : 'No TSDR yet. Open People, choose an employee and press Make TSDR.'); return; }
+      if (!res.tsdrs.length) { box.innerHTML = empty($id('invTsdrQ').value ? 'No TSDR matches.' : 'No TSDR yet. Press Make TSDR and choose the employee.'); return; }
       box.innerHTML = tsdrTable(res.tsdrs, true) + (res.tsdrs.length >= res.limit ? '<p class="lcy-muted">Showing the newest ' + res.limit + '. Search to find older ones.</p>' : '');
       wireTsdrs(box, null);
     });
   }
 
-  function makeTsdr(empId, back) {
+  /** pick: item ids to tick (default: the ones no TSDR covers yet). */
+  function makeTsdr(empId, back, pick) {
     L.post('tsdr_draft', { emp: empId }).then(function (res) {
       if (res.status !== 'ok') { alert(res.msg); return; }
-      tsdrForm(res, null, back);
+      tsdrForm(res, null, back, pick);
     });
   }
 
@@ -823,7 +875,7 @@
   }
 
   /** ctx: the draft (or the tsdr answer) with employee, items, services, from, statuses; t: the TSDR being edited. */
-  function tsdrForm(ctx, t, back) {
+  function tsdrForm(ctx, t, back, pick) {
     var v = t || ctx.defaults, e = ctx.employee || { name: t.requisitioner, empId: t.empId };
     var text = function (name, label, val, extra) { var o = extra || {}; o.name = name; o.label = label; o.value = val; return fieldHtml(o); };
     var on = {}, items = ctx.items.slice();
@@ -833,7 +885,8 @@
         if (x.itemId && !items.some(function (i) { return i.id === x.itemId; })) { items.push({ id: x.itemId, tag: x.tag, text: x.text, gone: true }); }
       });
     } else {
-      items.forEach(function (i) { if (i.pending) { on[i.id] = true; } });
+      if (pick) { pick.forEach(function (id) { on[+id] = true; }); }
+      else { items.forEach(function (i) { if (i.pending) { on[i.id] = true; } }); }
     }
     var svcOn = {};
     (t ? t.services : []).forEach(function (s) { svcOn[s] = true; });
@@ -1173,11 +1226,17 @@
   $id('invSupQ').addEventListener('input', function () { later(loadSupplies); });
   $id('invSupLoc').addEventListener('change', loadSupplies);
   $id('invTsdrQ').addEventListener('input', function () { later(loadTsdrs); });
+  // like the old app's TSDR button: choose the employee, then the form with their items without a TSDR ticked
+  $id('invTsdrNew').addEventListener('click', function () {
+    form({ title: 'Make TSDR', action: 'tsdr_draft', submit: 'Next', fields: [{ name: 'emp', label: 'Requisitioner (employee)', type: 'emp' }],
+      done: function (res) { tsdrForm(res, null, null); } });
+  });
   $id('invAdd').addEventListener('click', function () { itemForm(null); });
   $id('invSupAdd').addEventListener('click', function () { itemForm(null, false, true); });
   $id('invExport').addEventListener('click', exportItems);
   $id('invBulkLabels').addEventListener('click', function () { printLabels(selectedRows()); });
   $id('invBulkMove').addEventListener('click', bulkMove);
+  $id('invBulkIssue').addEventListener('click', bulkIssue);
   $id('invCatAdd').addEventListener('click', function () { catForm(null); });
   $id('invLocAdd').addEventListener('click', function () { locForm(null); });
   $id('invUseRun').addEventListener('click', loadUsage);
