@@ -601,7 +601,8 @@
     if (!rows.length) { box.innerHTML = empty(look.locations.length ? 'No items match.' : 'Nothing here yet — add your locations in Setup, then add your first item.'); updateBulk(); return; }
     box.innerHTML = table(['<input type="checkbox" id="invAll" aria-label="Select all">', 'Tag', 'Item', 'Category', 'Qty', 'Location', 'Issued to', 'Status', 'Value'], rows.map(function (i) {
       return '<tr class="inv-row" data-id="' + i.id + '"><td class="inv-tick"><input type="checkbox" data-sel="' + i.id + '" aria-label="Select ' + esc(i.tag) + '"></td>'
-        + '<td><span class="inv-tag">' + esc(i.tag) + '</span></td><td><b>' + esc(i.name) + '</b>' + (i.brand || i.model ? '<br><span class="lcy-muted">' + esc((i.brand + ' ' + i.model).trim()) + '</span>' : '') + '</td>'
+        + '<td><span class="inv-tag">' + esc(i.tag) + '</span></td><td><b>' + esc(i.name) + '</b>' + (i.brand || i.model ? '<br><span class="lcy-muted">' + esc((i.brand + ' ' + i.model).trim()) + '</span>' : '')
+        + (i.serial ? '<br><span class="lcy-muted">SN ' + esc(i.serial) + '</span>' : '') + '</td>'
         + '<td>' + esc(i.category) + '</td><td>' + i.qty + ' ' + esc(i.unit) + '</td><td>' + esc(i.location) + (i.spot ? '<br><span class="lcy-muted">' + esc(i.spot) + '</span>' : '') + '</td>'
         + '<td>' + esc(i.holder) + (i.holderId && !i.ackAt ? '<br><span class="lcy-muted">not confirmed</span>' : '')
         + (i.holderId ? '<br><span class="lcy-muted">' + (i.tsdr ? 'TSDR ' + esc(i.tsdr.no) : 'No TSDR yet') + '</span>' : '') + '</td><td>' + statusPill(i) + '</td><td>' + esc(money(i.totalCost)) + '</td></tr>';
