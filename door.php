@@ -1,8 +1,8 @@
 <?php
 /* ==========================================================================
    door.php  —  Management > Door Control.
-   Shows whether the office biometric device is online and releases the
-   door's magnetic lock for a few seconds. Gated by the `doorctl` access
+   Shows whether the office biometric device is online, lists who is
+   enrolled on it, and releases the door's magnetic lock for a few seconds. Gated by the `doorctl` access
    right. Rules and the device conversation: includes/door-lib.php.
    Reads and writes: query/door-action.php.
    ========================================================================== */
@@ -76,6 +76,9 @@ $e = function ($s) { return htmlspecialchars((string) $s, ENT_QUOTES, 'UTF-8'); 
       .door-result--bad{background:var(--danger-bg);color:var(--danger-text)}
       .door-empty{text-align:center;color:var(--text-3);padding:22px}
       .door-why{display:block;font-size:12px;color:var(--text-3)}
+      .door-enr{display:flex;gap:10px;flex-wrap:wrap;align-items:center;padding:16px 20px}
+      .door-enr__q{flex:1;min-width:180px;max-width:320px}
+      .door-enr__q[hidden]{display:none}
       @media (max-width:800px){ .door-grid{grid-template-columns:minmax(0,1fr)} .door-hide-sm{display:none} }
     </style>
   </head>
@@ -133,6 +136,24 @@ $e = function ($s) { return htmlspecialchars((string) $s, ENT_QUOTES, 'UTF-8'); 
           <table class="wd-table">
             <thead><tr><th>When</th><th>Who</th><th>Result</th><th class="door-hide-sm">Reason</th></tr></thead>
             <tbody id="doorLog"></tbody>
+          </table>
+        </div>
+      </section>
+
+      <section class="wd-card" style="margin-top:16px">
+        <div class="wd-card__head">
+          <h3>Enrolled on the device</h3>
+          <span class="wd-muted" style="font-size:12.5px" id="doorEnrCount">People whose fingerprint can open the door</span>
+        </div>
+        <div class="door-enr">
+          <button type="button" class="wd-btn wd-btn--ghost wd-btn--sm" id="doorEnrLoad"><i class="fa-solid fa-users"></i> <span>Show enrolled people</span></button>
+          <input type="search" class="wd-input door-enr__q" id="doorEnrQ" placeholder="Search name or ID&hellip;" aria-label="Search enrolled people" hidden>
+        </div>
+        <p class="door-result door-result--bad" id="doorEnrErr" hidden role="status" style="margin:0 20px 16px"></p>
+        <div style="overflow-x:auto" id="doorEnrWrap" hidden>
+          <table class="wd-table">
+            <thead><tr><th>Device ID</th><th>Name</th><th>Role</th></tr></thead>
+            <tbody id="doorEnr"></tbody>
           </table>
         </div>
       </section>
@@ -227,6 +248,32 @@ $e = function ($s) { return htmlspecialchars((string) $s, ENT_QUOTES, 'UTF-8'); 
         });
       });
       $('doorRefresh').addEventListener('click', check);
+
+      // enrolled people: fetched only when asked (each look is one conversation with the device)
+      var enrolled = [], enrBtn = $('doorEnrLoad'), enrQ = $('doorEnrQ'), enrErr = $('doorEnrErr');
+      function showEnrolled() {
+        var q = enrQ.value.trim().toLowerCase();
+        var rows = enrolled.filter(function (u) { return !q || (u.name + ' ' + u.userId).toLowerCase().indexOf(q) !== -1; });
+        $('doorEnr').innerHTML = rows.length ? rows.map(function (u) {
+          return '<tr><td>' + esc(u.userId) + '</td><td>' + (u.name ? esc(u.name) : '<span class="wd-muted">(no name on the device)</span>') + '</td><td>'
+            + (u.role === 'Admin' ? '<span class="wd-pill wd-pill--info">Device admin</span>' : esc(u.role)) + '</td></tr>';
+        }).join('') : '<tr><td colspan="3" class="door-empty">' + (enrolled.length ? 'Nobody matches that search.' : 'Nobody is enrolled on the device.') + '</td></tr>';
+      }
+      enrBtn.addEventListener('click', function () {
+        enrBtn.disabled = true; enrErr.hidden = true;
+        enrBtn.querySelector('span').textContent = 'Reading the device…';
+        post({ action: 'enrolled' }, function (j) {
+          enrBtn.disabled = false;
+          enrBtn.querySelector('span').textContent = 'Refresh list';
+          if (j.status !== 'ok') { enrErr.textContent = j.msg || 'Could not read the list.'; enrErr.hidden = false; return; }
+          enrolled = j.users || [];
+          $('doorEnrCount').textContent = enrolled.length + (enrolled.length === 1 ? ' person' : ' people')
+            + (j.fingers != null ? ', ' + j.fingers + ' fingerprint' + (j.fingers === 1 ? '' : 's') : '');
+          $('doorEnrWrap').hidden = false; enrQ.hidden = false;
+          showEnrolled();
+        });
+      });
+      enrQ.addEventListener('input', showEnrolled);
 
       showLog(boot.log);
       check();
