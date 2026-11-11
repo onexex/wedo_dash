@@ -211,9 +211,9 @@ final class DoorControlTest extends AppTestCase
         $this->assertSame(5, $j['fingers']);
         // sorted by name; the one without a name sorts first
         $this->assertSame([
-            ['userId' => '1003', 'name' => '', 'role' => 'User'],
-            ['userId' => '1001', 'name' => 'Ada Admin', 'role' => 'Admin'],
-            ['userId' => '1002', 'name' => 'Juan Dela Cruz', 'role' => 'User'],
+            ['uid' => 3, 'userId' => '1003', 'name' => '', 'role' => 'User'],
+            ['uid' => 1, 'userId' => '1001', 'name' => 'Ada Admin', 'role' => 'Admin'],
+            ['uid' => 2, 'userId' => '1002', 'name' => 'Juan Dela Cruz', 'role' => 'User'],
         ], $j['users']);
         $raw = json_encode($j);
         $this->assertStringNotContainsString('SECRET', $raw);
@@ -241,6 +241,85 @@ final class DoorControlTest extends AppTestCase
         $this->assertSame(422, $code);
         $this->assertStringContainsString('Comm Key', $j['msg']);
         $this->assertArrayNotHasKey('users', $j);
+    }
+
+    // ------------------------------------------------------------------ correcting a name
+
+    public function testRenameChangesOnlyTheNameOnTheDevice(): void
+    {
+        $this->device();
+        $this->grant(self::ADMIN);
+        [$code, $j] = $this->act($this->as(self::ADMIN), ['action' => 'rename', 'uid' => 1, 'userId' => '1001', 'name' => '  Ada   Lovelace ']);
+        $this->assertSame(200, $code);
+        $this->assertSame('Ada Lovelace', $j['name']);
+
+        // the record written back is the device's own, with just the name replaced
+        $written = $this->released();
+        $this->assertCount(1, $written);
+        $rec = hex2bin(substr($written[0], strlen('write ')));
+        $this->assertSame(72, strlen($rec));
+        $this->assertSame(['uid' => 1, 'priv' => 14], unpack('vuid/Cpriv', $rec), 'still a device admin');
+        $this->assertSame('SECRETPW', substr($rec, 3, 8), 'device password untouched');
+        $this->assertSame(str_pad('Ada Lovelace', 24, "\0"), substr($rec, 11, 24));
+        $this->assertSame(5550001, unpack('V', substr($rec, 35, 4))[1], 'card untouched');
+        $this->assertSame('1001', rtrim(substr($rec, 48, 24), "\0"), 'ID untouched');
+
+        // the device now lists the new name, and the change is on record
+        [, $list] = $this->act($this->as(self::ADMIN), ['action' => 'enrolled']);
+        $this->assertSame(['', 'Ada Lovelace', 'Juan Dela Cruz'], array_column($list['users'], 'name'));
+        $log = $this->rows("SELECT EmpID, Action, Result, Detail FROM door_log");
+        $this->assertSame([['EmpID' => self::ADMIN, 'Action' => 'rename', 'Result' => 'ok', 'Detail' => 'ID 1001: Ada Admin → Ada Lovelace']], $log);
+        $this->assertSame('rename', $j['log'][0]['action']);
+        $this->assertStringNotContainsString('SECRET', json_encode($j));
+
+        // a name change is not an unlock: the door can still be opened straight after
+        $this->assertSame(200, $this->act($this->as(self::ADMIN), ['action' => 'unlock'])[0]);
+    }
+
+    public function testRenameRefusesNamesTheDeviceCannotHold(): void
+    {
+        $this->device();
+        $this->grant(self::ADMIN);
+        foreach (['' => 'Type the name', '   ' => 'Type the name', 'Niño Peña' => 'plain letters', '<b>x</b>' => 'plain letters',
+                  str_repeat('A', 24) => '23 characters'] as $name => $why) {
+            [$code, $j] = $this->act($this->as(self::ADMIN), ['action' => 'rename', 'uid' => 2, 'userId' => '1002', 'name' => $name]);
+            $this->assertSame(422, $code, "'$name'");
+            $this->assertStringContainsString($why, $j['msg'], "'$name'");
+        }
+        $this->assertSame([], $this->released(), 'nothing was written');
+        $this->assertSame(200, $this->act($this->as(self::ADMIN), ['action' => 'rename', 'uid' => 2, 'userId' => '1002', 'name' => str_repeat('A', 23)])[0]);
+    }
+
+    public function testRenameRefusesAStaleRowAndPeopleWithoutTheRight(): void
+    {
+        $this->device();
+        $post = ['action' => 'rename', 'uid' => 2, 'userId' => '1002', 'name' => 'Juan D. Cruz'];
+        $this->assertSame(403, $this->act($this->as(self::EMP), $post)[0]);
+
+        $this->grant(self::EMP);
+        // uid 2 is no longer ID 1001 / uid 9 is not on the device
+        foreach ([['uid' => 2, 'userId' => '1001'], ['uid' => 9, 'userId' => '1002']] as $stale) {
+            [$code, $j] = $this->act($this->as(self::EMP), $stale + $post);
+            $this->assertSame(422, $code);
+            $this->assertStringContainsString('NOT changed', $j['msg']);
+        }
+        $this->assertSame([], $this->released());
+        $this->assertSame(['failed', 'failed'], array_column($this->rows("SELECT Result FROM door_log WHERE Action = 'rename'"), 'Result'));
+    }
+
+    public function testRenameOnAnOldFirmwareDeviceKeepsEightLetters(): void
+    {
+        $this->device(self::KEY, 'old');
+        $this->grant(self::ADMIN);
+        [$code, $j] = $this->act($this->as(self::ADMIN), ['action' => 'rename', 'uid' => 2, 'userId' => '1002', 'name' => 'Juan Dela Cruz']);
+        $this->assertSame(422, $code);
+        $this->assertStringContainsString('too long for this device', $j['msg']);
+
+        $this->assertSame(200, $this->act($this->as(self::ADMIN), ['action' => 'rename', 'uid' => 2, 'userId' => '1002', 'name' => 'Juan DC'])[0]);
+        $rec = hex2bin(substr($this->released()[0], strlen('write ')));
+        $this->assertSame(28, strlen($rec));
+        $this->assertSame("Juan DC\0", substr($rec, 8, 8));
+        $this->assertSame(1002, unpack('V', substr($rec, 24, 4))[1], 'ID untouched');
     }
 
     // ------------------------------------------------------------------ unlock

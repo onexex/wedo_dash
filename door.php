@@ -2,7 +2,8 @@
 /* ==========================================================================
    door.php  —  Management > Door Control.
    Shows whether the office biometric device is online, lists who is
-   enrolled on it, and releases the door's magnetic lock for a few seconds. Gated by the `doorctl` access
+   enrolled on it (and corrects their names), and releases the door's
+   magnetic lock for a few seconds. Gated by the `doorctl` access
    right. Rules and the device conversation: includes/door-lib.php.
    Reads and writes: query/door-action.php.
    ========================================================================== */
@@ -24,7 +25,7 @@ $ready = door_ready($doorpdo);
 $cfg   = door_config();
 $log   = $ready ? door_log_rows($doorpdo) : [];
 $boot  = ['endpoint' => 'query/door-action.php', 'token' => door_csrf_token(), 'log' => $log,
-          'seconds' => $cfg ? $cfg['seconds'] : DOOR_SECONDS];
+          'seconds' => $cfg ? $cfg['seconds'] : DOOR_SECONDS, 'nameMax' => door_name_max()];
 
 $e = function ($s) { return htmlspecialchars((string) $s, ENT_QUOTES, 'UTF-8'); };
 ?>
@@ -79,6 +80,8 @@ $e = function ($s) { return htmlspecialchars((string) $s, ENT_QUOTES, 'UTF-8'); 
       .door-enr{display:flex;gap:10px;flex-wrap:wrap;align-items:center;padding:16px 20px}
       .door-enr__q{flex:1;min-width:180px;max-width:320px}
       .door-enr__q[hidden]{display:none}
+      .door-enr__name{width:100%;min-width:160px;max-width:320px}
+      .wd-table td.door-enr__act{white-space:nowrap;text-align:right}
       @media (max-width:800px){ .door-grid{grid-template-columns:minmax(0,1fr)} .door-hide-sm{display:none} }
     </style>
   </head>
@@ -130,7 +133,7 @@ $e = function ($s) { return htmlspecialchars((string) $s, ENT_QUOTES, 'UTF-8'); 
       <section class="wd-card" style="margin-top:16px">
         <div class="wd-card__head">
           <h3>Recent activity</h3>
-          <span class="wd-muted" style="font-size:12.5px">The last 30 tries, opened or not</span>
+          <span class="wd-muted" style="font-size:12.5px">The last 30 unlocks and name changes, worked or not</span>
         </div>
         <div style="overflow-x:auto">
           <table class="wd-table">
@@ -152,7 +155,7 @@ $e = function ($s) { return htmlspecialchars((string) $s, ENT_QUOTES, 'UTF-8'); 
         <p class="door-result door-result--bad" id="doorEnrErr" hidden role="status" style="margin:0 20px 16px"></p>
         <div style="overflow-x:auto" id="doorEnrWrap" hidden>
           <table class="wd-table">
-            <thead><tr><th>Device ID</th><th>Name</th><th>Role</th></tr></thead>
+            <thead><tr><th>Device ID</th><th>Name</th><th>Role</th><th><span class="sr-only">Edit</span></th></tr></thead>
             <tbody id="doorEnr"></tbody>
           </table>
         </div>
@@ -211,8 +214,10 @@ $e = function ($s) { return htmlspecialchars((string) $s, ENT_QUOTES, 'UTF-8'); 
       function showLog(rows) {
         $('doorLog').innerHTML = rows.length ? rows.map(function (r) {
           return '<tr><td>' + esc(r.at) + '</td><td>' + esc(r.who) + '</td><td>'
-            + (r.ok ? '<span class="wd-pill wd-pill--ok">Unlocked ' + esc(r.seconds) + 's</span>'
-                    : '<span class="wd-pill wd-pill--danger">Failed</span><span class="door-why">' + esc(r.detail) + '</span>')
+            + (r.action === 'rename'
+                ? '<span class="wd-pill ' + (r.ok ? 'wd-pill--info">Name changed' : 'wd-pill--danger">Name not changed') + '</span><span class="door-why">' + esc(r.detail) + '</span>'
+                : (r.ok ? '<span class="wd-pill wd-pill--ok">Unlocked ' + esc(r.seconds) + 's</span>'
+                        : '<span class="wd-pill wd-pill--danger">Failed</span><span class="door-why">' + esc(r.detail) + '</span>'))
             + '</td><td class="door-hide-sm">' + esc(r.note) + '</td></tr>';
         }).join('') : '<tr><td colspan="4" class="door-empty">Nobody has unlocked the door from WeDo yet.</td></tr>';
       }
@@ -255,10 +260,45 @@ $e = function ($s) { return htmlspecialchars((string) $s, ENT_QUOTES, 'UTF-8'); 
         var q = enrQ.value.trim().toLowerCase();
         var rows = enrolled.filter(function (u) { return !q || (u.name + ' ' + u.userId).toLowerCase().indexOf(q) !== -1; });
         $('doorEnr').innerHTML = rows.length ? rows.map(function (u) {
-          return '<tr><td>' + esc(u.userId) + '</td><td>' + (u.name ? esc(u.name) : '<span class="wd-muted">(no name on the device)</span>') + '</td><td>'
-            + (u.role === 'Admin' ? '<span class="wd-pill wd-pill--info">Device admin</span>' : esc(u.role)) + '</td></tr>';
-        }).join('') : '<tr><td colspan="3" class="door-empty">' + (enrolled.length ? 'Nobody matches that search.' : 'Nobody is enrolled on the device.') + '</td></tr>';
+          var role = '<td>' + (u.role === 'Admin' ? '<span class="wd-pill wd-pill--info">Device admin</span>' : esc(u.role)) + '</td>';
+          if (u.uid === editing) {
+            return '<tr><td>' + esc(u.userId) + '</td><td><input type="text" class="wd-input door-enr__name" id="doorEnrName" maxlength="' + boot.nameMax
+              + '" value="' + esc(u.name) + '" aria-label="Name for ID ' + esc(u.userId) + '"><span class="door-why" id="doorEnrSaveErr"></span></td>' + role
+              + '<td class="door-enr__act"><button type="button" class="wd-btn wd-btn--primary wd-btn--sm" data-save="' + u.uid + '">Save</button> '
+              + '<button type="button" class="wd-btn wd-btn--ghost wd-btn--sm" data-cancel="1">Cancel</button></td></tr>';
+          }
+          return '<tr><td>' + esc(u.userId) + '</td><td>' + (u.name ? esc(u.name) : '<span class="wd-muted">(no name on the device)</span>') + '</td>' + role
+            + '<td class="door-enr__act"><button type="button" class="wd-btn wd-btn--ghost wd-btn--sm" data-edit="' + u.uid + '"><i class="fa-solid fa-pen"></i> Edit name</button></td></tr>';
+        }).join('') : '<tr><td colspan="4" class="door-empty">' + (enrolled.length ? 'Nobody matches that search.' : 'Nobody is enrolled on the device.') + '</td></tr>';
+        var box = $('doorEnrName');
+        if (box) { box.focus(); box.select(); }
       }
+
+      // correct a name: only the name is sent; the device keeps the person's ID, role and fingerprints
+      var editing = null, saving = false;
+      function saveName(uid) {
+        var u = enrolled.filter(function (x) { return x.uid === uid; })[0], box = $('doorEnrName'), err = $('doorEnrSaveErr');
+        if (!u || !box || saving) { return; }
+        saving = true; err.textContent = 'Saving to the device…';
+        post({ action: 'rename', uid: uid, userId: u.userId, name: box.value }, function (j) {
+          saving = false;
+          if (j.log) { showLog(j.log); }
+          if (j.status !== 'ok') { err.textContent = j.msg || 'The name was not changed.'; return; }
+          u.name = j.name; editing = null; showEnrolled();
+        });
+      }
+      $('doorEnr').addEventListener('click', function (ev) {
+        var b = ev.target.closest('button');
+        if (!b || saving) { return; }
+        if (b.hasAttribute('data-edit')) { editing = parseInt(b.getAttribute('data-edit'), 10); showEnrolled(); }
+        else if (b.hasAttribute('data-cancel')) { editing = null; showEnrolled(); }
+        else if (b.hasAttribute('data-save')) { saveName(parseInt(b.getAttribute('data-save'), 10)); }
+      });
+      $('doorEnr').addEventListener('keydown', function (ev) {
+        if (ev.target.id !== 'doorEnrName') { return; }
+        if (ev.key === 'Enter') { ev.preventDefault(); saveName(editing); }
+        if (ev.key === 'Escape' && !saving) { editing = null; showEnrolled(); }
+      });
       enrBtn.addEventListener('click', function () {
         enrBtn.disabled = true; enrErr.hidden = true;
         enrBtn.querySelector('span').textContent = 'Reading the device…';

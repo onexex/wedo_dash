@@ -15,10 +15,11 @@
  * git or the database. Env WEDO_DOOR_HOST / WEDO_DOOR_PORT / WEDO_DOOR_KEY /
  * WEDO_DOOR_SECONDS win over the file (tests point them at a fake device).
  *
- * Three things are asked of the device: "who are you" (serial, name, clock),
+ * Four things are asked of the device: "who are you" (serial, name, clock),
  * "who is enrolled" (ID number, name, role — never their device passwords,
- * cards or fingerprints) and "release the lock for N seconds". Nothing is ever
- * written to the device, and its attendance logs are not read.
+ * cards or fingerprints), "release the lock for N seconds" and "correct this
+ * person's name". The name is the only thing ever written to the device; its
+ * attendance logs are not read.
  *
  * Used by: door.php (the page), query/door-action.php (status + unlock)
  * ========================================================================== */
@@ -39,6 +40,8 @@ const ZK_CMD_AUTH        = 1102;
 const ZK_CMD_OPTIONS_RRQ = 11;
 const ZK_CMD_UNLOCK      = 31;
 const ZK_CMD_GET_TIME    = 201;
+const ZK_CMD_USER_WRQ       = 8;
+const ZK_CMD_REFRESHDATA    = 1013;
 const ZK_CMD_GET_FREE_SIZES = 50;
 const ZK_CMD_USERTEMP_RRQ   = 9;
 const ZK_FCT_USER           = 5;
@@ -245,6 +248,38 @@ final class DoorDevice
      */
     public function users(): array
     {
+        return array_map(function ($u) { unset($u['raw']); return $u; }, $this->userRecords());
+    }
+
+    /**
+     * Change one person's name on the device and nothing else: their record is
+     * read, only the name bytes are replaced, and the same record goes back, so
+     * the ID, role, device password, card and fingerprints stay as they were.
+     * $userId must still belong to $uid (the list may have changed since it was
+     * shown). Returns the old name. Throws DoorException('refused').
+     */
+    public function rename(int $uid, string $userId, string $name): string
+    {
+        $found = null;
+        foreach ($this->userRecords() as $u) {
+            if ($u['uid'] === $uid) { $found = $u; break; }
+        }
+        if (!$found || $found['userId'] !== $userId) {
+            throw new DoorException('refused', 'That person is no longer on the device as listed. Refresh the list and try again.');
+        }
+        $old  = strlen($found['raw']) === 28;
+        $room = $old ? 8 : 24;
+        if (strlen($name) > door_name_max($old)) { throw new DoorException('refused', 'That name is too long for this device.'); }
+        $rec = substr_replace($found['raw'], str_pad($name, $room, "\0"), $old ? 8 : 11, $room);
+        $r = $this->send(ZK_CMD_USER_WRQ, $rec);
+        if ($r['code'] !== ZK_ACK_OK) { throw new DoorException('refused', 'The device refused the change (code ' . $r['code'] . ').'); }
+        $this->send(ZK_CMD_REFRESHDATA);
+        return $found['name'];
+    }
+
+    /** users() plus each person's record exactly as the device holds it ('raw'). */
+    private function userRecords(): array
+    {
         $count = $this->sizes()['users'] ?? 0;
         if ($count < 1) { return []; }
         $blob = $this->readBuffer(ZK_CMD_USERTEMP_RRQ, ZK_FCT_USER);
@@ -270,7 +305,7 @@ final class DoorDevice
                 $userId = $text(substr($rec, 48, 24));
             }
             $out[] = ['uid' => $h['uid'], 'userId' => $userId, 'name' => $name,
-                      'role' => $h['priv'] === 0 ? 'User' : ($h['priv'] === 14 ? 'Admin' : 'Other')];
+                      'role' => $h['priv'] === 0 ? 'User' : ($h['priv'] === 14 ? 'Admin' : 'Other'), 'raw' => $rec];
         }
         return $out;
     }
@@ -395,17 +430,50 @@ function door_enrolled(): array
         return ['ok' => false, 'msg' => $e->kind === 'auth' ? 'The device rejected the Comm Key.' : $e->getMessage()];
     }
     usort($users, function ($a, $b) { return strnatcasecmp($a['name'] . ' ' . $a['userId'], $b['name'] . ' ' . $b['userId']); });
-    $users = array_map(function ($u) { return ['userId' => $u['userId'], 'name' => $u['name'], 'role' => $u['role']]; }, $users);
     return ['ok' => true, 'msg' => '', 'users' => $users, 'fingers' => $sizes['fingers'] ?? null];
 }
 
-/** Write one try to door_log. */
-function door_log_add(PDO $pdo, string $actor, string $result, string $detail, string $note, int $seconds): void
+/** Longest name the device keeps: 8 letters on old firmware, 23 on the rest. */
+function door_name_max(bool $oldFirmware = false): int { return $oldFirmware ? 8 : 23; }
+
+/**
+ * Correct one enrolled person's name on the device (nothing else about them
+ * changes) and log it. ['ok' => bool, 'msg', 'name']
+ */
+function door_rename(PDO $pdo, string $actor, int $uid, string $userId, string $name): array
+{
+    $name = trim(preg_replace('/\s+/', ' ', $name));
+    if ($name === '') { return ['ok' => false, 'msg' => 'Type the name first.']; }
+    // the device's screen only draws plain letters: no ñ, accents or emoji
+    if (!preg_match('/^[A-Za-z0-9 .,\'-]+$/', $name)) {
+        return ['ok' => false, 'msg' => 'Use plain letters, numbers, spaces and . , \' - only (N instead of Ñ): the device cannot show other characters.'];
+    }
+    if (strlen($name) > door_name_max()) { return ['ok' => false, 'msg' => 'Keep the name to ' . door_name_max() . ' characters: that is all the device stores.']; }
+    $c = door_config();
+    if (!$c) { return ['ok' => false, 'msg' => 'No door device is set up on this server yet.']; }
+
+    $what = 'ID ' . $userId . ': ';
+    try {
+        $dev = new DoorDevice($c['host'], $c['port'], $c['key']);
+        $dev->connect();
+        $old = $dev->rename($uid, $userId, $name);
+        $dev->close();
+    } catch (DoorException $e) {
+        $why = $e->kind === 'auth' ? 'The device rejected the Comm Key.' : $e->getMessage();
+        door_log_add($pdo, $actor, 'failed', $what . $why, '', 0, 'rename');
+        return ['ok' => false, 'msg' => 'The name was NOT changed. ' . $why];
+    }
+    door_log_add($pdo, $actor, 'ok', $what . ($old !== '' ? $old : '(no name)') . ' → ' . $name, '', 0, 'rename');
+    return ['ok' => true, 'msg' => 'Name changed on the device.', 'name' => $name];
+}
+
+/** Write one try to door_log ($action: unlock | rename). */
+function door_log_add(PDO $pdo, string $actor, string $result, string $detail, string $note, int $seconds, string $action = 'unlock'): void
 {
     $now = (new DateTimeImmutable('now', new DateTimeZone('Asia/Manila')))->format('Y-m-d H:i:s');
     $pdo->prepare("INSERT INTO door_log (EmpID, Action, Result, Detail, Note, Seconds, IP, CreatedAt)
-                   VALUES (:e, 'unlock', :r, :d, :n, :s, :ip, :at)")
-        ->execute([':e' => $actor, ':r' => $result, ':d' => mb_substr($detail, 0, 200) ?: null, ':n' => $note !== '' ? $note : null,
+                   VALUES (:e, :a, :r, :d, :n, :s, :ip, :at)")
+        ->execute([':e' => $actor, ':a' => $action, ':r' => $result, ':d' => mb_substr($detail, 0, 200) ?: null, ':n' => $note !== '' ? $note : null,
                    ':s' => $seconds, ':ip' => mb_substr(wd_client_ip(), 0, 45), ':at' => $now]);
 }
 
@@ -420,7 +488,7 @@ function door_unlock(PDO $pdo, string $actor, string $note = ''): array
     if (!$c) { return ['ok' => false, 'msg' => 'No door device is set up on this server yet.']; }
 
     // a second tap right after the first: the lock is still released, don't fire again
-    $last = $pdo->prepare("SELECT CreatedAt FROM door_log WHERE EmpID = :e AND Result = 'ok' ORDER BY id DESC LIMIT 1");
+    $last = $pdo->prepare("SELECT CreatedAt FROM door_log WHERE EmpID = :e AND Action = 'unlock' AND Result = 'ok' ORDER BY id DESC LIMIT 1");
     $last->execute([':e' => $actor]);
     $at = $last->fetchColumn();
     $tz = new DateTimeZone('Asia/Manila');
@@ -445,14 +513,14 @@ function door_unlock(PDO $pdo, string $actor, string $note = ''): array
 /** The latest tries, newest first, with the person's name. */
 function door_log_rows(PDO $pdo, int $limit = 30): array
 {
-    $st = $pdo->query("SELECT l.id, l.EmpID, l.Result, l.Detail, l.Note, l.Seconds, l.CreatedAt,
+    $st = $pdo->query("SELECT l.id, l.EmpID, l.Action, l.Result, l.Detail, l.Note, l.Seconds, l.CreatedAt,
                               TRIM(CONCAT(COALESCE(e.EmpFN, ''), ' ', COALESCE(e.EmpLN, ''))) AS name
                          FROM door_log l LEFT JOIN employees e ON e.EmpID = l.EmpID
                         ORDER BY l.id DESC LIMIT " . max(1, min(200, $limit)));
     $out = [];
     foreach ($st->fetchAll(PDO::FETCH_ASSOC) as $r) {
         $out[] = ['id' => (int) $r['id'], 'who' => $r['name'] !== '' ? $r['name'] : $r['EmpID'], 'ok' => $r['Result'] === 'ok',
-                  'detail' => (string) $r['Detail'], 'note' => (string) $r['Note'], 'seconds' => (int) $r['Seconds'],
+                  'action' => $r['Action'] === 'rename' ? 'rename' : 'unlock', 'detail' => (string) $r['Detail'], 'note' => (string) $r['Note'], 'seconds' => (int) $r['Seconds'],
                   'at' => date('M j, Y g:i:s A', strtotime($r['CreatedAt']))];
     }
     return $out;

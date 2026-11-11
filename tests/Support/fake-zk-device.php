@@ -94,6 +94,18 @@ while (time() < $until) {
                 fwrite($conn, ZK_TCP_MAGIC . pack('V', strlen($packet)) . $packet);
             }
             continue;
+        } elseif ($h['cmd'] === ZK_CMD_USER_WRQ) {
+            // replace the stored record that has the same uid; note exactly what was written
+            $size = $old ? 28 : 72;
+            $code = 2001;
+            for ($at = 4; strlen($data) === $size && $at + $size <= strlen($list); $at += $size) {
+                if (substr($list, $at, 2) === substr($data, 0, 2)) {
+                    $list = substr_replace($list, $data, $at, $size);
+                    file_put_contents($log, 'write ' . bin2hex($data) . "\n", FILE_APPEND);
+                    $code = ZK_ACK_OK;
+                    break;
+                }
+            }
         } elseif ($h['cmd'] === ZK_CMD_UNLOCK) {
             if ($refuse) { $code = 2001; }
             else { file_put_contents($log, 'unlock ' . unpack('V', $data)[1] . "\n", FILE_APPEND); }
