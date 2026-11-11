@@ -749,7 +749,7 @@
         + '<button type="button" class="wd-btn wd-btn--primary" id="invMakeTsdr"><i class="fa-solid fa-file-signature"></i> Make TSDR</button>', true);
       each($id('invModalBody'), '[data-item]', function (a) { a.addEventListener('click', function (ev) { ev.preventDefault(); openItem(+a.getAttribute('data-item')); }); });
       each($id('invModalBody'), '[data-tsdrgroup]', function (a) { a.addEventListener('click', function (ev) { ev.preventDefault(); openTsdr(+a.getAttribute('data-tsdrgroup'), function () { openPerson(e.empId); }); }); });
-      $id('invFormPrint').addEventListener('click', function () { printAccountability(res); });
+      $id('invFormPrint').addEventListener('click', function () { accountabilityPicker(res, function () { openPerson(e.empId); }); });
       $id('invMakeTsdr').addEventListener('click', function () { makeTsdr(e.empId, function () { openPerson(e.empId); }); });
       L.post('tsdr_list', { emp: e.empId }).then(function (r) {
         var box = $id('invPersonTsdrs');
@@ -761,19 +761,23 @@
     });
   }
 
-  /** A person's issued items, grouped under the TSDR that covers them (newest first), then the ones without one. */
-  function personRows(items) {
+  /** Items in groups by the TSDR that covers them (newest first), then the ones without one: [{key, tsdr, items}]. */
+  function byTsdr(items) {
     var groups = [], by = {};
     items.forEach(function (i) {
       var k = i.tsdr ? 't' + i.tsdr.id : 'none';
-      if (!by[k]) { by[k] = { tsdr: i.tsdr || null, items: [] }; groups.push(by[k]); }
+      if (!by[k]) { by[k] = { key: k, tsdr: i.tsdr || null, items: [] }; groups.push(by[k]); }
       by[k].items.push(i);
     });
-    groups.sort(function (a, b) {
+    return groups.sort(function (a, b) {
       if (!a.tsdr || !b.tsdr) { return a.tsdr ? -1 : (b.tsdr ? 1 : 0); }
       return String(b.tsdr.createdAt).localeCompare(String(a.tsdr.createdAt)) || b.tsdr.id - a.tsdr.id;
     });
-    var many = groups.length > 1 || groups[0].tsdr;   // nothing to group when no item has a TSDR
+  }
+
+  /** A person's issued items, grouped under the TSDR that covers them (newest first), then the ones without one. */
+  function personRows(items) {
+    var groups = byTsdr(items), many = groups.length > 1 || groups[0].tsdr;   // nothing to group when no item has a TSDR
     return groups.map(function (g) {
       var head = !many ? '' : '<tr class="inv-group"><td colspan="6">' + (g.tsdr
         ? '<a href="#" data-tsdrgroup="' + g.tsdr.id + '"><i class="fa-solid fa-file-signature"></i> TSDR ' + esc(g.tsdr.no) + '</a> ' + tsdrPill(g.tsdr) + ' <span class="lcy-muted">' + esc(L.fmtDate(g.tsdr.createdAt)) + ' · ' + g.items.length + ' item(s)</span>'
@@ -785,47 +789,148 @@
     }).join('');
   }
 
-  function printSheet(html) {
+  function absUrl(path) { try { return new URL(path, location.href).href; } catch (err) { return path; } }
+
+  /**
+   * Prints html once its pictures (the letterhead logo) have loaded: a print started before that leaves them blank.
+   * title names the saved PDF.
+   */
+  function printSheet(html, title) {
+    function whenReady(doc, imgs, go) {   // the page and its pictures are in, or 5 s have passed
+      var tries = 0, timer = setInterval(function () {
+        var done = doc.readyState === 'complete' && [].every.call(imgs(), function (i) { return i.complete; });
+        if (done || ++tries > 50) { clearInterval(timer); go(); }
+      }, 100);
+    }
     if (document.documentElement.classList.contains('wdapp')) {   // the app prints a page of its own, not this one
       var w = window.open('about:blank');
-      w.document.write('<!DOCTYPE html><html><head><meta charset="utf-8"><link rel="stylesheet" href="' + new URL('assets/css/inventory.css', location.href).href + '"></head>'
+      w.document.open();
+      w.document.write('<!DOCTYPE html><html><head><meta charset="utf-8"><title>' + esc(title || document.title) + '</title>'
+        + '<link rel="stylesheet" href="' + absUrl('assets/css/inventory.css') + '"></head>'
         + '<body class="inv-printing"><div id="invPrint">' + html + '</div></body></html>');
       w.document.close();
-      w.print();
+      whenReady(w.document, function () { return w.document.images; }, function () { w.focus(); w.print(); });
       return;
     }
+    var was = document.title;
     $id('invPrint').innerHTML = html;
     document.body.classList.add('inv-printing');
-    var off = function () { document.body.classList.remove('inv-printing'); $id('invPrint').innerHTML = ''; window.removeEventListener('afterprint', off); };
+    if (title) { document.title = title; }
+    var off = function () {
+      document.body.classList.remove('inv-printing');
+      $id('invPrint').innerHTML = '';
+      document.title = was;
+      window.removeEventListener('afterprint', off);
+    };
     window.addEventListener('afterprint', off);
-    window.print();
+    whenReady(document, function () { return $id('invPrint').querySelectorAll('img'); }, function () { window.print(); });
   }
 
-  /** The property accountability form, in the same boxed layout as the printed TSDR. */
-  function printAccountability(a) {
-    var e = a.employee;
-    function cell(label, value) { return '<div class="inv-tsdr__cell"><b>' + esc(label) + '</b><div>' + esc(value || 'N/A') + '</div></div>'; }
-    function sign(name, label, hint) {
-      return '<div class="inv-tsdr__sign"><b>' + esc(name || '') + '</b><span></span><strong>' + esc(label) + '</strong><small>' + esc(hint) + '</small></div>';
+  /* ------------------------------------------------------------ printed forms on the company letterhead */
+  /** cls: the form's own class; meta: docMeta() pieces; body: docSec() sections. */
+  function docSheet(cls, title, meta, body) {
+    var lh = BOOT.letterhead || {}, logo = lh.logo || BOOT.logo;
+    var foot = [lh.address, lh.email ? 'E-mail: ' + lh.email : ''].filter(Boolean).map(esc).join('<i></i>');
+    return '<div class="inv-doc ' + cls + '">'
+      + '<table class="inv-doc__page">'
+      + '<thead><tr><td><header class="inv-doc__head">'
+      +   (logo ? '<img class="inv-doc__logo" src="' + esc(absUrl(logo)) + '" alt="' + esc(BOOT.company) + '">' : '<b class="inv-doc__org">' + esc(BOOT.company) + '</b>')
+      +   '<div class="inv-doc__title"><h1>' + esc(title) + '</h1><div class="inv-doc__meta">' + meta + '</div></div>'
+      + '</header></td></tr></thead>'
+      + '<tfoot><tr><td><div class="inv-doc__footspace"></div></td></tr></tfoot>'   // keeps the page's text clear of the footer
+      + '<tbody><tr><td>' + body + '</td></tr></tbody>'
+      + '</table>'
+      + (foot ? '<footer class="inv-doc__foot">' + foot + '</footer>' : '')
+      + '</div>';
+  }
+  function docMeta(label, html) { return '<span><small>' + esc(label) + '</small><b>' + html + '</b></span>'; }
+  function docSec(n, title, hint, html) {
+    return '<section class="inv-doc__sec"><h2><span>' + n + '</span>' + esc(title) + (hint ? '<small>' + esc(hint) + '</small>' : '') + '</h2>' + html + '</section>';
+  }
+  /** html: already escaped; empty prints a blank line to write on. */
+  function docField(label, html) { return '<div class="inv-doc__f"><label>' + esc(label) + '</label><div>' + (html || '&nbsp;') + '</div></div>'; }
+  function docFields(list, cols) { return '<div class="inv-doc__fields inv-doc__fields--' + (cols || list.length) + '">' + list.join('') + '</div>'; }
+  function docOpt(on, label, round) {
+    return '<span class="inv-doc__opt' + (round ? ' inv-doc__opt--round' : '') + (on ? ' is-on' : '') + '"><i>' + (on && !round ? '&#10003;' : '') + '</i>' + esc(label) + '</span>';
+  }
+  function docNote(label, text) { return '<div class="inv-doc__note"><label>' + esc(label) + '</label><div>' + esc(text || '') + '</div></div>'; }
+  function docSign(name, label, hint) {
+    return '<div class="inv-doc__sign"><b>' + esc(name || '') + '</b><span></span><strong>' + esc(label) + '</strong>' + (hint ? '<small>' + esc(hint) + '</small>' : '') + '</div>';
+  }
+  function ymd(s) { return s ? String(s).slice(0, 10) : ''; }
+
+  /** Choose which of a person's issued items go on the accountability form. pick: item ids to tick (default: all). */
+  function accountabilityPicker(res, back, pick) {
+    var e = res.employee;
+    var groups = res.items.length ? byTsdr(res.items) : [], many = groups.length > 1 || (groups[0] && groups[0].tsdr);
+    var body = !res.items.length ? empty('Nothing is issued to ' + e.name + '.')
+      : '<div id="invAccPick"><p class="lcy-muted">Tick the items to put on the form. Leave out what was already signed for, or print one form per TSDR.</p>'
+      + '<label class="lcy-check inv-accpick__all"><input type="checkbox" id="invAccAll"> <b>All items</b> <span class="lcy-muted" id="invAccCount"></span></label>'
+      + groups.map(function (g) {
+        return '<div class="inv-accpick__group">'
+          + (many ? '<label class="lcy-check inv-accpick__head"><input type="checkbox" data-accgroup="' + g.key + '"> '
+            + (g.tsdr ? '<b>TSDR ' + esc(g.tsdr.no) + '</b> <span class="lcy-muted">' + esc(L.fmtDate(g.tsdr.createdAt)) + '</span>' : '<b>No TSDR yet</b>')
+            + ' <span class="lcy-muted">&middot; ' + g.items.length + ' item(s)</span></label>' : '')
+          + g.items.map(function (i) {
+            return '<label class="lcy-check inv-accpick__item"><input type="checkbox" name="accItem" value="' + i.id + '" data-g="' + g.key + '"' + (!pick || pick.indexOf(i.id) >= 0 ? ' checked' : '') + '>'
+              + ' <span><span class="inv-tag">' + esc(i.tag) + '</span> ' + esc(i.name) + (i.serial ? ' <span class="lcy-muted">SN ' + esc(i.serial) + '</span>' : '') + '</span></label>';
+          }).join('') + '</div>';
+      }).join('') + '</div>';
+    showModal('Accountability form · ' + e.name, body,
+      '<button type="button" class="wd-btn wd-btn--ghost inv-formback" id="invAccBack">Back</button>'
+      + '<button type="button" class="wd-btn wd-btn--primary" id="invAccPrint"' + (res.items.length ? '' : ' disabled') + '><i class="fa-solid fa-print"></i> Print form</button>', true);
+    $id('invAccBack').addEventListener('click', function () { if (back) { back(); } else { closeModal(); } });
+    var box = $id('invAccPick');   // its own wrapper: a listener on the modal body would outlive this picker
+    if (!box) { return; }          // nothing issued
+    var boxes = function (sel) { return [].slice.call(box.querySelectorAll(sel)); };
+    function setGroup(cb, list) {
+      var on = list.filter(function (x) { return x.checked; }).length;
+      cb.checked = on > 0 && on === list.length;
+      cb.indeterminate = on > 0 && on < list.length;
+      return on;
     }
-    var logo = BOOT.logo ? '<img src="' + esc(BOOT.logo) + '" alt="' + esc(BOOT.company) + '">' : '';
-    var withTsdr = a.items.some(function (i) { return i.tsdr !== undefined; });
-    printSheet('<div class="inv-tsdr inv-acc">'
-      + '<div class="inv-tsdr__head"><div class="inv-tsdr__logo">' + logo + '</div><h2>Property Accountability Form</h2><div class="inv-tsdr__no">Date:<br>' + esc(String(a.printedOn || '').slice(0, 10)) + '</div></div>'
-      + '<div class="inv-tsdr__bar">Employee</div>'
-      + '<div class="inv-tsdr__grid">' + cell('Name:', e.name) + cell('Employee ID:', e.empId) + cell('Position:', e.position) + cell('Account / Department:', e.department) + '</div>'
-      + '<div class="inv-tsdr__bar">Items issued</div>'
-      + (a.items.length ? '<table class="inv-acc__items"><thead><tr><th>#</th><th>Tag</th><th>Item</th><th>Serial no.</th><th>Qty</th><th>Condition</th><th>Date issued</th>' + (withTsdr ? '<th>TSDR #</th>' : '') + '</tr></thead><tbody>'
-        + a.items.map(function (i, n) {
-          return '<tr><td>' + (n + 1) + '</td><td>' + esc(i.tag) + '</td><td>' + esc(i.name) + (i.brand || i.model ? '<br><small>' + esc((i.brand + ' ' + i.model).trim()) + '</small>' : '') + '</td><td>' + esc(i.serial) + '</td>'
-            + '<td>' + i.qty + ' ' + esc(i.unit) + '</td><td>' + esc(i.conditionLabel) + '</td><td>' + esc(String(i.issuedOn || '').slice(0, 10)) + '</td>'
-            + (withTsdr ? '<td>' + esc(i.tsdr ? i.tsdr.no : '') + '</td>' : '') + '</tr>';
-        }).join('') + '</tbody></table>'
-        : '<div class="inv-tsdr__box1">Nothing issued.</div>')
-      + '<div class="inv-tsdr__bar">Acknowledgement</div>'
-      + '<div class="inv-tsdr__box1 inv-acc__text">I acknowledge receipt of the items listed above in the stated condition. I will take care of them, use them for company work, and return all of them upon request or when my employment ends.</div>'
-      + '<div class="inv-tsdr__signs inv-acc__signs">' + sign(e.name, 'Employee / Date', '(Signature over printed name)') + sign('', 'Released by', '(Signature over printed name)') + '</div>'
-      + '</div>');
+    function sync() {
+      boxes('[data-accgroup]').forEach(function (g) { setGroup(g, boxes('input[data-g="' + g.getAttribute('data-accgroup') + '"]')); });
+      var on = setGroup($id('invAccAll'), boxes('input[name="accItem"]'));
+      $id('invAccCount').textContent = '(' + on + ' of ' + res.items.length + ' ticked)';
+      $id('invAccPrint').disabled = !on;
+    }
+    box.addEventListener('change', function (ev) {
+      var t = ev.target;
+      if (t.id === 'invAccAll') { boxes('input[name="accItem"]').forEach(function (x) { x.checked = t.checked; }); }
+      if (t.hasAttribute('data-accgroup')) { boxes('input[data-g="' + t.getAttribute('data-accgroup') + '"]').forEach(function (x) { x.checked = t.checked; }); }
+      sync();
+    });
+    sync();
+    $id('invAccPrint').addEventListener('click', function () {
+      var ids = boxes('input[name="accItem"]:checked').map(function (x) { return +x.value; });
+      printAccountability({ employee: e, printedOn: res.printedOn, items: res.items.filter(function (i) { return ids.indexOf(i.id) >= 0; }) });
+    });
+  }
+
+  /** The property accountability form for the items given. */
+  function printAccountability(a) {
+    var e = a.employee, withTsdr = a.items.some(function (i) { return i.tsdr !== undefined; });
+    var head = ['#', 'Tag', 'Item', 'Serial no.', 'Qty', 'Condition', 'Issued'].concat(withTsdr ? ['TSDR #'] : []);
+    var rows = a.items.map(function (i, n) {
+      var bm = ((i.brand || '') + ' ' + (i.model || '')).trim();
+      return '<tr><td class="is-num">' + (n + 1) + '</td><td class="is-nowrap">' + esc(i.tag) + '</td>'
+        + '<td><b>' + esc(i.name) + '</b>' + (bm ? '<small>' + esc(bm) + '</small>' : '') + '</td><td>' + esc(i.serial) + '</td>'
+        + '<td class="is-nowrap">' + i.qty + ' ' + esc(i.unit) + '</td><td>' + esc(i.conditionLabel) + '</td><td class="is-nowrap">' + esc(ymd(i.issuedOn)) + '</td>'
+        + (withTsdr ? '<td class="is-nowrap">' + esc(i.tsdr ? i.tsdr.no : '') + '</td>' : '') + '</tr>';
+    }).join('');
+    var body = docSec(1, 'Employee', '', docFields([docField('Name', esc(e.name)), docField('Employee ID', esc(e.empId)), docField('Position', esc(e.position)), docField('Account / department', esc(e.department))]))
+      + docSec(2, 'Items issued', a.items.length + ' item(s)', a.items.length
+        ? '<table class="inv-doc__table"><thead><tr>' + head.map(function (h, n) { return '<th' + (n ? '' : ' class="is-num"') + '>' + esc(h) + '</th>'; }).join('') + '</tr></thead><tbody>' + rows + '</tbody></table>'
+        : '<p class="inv-doc__none">No items.</p>')
+      + docSec(3, 'Acknowledgement', '', '<div class="inv-doc__keep"><p>By signing below, I acknowledge that:</p><ol class="inv-doc__terms">'
+        + '<li>I received the items listed above in the condition stated.</li>'
+        + '<li>I will take care of them and use them for company work only.</li>'
+        + '<li>I will report any loss or damage right away.</li>'
+        + '<li>I will return all of them upon request or when my employment ends.</li></ol>'
+        + '<div class="inv-doc__signs">' + docSign(e.name, 'Employee', 'Signature over printed name / Date') + docSign('', 'Released by', 'Signature over printed name / Date') + '</div></div>');
+    printSheet(docSheet('inv-doc--acc', 'Property Accountability Form',
+      docMeta('Date', esc(ymd(a.printedOn))) + docMeta('Employee ID', esc(e.empId)) + docMeta('Items', String(a.items.length)), body), 'Accountability - ' + e.name);
   }
 
   /* ------------------------------------------------------------ TSDR (Technical Services Data Report) */
@@ -880,11 +985,18 @@
         + facts + '<h5 class="inv-sec__title">Items</h5>' + items,
         '<button type="button" class="wd-btn wd-btn--ghost inv-formback" id="invTsdrBack">' + (back ? 'Back' : 'Close') + '</button>'
         + '<button type="button" class="wd-btn wd-btn--ghost" id="invTsdrEdit"><i class="fa-solid fa-pen"></i> Edit</button>'
+        + '<button type="button" class="wd-btn wd-btn--ghost" id="invTsdrAcc"><i class="fa-solid fa-file-contract"></i> Accountability form</button>'
         + '<button type="button" class="wd-btn wd-btn--primary" id="invTsdrPrint"><i class="fa-solid fa-print"></i> Print</button>', true);
       each($id('invModalBody'), '[data-item]', function (a) { a.addEventListener('click', function (ev) { ev.preventDefault(); openItem(+a.getAttribute('data-item')); }); });
       $id('invTsdrBack').addEventListener('click', function () { if (back) { back(); } else { closeModal(); } });
       $id('invTsdrEdit').addEventListener('click', function () { tsdrForm(res, t, function () { openTsdr(t.id, back); }); });
       $id('invTsdrPrint').addEventListener('click', function () { printTsdr(t, res); });
+      $id('invTsdrAcc').addEventListener('click', function () {   // the person's items, with this TSDR's ones ticked
+        L.post('person', { emp: t.empId }).then(function (p) {
+          if (p.status !== 'ok') { alert(p.msg); return; }
+          accountabilityPicker(p, function () { openTsdr(t.id, back); }, t.items.map(function (x) { return x.itemId; }).filter(Boolean));
+        });
+      });
     });
   }
 
@@ -943,16 +1055,8 @@
     formStart = $(box).serialize();
   }
 
-  /** The printed form, laid out like the old projInventory TSDR (equipment page > TSDR > Print). */
+  /** The printed TSDR on the letterhead, with the old projInventory form's sections and fields. */
   function printTsdr(t, ctx) {
-    function check(onIt, label, round) {
-      return '<div class="inv-tsdr__opt"><span class="inv-tsdr__box' + (round ? ' inv-tsdr__box--round' : '') + '">' + (onIt ? (round ? '&#9679;' : '&#10003;') : '') + '</span>' + esc(label) + '</div>';
-    }
-    function sign(name, label, hint) {
-      return '<div class="inv-tsdr__sign"><b>' + esc(name || '') + '</b><span></span><strong>' + esc(label) + '</strong><small>' + esc(hint) + '</small></div>';
-    }
-    function cell(label, value) { return '<div class="inv-tsdr__cell"><b>' + esc(label) + '</b><div>' + value + '</div></div>'; }
-    function ymd(s) { return s ? String(s).slice(0, 10) : ''; }
     function stamp(s) {   // "2024-03-12 / 01:27 PM", as the old form printed it
       if (!s) { return ''; }
       var m = /^(\d{4}-\d{2}-\d{2})[ T](\d{2}):(\d{2})/.exec(String(s));
@@ -961,48 +1065,37 @@
       h = h % 12 || 12;
       return m[1] + ' / ' + (h < 10 ? '0' : '') + h + ':' + m[3] + ' ' + ap;
     }
-    function na(s) { return esc(s || 'N/A'); }
+    function opts(map, isOn, round) {
+      return '<div class="inv-doc__opts' + (round ? ' inv-doc__opts--inline' : '') + '">' + Object.keys(map).map(function (k) { return docOpt(isOn(k), map[k], round); }).join('') + '</div>';
+    }
     var svc = {};
     t.services.forEach(function (s) { svc[s] = true; });
-    var keys = Object.keys(ctx.services), half = Math.ceil(keys.length / 2);
-    var col = function (list) { return '<div>' + list.map(function (k) { return check(svc[k], ctx.services[k]); }).join('') + '</div>'; };
-    var st = Object.keys(ctx.statuses);
-    var stCol = function (list) { return '<div>' + list.map(function (k) { return check(t.status === k, ctx.statuses[k], true); }).join('') + '</div>'; };
-    var logo = BOOT.logo ? '<img src="' + esc(BOOT.logo) + '" alt="' + esc(BOOT.company) + '">' : '';
+    var items = t.items.length
+      ? '<table class="inv-doc__table"><thead><tr><th class="is-num">#</th><th>Tag</th><th>Item</th></tr></thead><tbody>' + t.items.map(function (x, n) {
+          var text = x.tag && x.text.slice(-(x.tag.length + 3)) === ' (' + x.tag + ')' ? x.text.slice(0, -(x.tag.length + 3)) : x.text;
+          return '<tr><td class="is-num">' + (n + 1) + '</td><td class="is-nowrap">' + esc(x.tag || '') + '</td><td>' + esc(text) + '</td></tr>';
+        }).join('') + '</tbody></table>'
+      : '<p class="inv-doc__none">No item: service only.</p>';
 
-    printSheet('<div class="inv-tsdr">'
-      + '<div class="inv-tsdr__head"><div class="inv-tsdr__logo">' + logo + '</div><h2>Technical Services Data Report</h2><div class="inv-tsdr__no">TSDR #:<br>' + esc(t.no) + '</div></div>'
-
-      + '<div class="inv-tsdr__bar">To be filled-out by requisitioner</div>'
-      + '<div class="inv-tsdr__box1">' + cell('Account / Department', na(t.accountDept)) + '</div>'
-      + '<div class="inv-tsdr__row inv-tsdr__row--svc">'
-      +   '<div class="inv-tsdr__svc"><b>Service being requested</b><div class="inv-tsdr__two">' + col(keys.slice(0, half)) + col(keys.slice(half)) + '</div>'
-      +     (svc.others ? '<p class="inv-tsdr__others"><b>Others:</b> ' + esc(t.otherService) + '</p>' : '') + '</div>'
-      +   '<div class="inv-tsdr__item"><div><b>Item</b>' + (t.items.length ? '<ul>' + t.items.map(function (x) { return '<li>' + esc(x.text) + '</li>'; }).join('') + '</ul>' : '<p>N/A</p>') + '</div></div>'
-      + '</div>'
-      + '<div class="inv-tsdr__box1"><p class="inv-tsdr__needed"><b>Date needed:</b> ' + esc(ymd(t.dateNeeded)) + '</p>'
-      +   '<div class="inv-tsdr__signs">' + sign(t.requisitioner, 'Requisitioner', '(Signature over printed name)') + sign(t.approvedBy, 'Approved by', '(Signature over printed name)') + '</div></div>'
-
-      + '<div class="inv-tsdr__bar">To be filled-out by receiver</div>'
-      + '<div class="inv-tsdr__row">'
-      +   '<div class="inv-tsdr__from"><b>Requested from</b> <span>(please make selection for group)</span>' + Object.keys(ctx.from).map(function (k) { return check(t.requestedFrom === k, ctx.from[k], true); }).join('') + '</div>'
-      +   '<div class="inv-tsdr__signs inv-tsdr__signs--wide">' + sign('', 'Date & time received', '(Please write current date & time here)') + sign(t.receivedBy, 'Received by', '(Please write name and affix signature here)') + '</div>'
-      + '</div>'
-
-      + '<div class="inv-tsdr__bar">To be filled-out by SysAd personnel</div>'
-      + '<div class="inv-tsdr__grid">'
-      +   cell('SysAd personnel assigned:', na(t.sysad)) + cell('TSDR #:', esc(t.no))
-      +   cell('Status request', '<div class="inv-tsdr__two">' + stCol(st.slice(0, 2)) + stCol(st.slice(2)) + '</div>') + cell('Status details', na(t.statusDetails))
-      +   cell('Evaluation:', na(t.evaluation)) + cell('Recommendation:', na(t.recommendation))
-      +   cell('Date & time accomplished', esc(stamp(t.accomplishedAt))) + cell('Signature of SysAd personnel', '')
-      + '</div>'
-
-      + '<div class="inv-tsdr__bar">Acknowledgement</div>'
-      + '<div class="inv-tsdr__row inv-tsdr__ack">'
-      +   '<p>Requisitioner or representative from the requesting account or department will have to sign this portion upon completion of the request.</p>'
-      +   sign(t.requisitioner + (t.dateNeeded ? ' / ' + ymd(t.dateNeeded) : ''), 'Requisitioner / Date', '(signature over printed name)')
-      + '</div>'
-      + '</div>');
+    var body = docSec(1, 'Request', 'To be filled out by the requisitioner',
+        docFields([docField('Requisitioner', esc(t.requisitioner)), docField('Employee ID', esc(t.empId)), docField('Account / department', esc(t.accountDept)), docField('Date needed', esc(ymd(t.dateNeeded)))])
+        + '<div class="inv-doc__label">Service being requested</div>' + opts(ctx.services, function (k) { return svc[k]; })
+        + (svc.others ? docFields([docField('Others, please specify', esc(t.otherService))], 1) : '')
+        + '<div class="inv-doc__label">Items (' + t.items.length + ')</div>' + items
+        + '<div class="inv-doc__signs">' + docSign(t.requisitioner, 'Requisitioner', 'Signature over printed name') + docSign(t.approvedBy, 'Approved by', 'Signature over printed name') + '</div>')
+      + docSec(2, 'Receiving', 'To be filled out by the receiver',
+        '<div class="inv-doc__split inv-doc__split--r"><div><div class="inv-doc__label">Requested from</div>' + opts(ctx.from, function (k) { return t.requestedFrom === k; }, true) + '</div>'
+        + '<div class="inv-doc__signs">' + docSign(t.receivedBy, 'Received by', 'Name and signature') + docSign('', 'Date & time received', 'Write the current date and time') + '</div></div>')
+      + docSec(3, 'Service report', 'To be filled out by the SysAd personnel',
+        docFields([docField('SysAd personnel assigned', esc(t.sysad)), docField('Date & time accomplished', esc(stamp(t.accomplishedAt)))])
+        + '<div class="inv-doc__split"><div><div class="inv-doc__label">Status of request</div>' + opts(ctx.statuses, function (k) { return t.status === k; }, true)
+        + docFields([docField('Status details', esc(t.statusDetails))], 1) + '</div>'
+        + '<div class="inv-doc__signs inv-doc__signs--one">' + docSign(t.sysad, 'SysAd personnel', 'Signature over printed name') + '</div></div>'
+        + '<div class="inv-doc__notes">' + docNote('Evaluation', t.evaluation) + docNote('Recommendation', t.recommendation) + '</div>')
+      + docSec(4, 'Acknowledgement', '', '<div class="inv-doc__ack"><p>The requisitioner or a representative of the requesting account or department signs here once the request is completed.</p>'
+        + docSign(t.requisitioner, 'Requisitioner / Date', 'Signature over printed name') + '</div>');
+    printSheet(docSheet('inv-doc--tsdr', 'Technical Services Data Report',
+      docMeta('TSDR No.', esc(t.no)) + docMeta('Date', esc(ymd(t.createdAt))) + docMeta('Status', esc(t.statusLabel)), body), 'TSDR ' + t.no);
   }
 
   /* ------------------------------------------------------------ QR labels */
