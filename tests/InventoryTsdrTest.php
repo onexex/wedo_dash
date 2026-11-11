@@ -145,11 +145,24 @@ final class InventoryTsdrTest extends AppTestCase
         self::db()->prepare("UPDATE inv_items SET AckAt = '2026-11-11 09:05:00' WHERE id = ?")->execute([$b]);
         $this->assertSame([null, '2026-11-11 09:05:00', null], array_column($this->act('tsdr', ['id' => $id])['json']['tsdr']['items'], 'ackAt'),
             'when the requisitioner confirmed receipt; the returned item and the old line have none');
+        $items = $this->act('tsdr', ['id' => $id])['json']['tsdr']['items'];
+        $this->assertSame('returned', $items[0]['left']['type'], 'each item on its own: the laptop came back');
+        $this->assertSame(substr(self::db()->query("SELECT MAX(CreatedAt) FROM inv_movements WHERE ItemID = $a AND Type = 'returned'")->fetchColumn(), 0, 10),
+            substr($items[0]['left']['on'], 0, 10));
+        $this->assertSame([false, true, false], array_column($items, 'held'), 'the monitor is still with them');
+        $this->assertNull($items[1]['left']);
 
         // dropping the returned item is fine; adding it back now is not
         $this->assertSame(200, $this->save(['id' => $id, 'items' => [$b]])['status']);
         $this->assertSame(422, $this->save(['id' => $id, 'items' => [$a, $b]])['status']);
         $this->assertSame(422, $this->save(['id' => 999999])['status']);
+
+        // issued to them again later: an older TSDR that lists it still shows it came back (the new issue is not that TSDR's)
+        self::db()->prepare("INSERT INTO inv_tsdr_items (TsdrID, ItemID, ItemText) VALUES (?, ?, 'Laptop')")->execute([$id, $a]);
+        $this->act('issue', ['id' => $a, 'emp' => self::EMP]);
+        $last = array_values(array_filter($this->act('tsdr', ['id' => $id])['json']['tsdr']['items'], function ($x) use ($a) { return $x['itemId'] === $a; }))[0];
+        $this->assertSame('returned', $last['left']['type']);
+        $this->assertFalse($last['held']);
     }
 
     public function testListAndSearch(): void

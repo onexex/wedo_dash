@@ -858,6 +858,12 @@
     return '<div class="inv-doc__sign"><b>' + esc(name || '') + '</b><span></span><strong>' + esc(label) + '</strong>' + (hint ? '<small>' + esc(hint) + '</small>' : '') + '</div>';
   }
   function ymd(s) { return s ? String(s).slice(0, 10) : ''; }
+  /** A TSDR item's Confirmed cell: when it was confirmed, or when it came back (each item on its own). */
+  function tsdrItemCell(x) {
+    if (x.left) { return '<td class="is-nowrap inv-doc__pending">' + (x.left.type === 'disposed' ? 'Disposed' : 'Returned') + '<small>' + esc(ymd(x.left.on)) + '</small></td>'; }
+    if (x.held === false) { return '<td class="is-nowrap inv-doc__pending">No longer issued</td>'; }
+    return docConfirmed(x.ackAt);
+  }
   /** A table cell for when the holder confirmed receipt: "2025-10-14" over "03:05 PM", or "Not yet". */
   function docConfirmed(s) {
     var m = /^(\d{4}-\d{2}-\d{2})[ T](\d{2}):(\d{2})/.exec(String(s || ''));
@@ -987,7 +993,8 @@
         + fact('SysAd personnel', t.sysad) + fact('Status details', t.statusDetails) + fact('Evaluation', t.evaluation)
         + fact('Recommendation', t.recommendation) + fact('Accomplished', L.fmtDateTime(t.accomplishedAt)) + '</dl>';
       var items = t.items.length ? '<ul class="inv-tsdr-items">' + t.items.map(function (x) {
-        return '<li>' + (x.itemId ? '<a href="#" data-item="' + x.itemId + '">' + esc(x.text) + '</a>' : esc(x.text)) + '</li>';
+        return '<li>' + (x.itemId ? '<a href="#" data-item="' + x.itemId + '">' + esc(x.text) + '</a>' : esc(x.text))
+          + (x.left ? ' ' + pill('info', (x.left.type === 'disposed' ? 'Disposed ' : 'Returned ') + L.fmtDate(x.left.on)) : '') + '</li>';
       }).join('') + '</ul>' : empty('No items on this TSDR.');
       showModal('TSDR ' + t.no, '<p>' + tsdrPill(t) + (t.source === 'projinventory' ? ' <span class="lcy-muted">Brought over from projInventory</span>' : '') + '</p>'
         + facts + '<h5 class="inv-sec__title">Items</h5>' + items,
@@ -1082,7 +1089,7 @@
     var items = t.items.length
       ? '<table class="inv-doc__table"><thead><tr><th class="is-num">#</th><th>Tag</th><th>Item</th>' + (linked ? '<th>Confirmed</th>' : '') + '</tr></thead><tbody>' + t.items.map(function (x, n) {
           var text = x.tag && x.text.slice(-(x.tag.length + 3)) === ' (' + x.tag + ')' ? x.text.slice(0, -(x.tag.length + 3)) : x.text;
-          return '<tr><td class="is-num">' + (n + 1) + '</td><td class="is-nowrap">' + esc(x.tag || '') + '</td><td>' + esc(text) + '</td>' + (!linked ? '' : x.itemId ? docConfirmed(x.ackAt) : '<td></td>') + '</tr>';
+          return '<tr><td class="is-num">' + (n + 1) + '</td><td class="is-nowrap">' + esc(x.tag || '') + '</td><td>' + esc(text) + '</td>' + (!linked ? '' : x.itemId ? tsdrItemCell(x) : '<td></td>') + '</tr>';
         }).join('') + '</tbody></table>'
       : '<p class="inv-doc__none">No item: service only.</p>';
 
