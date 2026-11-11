@@ -54,6 +54,11 @@ $boot = [
     'siteUrl'   => wd_site_url(),
     'company'   => (string) ($_SESSION['CompanyName'] ?? ''),
     'logo'      => (string) ($_SESSION['CompanyLogo'] ?? '') !== '' ? (string) $_SESSION['CompanyLogo'] : 'assets/images/logos/WeDo.png',   // printed TSDR header
+    'letterhead' => [   // printed forms, from the company letterhead (Letter-Head.docx)
+        'logo'    => 'assets/images/letterhead/wedo-logo.png',
+        'address' => 'Unit 304-A Tektite Tower West Exchange Road and Pearl Drive, Ortigas Center, Pasig City 1605 Philippines',
+        'email'   => 'admin@wedoinc.ph',
+    ],
     'maxUpload' => (int) min($iniBytes(ini_get('upload_max_filesize')), $iniBytes(ini_get('post_max_size'))),
 ];
 $e = function ($s) { return htmlspecialchars((string) $s, ENT_QUOTES, 'UTF-8'); };
