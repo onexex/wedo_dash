@@ -142,6 +142,9 @@ final class InventoryTsdrTest extends AppTestCase
         $this->assertSame('Ada Admin', $t['approvedBy']);
         $this->assertSame([$a, $b, null], array_column($t['items'], 'itemId'));
         $this->assertSame('KEYBOARD · SN OLD-1', $t['items'][2]['text']);
+        self::db()->prepare("UPDATE inv_items SET AckAt = '2026-11-11 09:05:00' WHERE id = ?")->execute([$b]);
+        $this->assertSame([null, '2026-11-11 09:05:00', null], array_column($this->act('tsdr', ['id' => $id])['json']['tsdr']['items'], 'ackAt'),
+            'when the requisitioner confirmed receipt; the returned item and the old line have none');
 
         // dropping the returned item is fine; adding it back now is not
         $this->assertSame(200, $this->save(['id' => $id, 'items' => [$b]])['status']);
