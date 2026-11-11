@@ -373,6 +373,7 @@
   .inv-doc__table td small { display: block; font-size: 7.5pt; color: var(--doc-muted); }
   .inv-doc__table .is-num { width: 7mm; text-align: right; color: var(--doc-muted); }
   .inv-doc__table .is-nowrap { white-space: nowrap; }
+  .inv-doc__table .inv-doc__pending { font-style: italic; color: var(--doc-muted); }
   .inv-doc__none { margin: 0; padding: 2mm; background: var(--doc-soft); color: var(--doc-muted); font-style: italic; }
 
   .inv-doc__notes { display: grid; grid-template-columns: 1fr 1fr; gap: 5mm; margin-top: 2.5mm; break-inside: avoid; page-break-inside: avoid; }
@@ -409,6 +410,6 @@
   .inv-doc .inv-doc__org { color: var(--doc-brand) !important; }
   .inv-doc .inv-doc__f label, .inv-doc .inv-doc__note label, .inv-doc .inv-doc__label, .inv-doc .inv-doc__meta small,
   .inv-doc .inv-doc__sec > h2 > small, .inv-doc .inv-doc__sign > small, .inv-doc .inv-doc__table td small,
-  .inv-doc .inv-doc__table .is-num, .inv-doc .inv-doc__none { color: var(--doc-muted) !important; }
+  .inv-doc .inv-doc__table .is-num, .inv-doc .inv-doc__none, .inv-doc .inv-doc__pending { color: var(--doc-muted) !important; }
   .inv-doc .inv-doc__f label, .inv-doc .inv-doc__note label { max-width: none; }
 }

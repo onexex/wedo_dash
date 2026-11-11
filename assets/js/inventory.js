@@ -858,6 +858,14 @@
     return '<div class="inv-doc__sign"><b>' + esc(name || '') + '</b><span></span><strong>' + esc(label) + '</strong>' + (hint ? '<small>' + esc(hint) + '</small>' : '') + '</div>';
   }
   function ymd(s) { return s ? String(s).slice(0, 10) : ''; }
+  /** A table cell for when the holder confirmed receipt: "2025-10-14" over "03:05 PM", or "Not yet". */
+  function docConfirmed(s) {
+    var m = /^(\d{4}-\d{2}-\d{2})[ T](\d{2}):(\d{2})/.exec(String(s || ''));
+    if (!m) { return '<td class="is-nowrap inv-doc__pending">Not yet</td>'; }
+    var h = +m[2], ap = h < 12 ? 'AM' : 'PM';
+    h = h % 12 || 12;
+    return '<td class="is-nowrap">' + m[1] + '<small>' + (h < 10 ? '0' : '') + h + ':' + m[3] + ' ' + ap + '</small></td>';
+  }
 
   /** Choose which of a person's issued items go on the accountability form. pick: item ids to tick (default: all). */
   function accountabilityPicker(res, back, pick) {
@@ -911,12 +919,12 @@
   /** The property accountability form for the items given. */
   function printAccountability(a) {
     var e = a.employee, withTsdr = a.items.some(function (i) { return i.tsdr !== undefined; });
-    var head = ['#', 'Tag', 'Item', 'Serial no.', 'Qty', 'Condition', 'Issued'].concat(withTsdr ? ['TSDR #'] : []);
+    var head = ['#', 'Tag', 'Item', 'Serial no.', 'Qty', 'Condition', 'Issued', 'Confirmed'].concat(withTsdr ? ['TSDR #'] : []);
     var rows = a.items.map(function (i, n) {
       var bm = ((i.brand || '') + ' ' + (i.model || '')).trim();
       return '<tr><td class="is-num">' + (n + 1) + '</td><td class="is-nowrap">' + esc(i.tag) + '</td>'
         + '<td><b>' + esc(i.name) + '</b>' + (bm ? '<small>' + esc(bm) + '</small>' : '') + '</td><td>' + esc(i.serial) + '</td>'
-        + '<td class="is-nowrap">' + i.qty + ' ' + esc(i.unit) + '</td><td>' + esc(i.conditionLabel) + '</td><td class="is-nowrap">' + esc(ymd(i.issuedOn)) + '</td>'
+        + '<td class="is-nowrap">' + i.qty + ' ' + esc(i.unit) + '</td><td>' + esc(i.conditionLabel) + '</td><td class="is-nowrap">' + esc(ymd(i.issuedOn)) + '</td>' + docConfirmed(i.ackAt)
         + (withTsdr ? '<td class="is-nowrap">' + esc(i.tsdr ? i.tsdr.no : '') + '</td>' : '') + '</tr>';
     }).join('');
     var body = docSec(1, 'Employee', '', docFields([docField('Name', esc(e.name)), docField('Employee ID', esc(e.empId)), docField('Position', esc(e.position)), docField('Account / department', esc(e.department))]))
@@ -1070,10 +1078,11 @@
     }
     var svc = {};
     t.services.forEach(function (s) { svc[s] = true; });
+    var linked = t.items.some(function (x) { return x.itemId; });   // items in Inventory: show when each was confirmed
     var items = t.items.length
-      ? '<table class="inv-doc__table"><thead><tr><th class="is-num">#</th><th>Tag</th><th>Item</th></tr></thead><tbody>' + t.items.map(function (x, n) {
+      ? '<table class="inv-doc__table"><thead><tr><th class="is-num">#</th><th>Tag</th><th>Item</th>' + (linked ? '<th>Confirmed</th>' : '') + '</tr></thead><tbody>' + t.items.map(function (x, n) {
           var text = x.tag && x.text.slice(-(x.tag.length + 3)) === ' (' + x.tag + ')' ? x.text.slice(0, -(x.tag.length + 3)) : x.text;
-          return '<tr><td class="is-num">' + (n + 1) + '</td><td class="is-nowrap">' + esc(x.tag || '') + '</td><td>' + esc(text) + '</td></tr>';
+          return '<tr><td class="is-num">' + (n + 1) + '</td><td class="is-nowrap">' + esc(x.tag || '') + '</td><td>' + esc(text) + '</td>' + (!linked ? '' : x.itemId ? docConfirmed(x.ackAt) : '<td></td>') + '</tr>';
         }).join('') + '</tbody></table>'
       : '<p class="inv-doc__none">No item: service only.</p>';
 
