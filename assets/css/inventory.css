@@ -280,6 +280,16 @@
 .inv-card__photos img { width: 64px; height: 64px; object-fit: cover; border-radius: var(--radius); border: 1px solid var(--border); }
 .inv-card__foot { display: flex; gap: 8px; flex-wrap: wrap; margin-top: auto; padding-top: 6px; }
 
+/* ---- TSDR form and panel ---- */
+.inv-tsdr-svcs { display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: 6px 12px; margin-bottom: 8px; }
+.inv-tsdr-picks { display: flex; flex-direction: column; gap: 6px; }
+.inv-tsdr-picks .lcy-check { align-items: flex-start; }
+.inv-tsdr-picks .lcy-check input { margin-top: 3px; }
+.inv-tsdr-items { margin: 0; padding-left: 18px; }
+.inv-tsdr-items li { margin-bottom: 4px; }
+.inv-tsdr-sub { margin-top: 18px; }
+@media (max-width: 600px) { .inv-tsdr-svcs { grid-template-columns: 1fr 1fr; } }
+
 /* ---- printing: labels and the accountability form ---- */
 #invPrint { display: none; }
 @media print {
@@ -311,4 +321,32 @@
   .inv-form__sign { display: flex; gap: 14mm; break-inside: avoid; page-break-inside: avoid; }
   .inv-form__sign div { flex: 1; text-align: center; font-size: 9.5pt; }
   .inv-form__sign span { display: block; border-top: 1px solid #000; margin-bottom: 1.5mm; }
+
+  /* TSDR: one A4 page, same sections as the old projInventory form */
+  .inv-tsdr { font-family: Tahoma, Geneva, sans-serif; color: #000; font-size: 9pt; line-height: 1.3; }
+  .inv-tsdr__head { display: flex; align-items: center; gap: 4mm; border-bottom: 2px solid #000; padding-bottom: 2mm; margin-bottom: 2mm; }
+  .inv-tsdr__head img { height: 14mm; width: auto; }
+  .inv-tsdr__head > div:first-of-type { flex: 1; }
+  .inv-tsdr__head h2 { font-size: 13pt; margin: 0; text-transform: uppercase; letter-spacing: .3px; }
+  .inv-tsdr__head p { margin: .5mm 0 0; font-size: 8.5pt; }
+  .inv-tsdr__no { text-align: right; font-size: 8.5pt; }
+  .inv-tsdr__no b { display: block; font-size: 12pt; }
+  .inv-tsdr h3 { font-size: 9pt; margin: 3mm 0 1.5mm; padding: 1mm 2mm; background: #e6e6e6; text-transform: uppercase; print-color-adjust: exact; -webkit-print-color-adjust: exact; }
+  .inv-tsdr h4 { font-size: 8.5pt; margin: 2mm 0 1mm; text-transform: uppercase; }
+  .inv-tsdr table { width: 100%; border-collapse: collapse; margin-bottom: 1.5mm; }
+  .inv-tsdr th, .inv-tsdr td { border: 1px solid #000; padding: 1mm 1.6mm; text-align: left; vertical-align: top; }
+  .inv-tsdr th { width: 24%; font-weight: 600; }
+  .inv-tsdr__checks { display: grid; grid-template-columns: repeat(4, 1fr); gap: 1mm 3mm; }
+  .inv-tsdr__opt { display: inline-flex; align-items: center; gap: 1.5mm; margin-right: 4mm; }
+  .inv-tsdr__box { display: inline-block; width: 3.2mm; height: 3.2mm; border: 1px solid #000; text-align: center; line-height: 3mm; font-size: 8pt; font-weight: 700; }
+  .inv-tsdr__line { margin: 1mm 0; }
+  .inv-tsdr__items { margin: 0 0 1mm; padding-left: 5mm; }
+  .inv-tsdr__items li { break-inside: avoid; page-break-inside: avoid; }
+  .inv-tsdr__sign { display: flex; gap: 12mm; margin-top: 8mm; break-inside: avoid; page-break-inside: avoid; }
+  .inv-tsdr__sign div { flex: 1; text-align: center; font-size: 8.5pt; }
+  .inv-tsdr__sign b { display: block; min-height: 1.3em; font-size: 9pt; }
+  .inv-tsdr__sign span { display: block; border-top: 1px solid #000; margin: .5mm 0 .8mm; }
+  .inv-tsdr__sign small { display: block; font-size: 7pt; }
+  .inv-tsdr__sign--one div { flex: 0 0 50%; margin-left: auto; }
+  .inv-tsdr__ack { margin: 1mm 0 0; font-style: italic; }
 }

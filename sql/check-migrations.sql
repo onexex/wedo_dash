@@ -103,6 +103,8 @@ FROM (
          IF((SELECT COUNT(*) FROM information_schema.TABLES WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME IN ('sub_items','sub_requirements','sub_renewals','sub_files','sub_watchers','sub_runs','sub_notify_log','sub_creds','sub_cred_log')) < 9, 'sub_* tables', NULL))
   UNION ALL SELECT '2026-11-10-add-sub-contacts-ips',
          IF((SELECT COUNT(*) FROM information_schema.TABLES WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME IN ('sub_contacts','sub_ipblocks','sub_ips')) < 3, 'sub_contacts / sub_ipblocks / sub_ips tables', '')
+  UNION ALL SELECT '2026-11-11-add-inventory-tsdr',
+         IF((SELECT COUNT(*) FROM information_schema.TABLES WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME IN ('inv_tsdr','inv_tsdr_items')) < 2, 'inv_tsdr / inv_tsdr_items tables', '')
   UNION ALL SELECT 'security fix (remember-me hash, see wedo-security-fixes)',
          IF((SELECT COUNT(*) FROM information_schema.COLUMNS WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'empdetails' AND COLUMN_NAME = 'remember_hash') = 0, 'empdetails.remember_hash', '')
 ) AS m;

@@ -53,6 +53,7 @@ $boot = [
     'tag'       => $tag,
     'siteUrl'   => wd_site_url(),
     'company'   => (string) ($_SESSION['CompanyName'] ?? ''),
+    'logo'      => (string) ($_SESSION['CompanyLogo'] ?? '') !== '' ? (string) $_SESSION['CompanyLogo'] : 'assets/images/logos/WeDo.png',   // printed TSDR header
     'maxUpload' => (int) min($iniBytes(ini_get('upload_max_filesize')), $iniBytes(ini_get('post_max_size'))),
 ];
 $e = function ($s) { return htmlspecialchars((string) $s, ENT_QUOTES, 'UTF-8'); };
@@ -99,6 +100,7 @@ $v = function ($f) { return @filemtime(__DIR__ . '/' . $f) ?: 0; };
         <button type="button" class="lcy-tab is-on" data-tab="items"><i class="fa-solid fa-boxes-stacked"></i> Items</button>
         <button type="button" class="lcy-tab" data-tab="supplies"><i class="fa-solid fa-dolly"></i> Supplies</button>
         <button type="button" class="lcy-tab" data-tab="people"><i class="fa-solid fa-users"></i> People</button>
+        <button type="button" class="lcy-tab" data-tab="tsdr"><i class="fa-solid fa-file-signature"></i> TSDR</button>
         <button type="button" class="lcy-tab" data-tab="repairs"><i class="fa-solid fa-screwdriver-wrench"></i> Repairs</button>
         <button type="button" class="lcy-tab" data-tab="counts"><i class="fa-solid fa-list-check"></i> Counts</button>
         <button type="button" class="lcy-tab" data-tab="alerts"><i class="fa-solid fa-bell"></i> Alerts <span class="inv-tabcount" id="invAlertCount"></span></button>
@@ -161,6 +163,17 @@ $v = function ($f) { return @filemtime(__DIR__ . '/' . $f) ?: 0; };
       <section class="wd-card inv-pane lcy-hidden" id="invPanePeople">
         <div class="wd-card__head"><h3>Who holds company property</h3></div>
         <div id="invPeople"></div>
+      </section>
+
+      <!-- TSDR (Technical Services Data Report) -->
+      <section class="wd-card inv-pane lcy-hidden" id="invPaneTsdr">
+        <div class="wd-card__head"><h3>Technical Services Data Reports</h3></div>
+        <div class="inv-toolbar">
+          <input type="search" class="wd-input" id="invTsdrQ" placeholder="Search TSDR #, name, account, item&hellip;" aria-label="Search TSDRs">
+          <span class="inv-spacer"></span>
+          <span class="lcy-muted">Make one from People &rsaquo; an employee &rsaquo; Make TSDR</span>
+        </div>
+        <div id="invTsdrs"></div>
       </section>
 
       <!-- Repairs -->

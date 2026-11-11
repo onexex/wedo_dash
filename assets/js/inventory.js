@@ -716,9 +716,20 @@
           return '<tr><td><span class="inv-tag">' + esc(i.tag) + '</span></td><td>' + esc(i.name) + (i.serial ? '<br><span class="lcy-muted">SN ' + esc(i.serial) + '</span>' : '') + '</td><td>' + i.qty + ' ' + esc(i.unit) + '</td><td>' + esc(L.fmtDate(i.issuedOn)) + '</td>'
             + '<td>' + (i.ackAt ? esc(L.fmtDate(i.ackAt)) : pill('warn', 'No')) + '</td><td><a href="#" data-item="' + i.id + '">Open</a></td></tr>';
         }).join('')) : empty('Nothing issued.'));
-      showModal(e.name, body, '<button type="button" class="wd-btn wd-btn--ghost" data-dismiss="modal">Close</button><button type="button" class="wd-btn wd-btn--primary" id="invFormPrint"><i class="fa-solid fa-print"></i> Accountability form</button>', true);
+      body += '<h5 class="inv-sec__title inv-tsdr-sub">TSDRs</h5><div id="invPersonTsdrs"><div class="lcy-empty">Loading&hellip;</div></div>';
+      showModal(e.name, body, '<button type="button" class="wd-btn wd-btn--ghost" data-dismiss="modal">Close</button>'
+        + '<button type="button" class="wd-btn wd-btn--ghost" id="invFormPrint"><i class="fa-solid fa-print"></i> Accountability form</button>'
+        + '<button type="button" class="wd-btn wd-btn--primary" id="invMakeTsdr"><i class="fa-solid fa-file-signature"></i> Make TSDR</button>', true);
       each($id('invModalBody'), '[data-item]', function (a) { a.addEventListener('click', function (ev) { ev.preventDefault(); openItem(+a.getAttribute('data-item')); }); });
       $id('invFormPrint').addEventListener('click', function () { printAccountability(res); });
+      $id('invMakeTsdr').addEventListener('click', function () { makeTsdr(e.empId, function () { openPerson(e.empId); }); });
+      L.post('tsdr_list', { emp: e.empId }).then(function (r) {
+        var box = $id('invPersonTsdrs');
+        if (!box) { return; }
+        if (r.status !== 'ok') { box.innerHTML = empty(r.msg); return; }
+        box.innerHTML = r.tsdrs.length ? tsdrTable(r.tsdrs, false) : empty('No TSDR yet.');
+        wireTsdrs(box, function () { openPerson(e.empId); });
+      });
     });
   }
 
@@ -750,6 +761,152 @@
       }).join('') + '</tbody></table>'
       + '<p class="inv-form__text">I acknowledge receipt of the items listed above in the stated condition. I will take care of them, use them for company work, and return all of them upon request or when my employment ends.</p>'
       + '<div class="inv-form__sign"><div><span></span>Employee signature over printed name</div><div><span></span>Released by</div></div></div>');
+  }
+
+  /* ------------------------------------------------------------ TSDR (Technical Services Data Report) */
+  var TSDR_TONE = { done: 'ok', pending: 'warn', cannot: 'danger', others: 'info' };
+  function tsdrPill(t) { return pill(TSDR_TONE[t.status] || 'info', t.statusLabel); }
+
+  function tsdrTable(list, withEmp) {
+    return table(['TSDR #'].concat(withEmp ? ['Requisitioner'] : []).concat(['Services', 'Items', 'Status', 'Accomplished', '']), list.map(function (t) {
+      return '<tr><td><b>' + esc(t.no) + '</b>' + (t.source === 'projinventory' ? '<br><span class="lcy-muted">from projInventory</span>' : '') + '</td>'
+        + (withEmp ? '<td>' + esc(t.requisitioner) + '<br><span class="lcy-muted">' + esc(t.accountDept || t.empId) + '</span></td>' : '')
+        + '<td>' + esc(t.serviceLabels.join(', ')) + '</td><td>' + t.itemCount + '</td><td>' + tsdrPill(t) + '</td>'
+        + '<td>' + esc(L.fmtDateTime(t.accomplishedAt)) + '</td>'
+        + '<td><button type="button" class="wd-btn wd-btn--ghost wd-btn--sm" data-tsdr="' + t.id + '">View</button></td></tr>';
+    }).join(''));
+  }
+  /** back: where the TSDR panel's Back button returns (the person, or nothing for the TSDR tab). */
+  function wireTsdrs(box, back) {
+    each(box, '[data-tsdr]', function (b) { b.addEventListener('click', function () { openTsdr(+b.getAttribute('data-tsdr'), back); }); });
+  }
+
+  function loadTsdrs() {
+    return L.post('tsdr_list', { q: $id('invTsdrQ').value }).then(function (res) {
+      var box = $id('invTsdrs');
+      if (res.status !== 'ok') { box.innerHTML = empty(res.msg); return; }
+      if (!res.tsdrs.length) { box.innerHTML = empty($id('invTsdrQ').value ? 'No TSDR matches.' : 'No TSDR yet. Open People, choose an employee and press Make TSDR.'); return; }
+      box.innerHTML = tsdrTable(res.tsdrs, true) + (res.tsdrs.length >= res.limit ? '<p class="lcy-muted">Showing the newest ' + res.limit + '. Search to find older ones.</p>' : '');
+      wireTsdrs(box, null);
+    });
+  }
+
+  function makeTsdr(empId, back) {
+    L.post('tsdr_draft', { emp: empId }).then(function (res) {
+      if (res.status !== 'ok') { alert(res.msg); return; }
+      tsdrForm(res, null, back);
+    });
+  }
+
+  function openTsdr(id, back) {
+    L.post('tsdr', { id: id }).then(function (res) {
+      if (res.status !== 'ok') { alert(res.msg); return; }
+      var t = res.tsdr;
+      var facts = '<dl class="lcy-facts">' + fact('Requisitioner', t.requisitioner + ' · ' + t.empId) + fact('Account / department', t.accountDept)
+        + fact('Date needed', L.fmtDate(t.dateNeeded)) + fact('Services', t.serviceLabels.join(', ') + (t.otherService ? ' (' + t.otherService + ')' : ''))
+        + fact('Approved by', t.approvedBy) + fact('Requested from', res.from[t.requestedFrom]) + fact('Received by', t.receivedBy)
+        + fact('SysAd personnel', t.sysad) + fact('Status details', t.statusDetails) + fact('Evaluation', t.evaluation)
+        + fact('Recommendation', t.recommendation) + fact('Accomplished', L.fmtDateTime(t.accomplishedAt)) + '</dl>';
+      var items = t.items.length ? '<ul class="inv-tsdr-items">' + t.items.map(function (x) {
+        return '<li>' + (x.itemId ? '<a href="#" data-item="' + x.itemId + '">' + esc(x.text) + '</a>' : esc(x.text)) + '</li>';
+      }).join('') + '</ul>' : empty('No items on this TSDR.');
+      showModal('TSDR ' + t.no, '<p>' + tsdrPill(t) + (t.source === 'projinventory' ? ' <span class="lcy-muted">Brought over from projInventory</span>' : '') + '</p>'
+        + facts + '<h5 class="inv-sec__title">Items</h5>' + items,
+        '<button type="button" class="wd-btn wd-btn--ghost inv-formback" id="invTsdrBack">' + (back ? 'Back' : 'Close') + '</button>'
+        + '<button type="button" class="wd-btn wd-btn--ghost" id="invTsdrEdit"><i class="fa-solid fa-pen"></i> Edit</button>'
+        + '<button type="button" class="wd-btn wd-btn--primary" id="invTsdrPrint"><i class="fa-solid fa-print"></i> Print</button>', true);
+      each($id('invModalBody'), '[data-item]', function (a) { a.addEventListener('click', function (ev) { ev.preventDefault(); openItem(+a.getAttribute('data-item')); }); });
+      $id('invTsdrBack').addEventListener('click', function () { if (back) { back(); } else { closeModal(); } });
+      $id('invTsdrEdit').addEventListener('click', function () { tsdrForm(res, t, function () { openTsdr(t.id, back); }); });
+      $id('invTsdrPrint').addEventListener('click', function () { printTsdr(t, res); });
+    });
+  }
+
+  /** ctx: the draft (or the tsdr answer) with employee, items, services, from, statuses; t: the TSDR being edited. */
+  function tsdrForm(ctx, t, back) {
+    var v = t || ctx.defaults, e = ctx.employee || { name: t.requisitioner, empId: t.empId };
+    var text = function (name, label, val, extra) { var o = extra || {}; o.name = name; o.label = label; o.value = val; return fieldHtml(o); };
+    var on = {}, items = ctx.items.slice();
+    if (t) {
+      t.items.forEach(function (x) {
+        if (x.itemId) { on[x.itemId] = true; }
+        if (x.itemId && !items.some(function (i) { return i.id === x.itemId; })) { items.push({ id: x.itemId, tag: x.tag, text: x.text, gone: true }); }
+      });
+    } else {
+      items.forEach(function (i) { if (i.pending) { on[i.id] = true; } });
+    }
+    var svcOn = {};
+    (t ? t.services : []).forEach(function (s) { svcOn[s] = true; });
+
+    var who = section('Requisitioner', '<div class="wd-field"><label>Employee</label><div class="inv-readonly">' + esc(e.name) + '<small>' + esc(e.empId) + (t ? ' · TSDR ' + esc(t.no) : ' · gets number ' + esc(ctx.nextNo) + ' when saved') + '</small></div></div>'
+      + two(text('accountDept', 'Account / department', v.accountDept, { max: 120 }), text('dateNeeded', 'Date needed', v.dateNeeded, { type: 'date' })));
+    var svcs = section('Service being requested', '<div class="inv-tsdr-svcs">' + Object.keys(ctx.services).map(function (k) {
+      return '<label class="lcy-check"><input type="checkbox" name="services[]" value="' + esc(k) + '"' + (svcOn[k] ? ' checked' : '') + '> ' + esc(ctx.services[k]) + '</label>';
+    }).join('') + '</div><div id="invTsdrOther" class="lcy-hidden">' + text('otherService', 'Other service', t ? t.otherService : '', { max: 200 }) + '</div>');
+    var list = items.length ? '<div class="inv-tsdr-picks">' + items.map(function (i) {
+      return '<label class="lcy-check"><input type="checkbox" name="items[]" value="' + i.id + '"' + (on[i.id] ? ' checked' : '') + '> <span>' + esc(i.text)
+        + (i.pending && !t ? ' ' + pill('warn', 'No TSDR yet') : '') + (i.gone ? ' ' + pill('info', 'No longer issued') : '') + '</span></label>';
+    }).join('') + '</div>' : empty('Nothing is issued to ' + e.name + '. A TSDR can still be made for a service alone.');
+    var picks = section('Items', '<p class="lcy-muted">Items issued to ' + esc(e.name) + '. The ones without a TSDR yet are ticked.</p>' + list);
+    var approval = section('Approval', fieldHtml({ type: 'emp', name: 'approvedBy', label: 'Approved by', value: t ? t.approvedById : '' }));
+    var receiver = section('Receiver', '<div class="wd-field"><label>Requested from</label><div class="inv-segs">' + radios('requestedFrom', kv(ctx.from), v.requestedFrom || 'it') + '</div></div>'
+      + text('receivedBy', 'Received by', t ? t.receivedBy : '', { max: 150, placeholder: 'Leave blank to write it by hand on the printout' }));
+    var sysad = section('SysAd personnel', fieldHtml({ type: 'emp', name: 'sysad', label: 'SysAd personnel assigned', value: v.sysadId })
+      + '<div class="wd-field"><label>Status of request</label><div class="inv-segs">' + radios('status', kv(ctx.statuses), v.status || 'done') + '</div></div>'
+      + text('statusDetails', 'Status details', t ? t.statusDetails : '', { max: 300, placeholder: 'N/A' })
+      + two(text('evaluation', 'Evaluation', t ? t.evaluation : '', { type: 'textarea', max: 500, placeholder: 'N/A' }),
+            text('recommendation', 'Recommendation', t ? t.recommendation : '', { type: 'textarea', max: 500, placeholder: 'N/A' }))
+      + text('accomplishedAt', 'Date and time accomplished', (v.accomplishedAt || '').replace(' ', 'T').slice(0, 16), { type: 'datetime-local' }));
+
+    form({ title: t ? 'Edit TSDR ' + t.no : 'Make TSDR', action: 'tsdr_save', panel: true, back: back || null, submit: t ? 'Save changes' : 'Save TSDR',
+      data: t ? { id: t.id } : { emp: e.empId },
+      body: who + svcs + picks + approval + receiver + sysad,
+      done: function (res) { if (tab === 'tsdr') { loadTsdrs(); } openTsdr(res.id, back); } });
+
+    var box = $id('invForm');
+    [['approvedBy', t ? t.approvedBy : ''], ['sysad', t ? t.sysad : v.sysad]].forEach(function (p) {
+      var input = box.querySelector('[data-emp="' + p[0] + '"]');
+      input.value = p[1] || '';
+      L.employeeSearch(input, box.querySelector('[data-empbox="' + p[0] + '"]'), function (x) { box.elements[p[0]].value = x.empId; });
+      input.addEventListener('input', function () { if (!input.value.trim()) { box.elements[p[0]].value = ''; } });
+    });
+    function fit() { $id('invTsdrOther').classList.toggle('lcy-hidden', !box.querySelector('input[name="services[]"][value="others"]').checked); }
+    box.addEventListener('change', fit);
+    fit();
+    formStart = $(box).serialize();
+  }
+
+  /** The printed form, laid out like the old projInventory TSDR. */
+  function printTsdr(t, ctx) {
+    function box(onIt, label) { return '<span class="inv-tsdr__opt"><span class="inv-tsdr__box">' + (onIt ? '&#10003;' : '') + '</span>' + esc(label) + '</span>'; }
+    function sign(name, label, hint) { return '<div><b>' + esc(name || '') + '</b><span></span>' + esc(label) + '<small>' + esc(hint) + '</small></div>'; }
+    function na(s) { return esc(s || 'N/A'); }
+    var svc = {};
+    t.services.forEach(function (s) { svc[s] = true; });
+    var logo = BOOT.logo ? '<img src="' + esc(BOOT.logo) + '" alt="">' : '';
+    printSheet('<div class="inv-tsdr">'
+      + '<div class="inv-tsdr__head">' + logo + '<div><h2>Technical Services Data Report</h2><p>' + esc(BOOT.company) + '</p></div><div class="inv-tsdr__no">TSDR #<b>' + esc(t.no) + '</b></div></div>'
+      + '<h3>To be filled-out by requisitioner</h3>'
+      + '<table><tr><th>Account / Department</th><td>' + na(t.accountDept) + '</td><th>Date needed</th><td>' + esc(L.fmtDate(t.dateNeeded)) + '</td></tr></table>'
+      + '<h4>Service being requested</h4><div class="inv-tsdr__checks">' + Object.keys(ctx.services).map(function (k) { return box(svc[k], ctx.services[k]); }).join('') + '</div>'
+      + (svc.others ? '<p class="inv-tsdr__line"><b>Others:</b> ' + esc(t.otherService) + '</p>' : '')
+      + '<h4>Item</h4>' + (t.items.length ? '<ol class="inv-tsdr__items">' + t.items.map(function (x) { return '<li>' + esc(x.text) + '</li>'; }).join('') + '</ol>' : '<p class="inv-tsdr__line">N/A</p>')
+      + '<div class="inv-tsdr__sign">' + sign(t.requisitioner, 'Requisitioner', '(Signature over printed name)') + sign(t.approvedBy, 'Approved by', '(Signature over printed name)') + '</div>'
+      + '<h3>To be filled-out by receiver</h3>'
+      + '<p class="inv-tsdr__line"><b>Requested from:</b> ' + Object.keys(ctx.from).map(function (k) { return box(t.requestedFrom === k, ctx.from[k]); }).join('') + '</p>'
+      + '<div class="inv-tsdr__sign">' + sign('', 'Date & time received', '(Please write current date & time here)') + sign(t.receivedBy, 'Received by', '(Please write name and affix signature here)') + '</div>'
+      + '<h3>To be filled-out by SysAd personnel</h3>'
+      + '<table><tr><th>SysAd personnel assigned</th><td>' + na(t.sysad) + '</td><th>TSDR #</th><td>' + esc(t.no) + '</td></tr>'
+      + '<tr><th>Status request</th><td colspan="3">' + Object.keys(ctx.statuses).map(function (k) { return box(t.status === k, ctx.statuses[k]); }).join('') + '</td></tr>'
+      + '<tr><th>Status details</th><td colspan="3">' + na(t.statusDetails) + '</td></tr>'
+      + '<tr><th>Evaluation</th><td colspan="3">' + na(t.evaluation) + '</td></tr>'
+      + '<tr><th>Recommendation</th><td colspan="3">' + na(t.recommendation) + '</td></tr>'
+      + '<tr><th>Date & time accomplished</th><td colspan="3">' + esc(L.fmtDateTime(t.accomplishedAt)) + '</td></tr></table>'
+      + '<div class="inv-tsdr__sign inv-tsdr__sign--one">' + sign(t.sysad, 'Signature of SysAd personnel', '') + '</div>'
+      + '<h3>Acknowledgement</h3>'
+      + '<p class="inv-tsdr__ack">Requisitioner or representative from the requesting account or department will have to sign this portion upon completion of the request.</p>'
+      + '<div class="inv-tsdr__sign inv-tsdr__sign--one">' + sign('', 'Requisitioner / Date', '(Signature over printed name)') + '</div>'
+      + '</div>');
   }
 
   /* ------------------------------------------------------------ QR labels */
@@ -973,8 +1130,8 @@
   }
 
   /* ------------------------------------------------------------ tabs */
-  var PANES = { items: 'Items', supplies: 'Supplies', people: 'People', repairs: 'Repairs', counts: 'Counts', alerts: 'Alerts', setup: 'Setup' };
-  var LOAD = { items: loadItems, supplies: function () { return loadSupplies().then(loadUsage); }, people: loadPeople, repairs: loadRepairs, counts: loadCounts, alerts: loadAlerts, setup: function () { drawSetup(); return Promise.resolve(); } };
+  var PANES = { items: 'Items', supplies: 'Supplies', people: 'People', tsdr: 'Tsdr', repairs: 'Repairs', counts: 'Counts', alerts: 'Alerts', setup: 'Setup' };
+  var LOAD = { items: loadItems, supplies: function () { return loadSupplies().then(loadUsage); }, people: loadPeople, tsdr: loadTsdrs, repairs: loadRepairs, counts: loadCounts, alerts: loadAlerts, setup: function () { drawSetup(); return Promise.resolve(); } };
 
   function go(name) {
     tab = name;
@@ -1015,6 +1172,7 @@
   ['invFCat', 'invFLoc', 'invFStatus'].forEach(function (id) { $id(id).addEventListener('change', loadItems); });
   $id('invSupQ').addEventListener('input', function () { later(loadSupplies); });
   $id('invSupLoc').addEventListener('change', loadSupplies);
+  $id('invTsdrQ').addEventListener('input', function () { later(loadTsdrs); });
   $id('invAdd').addEventListener('click', function () { itemForm(null); });
   $id('invSupAdd').addEventListener('click', function () { itemForm(null, false, true); });
   $id('invExport').addEventListener('click', exportItems);
