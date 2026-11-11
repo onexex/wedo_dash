@@ -252,6 +252,7 @@ function wd_can($ar, $k) { return isset($ar[$k]) && $ar[$k] == 2; }
       ['applicants', 'applicants',      'applicants',       'clipboard-list', 'Applicant Pool', $wdAplCount],
       ['ams',        'ams',             'ams',              'archive',        'Archived Management System'],
       ['bookletreg', 'bookletregistry', 'bookletregistry',  'book-open',      'Booklet Management System'],
+      ['doorctl',    'door',            'door',             'door-open',      'Door Control'],
       ['e201d',      'e201files',       'e201files',        'file-stack',     'Electronic 201 Document'],
       ['EF',         'scheduler',       'scheduler',        'calendar-days',  'Employee Scheduler'],
       ['empverify',  'verify',          'verify',           'user-search',    'Employment Verification (CI)'],

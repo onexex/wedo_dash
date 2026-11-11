@@ -67,6 +67,7 @@ CREATE TABLE `accessrights` (
   `msgaudit` int(11) NOT NULL DEFAULT 1,
   `aftersep` int(11) NOT NULL DEFAULT 1,
   `dbbackup` int(11) NOT NULL DEFAULT 1,
+  `doorctl` int(11) NOT NULL DEFAULT 1,
   `cpoll` int(11) NOT NULL DEFAULT 1,
   `fdetls` int(11) NOT NULL DEFAULT 1,
   `nwblogs` int(11) NOT NULL DEFAULT 1,
@@ -289,6 +290,20 @@ CREATE TABLE `checkregister` (
   `bklid` int(12) NOT NULL,
   `bnkid` int(11) DEFAULT NULL,
   PRIMARY KEY (`id`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
+/*!40101 SET character_set_client = @saved_cs_client */;
+/*!40101 SET @saved_cs_client     = @@character_set_client */;
+/*!40101 SET character_set_client = utf8 */;
+CREATE TABLE `api_auth_requests` (
+  `id` int(11) NOT NULL AUTO_INCREMENT,
+  `ClientID` varchar(50) NOT NULL,
+  `IP` varchar(45) NOT NULL,
+  `Username` varchar(150) NOT NULL DEFAULT '',
+  `Result` varchar(30) NOT NULL,
+  `CreatedAt` datetime NOT NULL,
+  PRIMARY KEY (`id`),
+  KEY `ix_api_client` (`ClientID`,`CreatedAt`),
+  KEY `ix_api_ip` (`IP`,`CreatedAt`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
 /*!40101 SET character_set_client = @saved_cs_client */;
 /*!40101 SET @saved_cs_client     = @@character_set_client */;
@@ -2112,4 +2127,19 @@ CREATE TABLE IF NOT EXISTS `sub_ips` (
   `UpdatedBy` VARCHAR(50)  NOT NULL,
   PRIMARY KEY (`id`),
   UNIQUE KEY `ux_sub_ips_block_ip` (`BlockID`,`Ip`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+-- door control (sql/2026-11-11-add-door-control.sql)
+CREATE TABLE IF NOT EXISTS `door_log` (
+  `id`        INT(11)      NOT NULL AUTO_INCREMENT,
+  `EmpID`     VARCHAR(50)  NOT NULL,
+  `Action`    VARCHAR(20)  NOT NULL DEFAULT 'unlock',
+  `Result`    VARCHAR(10)  NOT NULL,
+  `Detail`    VARCHAR(200) NULL,
+  `Note`      VARCHAR(150) NULL,
+  `Seconds`   TINYINT(4)   NOT NULL DEFAULT 5,
+  `IP`        VARCHAR(45)  NOT NULL DEFAULT '',
+  `CreatedAt` DATETIME     NOT NULL,
+  PRIMARY KEY (`id`),
+  KEY `ix_door_log_emp` (`EmpID`, `id`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;

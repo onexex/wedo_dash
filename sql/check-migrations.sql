@@ -86,6 +86,8 @@ FROM (
          IF((SELECT COUNT(*) FROM information_schema.COLUMNS WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'applicants' AND COLUMN_NAME = 'PhotoKey') = 0, 'applicants.PhotoKey', '')
   UNION ALL SELECT '2026-10-20-add-db-backup-access-right',
          IF((SELECT COUNT(*) FROM information_schema.COLUMNS WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'accessrights' AND COLUMN_NAME = 'dbbackup') = 0, 'accessrights.dbbackup', '')
+  UNION ALL SELECT '2026-10-20-add-api-auth',
+         IF((SELECT COUNT(*) FROM information_schema.TABLES WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'api_auth_requests') = 0, 'table api_auth_requests', '')
   UNION ALL SELECT '2026-10-20-applicants-screening-exam-files',
          IF((SELECT COUNT(*) FROM information_schema.TABLES WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'applicant_files') = 0, 'table applicant_files', '')
   UNION ALL SELECT '2026-10-28-add-corner-polls',
@@ -105,6 +107,9 @@ FROM (
          IF((SELECT COUNT(*) FROM information_schema.TABLES WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME IN ('sub_contacts','sub_ipblocks','sub_ips')) < 3, 'sub_contacts / sub_ipblocks / sub_ips tables', '')
   UNION ALL SELECT '2026-11-11-add-inventory-tsdr',
          IF((SELECT COUNT(*) FROM information_schema.TABLES WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME IN ('inv_tsdr','inv_tsdr_items')) < 2, 'inv_tsdr / inv_tsdr_items tables', '')
+  UNION ALL SELECT '2026-11-11-add-door-control', CONCAT_WS(' ',
+         IF((SELECT COUNT(*) FROM information_schema.COLUMNS WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'accessrights' AND COLUMN_NAME = 'doorctl') = 0, 'accessrights.doorctl', NULL),
+         IF((SELECT COUNT(*) FROM information_schema.TABLES WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'door_log') = 0, 'table door_log', NULL))
   UNION ALL SELECT 'security fix (remember-me hash, see wedo-security-fixes)',
          IF((SELECT COUNT(*) FROM information_schema.COLUMNS WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'empdetails' AND COLUMN_NAME = 'remember_hash') = 0, 'empdetails.remember_hash', '')
 ) AS m;
