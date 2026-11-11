@@ -1,7 +1,7 @@
 <?php
 /* ==========================================================================
    door-action.php  —  reads + writes for door.php (Management > Door Control).
-   POST action=status|unlock, returns JSON. Every action needs the `doorctl`
+   POST action=status|enrolled|unlock, returns JSON. Every action needs the `doorctl`
    right and the per-session token from door_csrf_token(). Rules and the
    device conversation: includes/door-lib.php.
    ========================================================================== */
@@ -47,6 +47,10 @@ try {
     switch ($action) {
     case 'status':
         door_out(200, ['status' => 'ok', 'device' => door_status(), 'log' => door_log_rows($pdo)]);
+
+    case 'enrolled':
+        $r = door_enrolled();
+        door_out($r['ok'] ? 200 : 422, ['status' => $r['ok'] ? 'ok' : 'error'] + $r);
 
     case 'unlock':
         $r = door_unlock($pdo, $actor, (string) ($_POST['note'] ?? ''));

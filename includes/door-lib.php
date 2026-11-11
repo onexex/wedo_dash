@@ -15,9 +15,10 @@
  * git or the database. Env WEDO_DOOR_HOST / WEDO_DOOR_PORT / WEDO_DOOR_KEY /
  * WEDO_DOOR_SECONDS win over the file (tests point them at a fake device).
  *
- * Only two things are ever sent to the device: "who are you" (serial, name,
- * clock) and "release the lock for N seconds". Nothing is read from or written
- * to its users, fingerprints or attendance logs.
+ * Three things are asked of the device: "who are you" (serial, name, clock),
+ * "who is enrolled" (ID number, name, role — never their device passwords,
+ * cards or fingerprints) and "release the lock for N seconds". Nothing is ever
+ * written to the device, and its attendance logs are not read.
  *
  * Used by: door.php (the page), query/door-action.php (status + unlock)
  * ========================================================================== */
@@ -38,6 +39,16 @@ const ZK_CMD_AUTH        = 1102;
 const ZK_CMD_OPTIONS_RRQ = 11;
 const ZK_CMD_UNLOCK      = 31;
 const ZK_CMD_GET_TIME    = 201;
+const ZK_CMD_GET_FREE_SIZES = 50;
+const ZK_CMD_USERTEMP_RRQ   = 9;
+const ZK_FCT_USER           = 5;
+const ZK_CMD_PREPARE_DATA   = 1500;
+const ZK_CMD_DATA           = 1501;
+const ZK_CMD_FREE_DATA      = 1502;
+const ZK_CMD_PREPARE_BUFFER = 1503;
+const ZK_CMD_READ_BUFFER    = 1504;
+const ZK_CHUNK              = 0xFFC0;    // most the device hands over in one piece
+const ZK_LIST_MAX           = 2097152;   // 2 MB: far more than a full device's user list
 const ZK_ACK_OK          = 2000;
 const ZK_ACK_UNAUTH      = 2005;
 const ZK_USHRT_MAX       = 65535;
@@ -219,6 +230,85 @@ final class DoorDevice
         $this->sock = null;
     }
 
+    /** How full the device is: ['users', 'fingers', 'userCap'], or null when it won't say. */
+    public function sizes(): ?array
+    {
+        $r = $this->send(ZK_CMD_GET_FREE_SIZES);
+        if ($r['code'] !== ZK_ACK_OK || strlen($r['data']) < 80) { return null; }
+        $f = array_values(unpack('V20', $r['data']));
+        return ['users' => $f[4], 'fingers' => $f[6], 'userCap' => $f[15]];
+    }
+
+    /**
+     * Everyone enrolled on the device: [['uid', 'userId', 'name', 'role'], ...].
+     * Their device passwords and card numbers are read past, never returned.
+     */
+    public function users(): array
+    {
+        $count = $this->sizes()['users'] ?? 0;
+        if ($count < 1) { return []; }
+        $blob = $this->readBuffer(ZK_CMD_USERTEMP_RRQ, ZK_FCT_USER);
+        if (strlen($blob) <= 4) { return []; }
+        $total = unpack('V', $blob)[1];
+        $blob  = (string) substr($blob, 4);
+        $size  = intdiv($total, $count);
+        if ($size !== 28 && $size !== 72) { $size = strlen($blob) % 72 === 0 ? 72 : 28; }   // old / new firmware record
+        $text = function (string $raw): string {
+            $s = explode("\0", $raw, 2)[0];
+            if (!mb_check_encoding($s, 'UTF-8')) { $s = mb_convert_encoding($s, 'UTF-8', 'Windows-1252'); }
+            return trim(preg_replace('/[\x00-\x1F\x7F]/u', '', $s) ?? '');
+        };
+        $out = [];
+        for ($at = 0; $at + $size <= strlen($blob); $at += $size) {
+            $rec = substr($blob, $at, $size);
+            $h = unpack('vuid/Cpriv', $rec);
+            if ($size === 28) {
+                $name = $text(substr($rec, 8, 8));
+                $userId = (string) unpack('V', substr($rec, 24, 4))[1];
+            } else {
+                $name = $text(substr($rec, 11, 24));
+                $userId = $text(substr($rec, 48, 24));
+            }
+            $out[] = ['uid' => $h['uid'], 'userId' => $userId, 'name' => $name,
+                      'role' => $h['priv'] === 0 ? 'User' : ($h['priv'] === 14 ? 'Admin' : 'Other')];
+        }
+        return $out;
+    }
+
+    /** One of the device's lists (users ...), fetched in pieces the way the device hands big answers over. */
+    private function readBuffer(int $cmd, int $fct): string
+    {
+        $r = $this->send(ZK_CMD_PREPARE_BUFFER, pack('CvVV', 1, $cmd, $fct, 0));
+        if ($r['code'] === ZK_CMD_DATA) { return $r['data']; }   // small enough to come back at once
+        if ($r['code'] !== ZK_ACK_OK || strlen($r['data']) < 5) { throw new DoorException('refused', 'The device would not hand over its list (code ' . $r['code'] . ').'); }
+        $size = unpack('V', substr($r['data'], 1, 4))[1];
+        if ($size > ZK_LIST_MAX) { throw new DoorException('refused', 'The device\'s list is too large to show here.'); }
+
+        $out = '';
+        while (strlen($out) < $size) {
+            $want = min(ZK_CHUNK, $size - strlen($out));
+            $r = $this->send(ZK_CMD_READ_BUFFER, pack('VV', strlen($out), $want));
+            if ($r['code'] === ZK_CMD_DATA) {
+                $piece = $r['data'];
+            } elseif ($r['code'] === ZK_CMD_PREPARE_DATA) {
+                // "data follows": one or more data packets, then an OK
+                $piece = '';
+                while (strlen($piece) < $want) {
+                    $f = $this->receive();
+                    if ($f['code'] !== ZK_CMD_DATA) { throw new DoorException('refused', 'The device stopped part-way through its list.'); }
+                    $piece .= $f['data'];
+                }
+                $this->receive();
+            } else {
+                throw new DoorException('refused', 'The device stopped part-way through its list (code ' . $r['code'] . ').');
+            }
+            if ($piece === '') { throw new DoorException('refused', 'The device stopped part-way through its list.'); }
+            $out .= $piece;
+        }
+        $this->send(ZK_CMD_FREE_DATA);
+        return substr($out, 0, $size);
+    }
+
     /** Send one command, wait for its reply: ['code', 'session', 'data']. */
     private function send(int $cmd, string $data = ''): array
     {
@@ -229,7 +319,12 @@ final class DoorDevice
         $packet = pack('v4', $cmd, $sum, $this->session, $this->reply) . $data;
         $frame  = ZK_TCP_MAGIC . pack('V', strlen($packet)) . $packet;
         if (@fwrite($this->sock, $frame) !== strlen($frame)) { throw new DoorException('offline', 'The connection to the device dropped.'); }
+        return $this->receive();
+    }
 
+    /** The next packet from the device: ['code', 'session', 'data']. */
+    private function receive(): array
+    {
         $top = $this->read(8);
         if (substr($top, 0, 4) !== ZK_TCP_MAGIC) { throw new DoorException('offline', 'That address did not answer like a biometric device.'); }
         $len = unpack('V', substr($top, 4))[1];
@@ -280,6 +375,28 @@ function door_status(): array
         }
         return $out + ['state' => 'offline', 'msg' => $e->getMessage() . ' It may be switched off, off the network, or this server may not be allowed to reach it.'];
     }
+}
+
+/**
+ * Who is enrolled on the device, by name.
+ * ['ok' => bool, 'msg', 'users' => [['userId', 'name', 'role'], ...], 'fingers' => int|null]
+ */
+function door_enrolled(): array
+{
+    $c = door_config();
+    if (!$c) { return ['ok' => false, 'msg' => 'No door device is set up on this server yet.']; }
+    try {
+        $dev = new DoorDevice($c['host'], $c['port'], $c['key']);
+        $dev->connect();
+        $sizes = $dev->sizes();
+        $users = $dev->users();
+        $dev->close();
+    } catch (DoorException $e) {
+        return ['ok' => false, 'msg' => $e->kind === 'auth' ? 'The device rejected the Comm Key.' : $e->getMessage()];
+    }
+    usort($users, function ($a, $b) { return strnatcasecmp($a['name'] . ' ' . $a['userId'], $b['name'] . ' ' . $b['userId']); });
+    $users = array_map(function ($u) { return ['userId' => $u['userId'], 'name' => $u['name'], 'role' => $u['role']]; }, $users);
+    return ['ok' => true, 'msg' => '', 'users' => $users, 'fingers' => $sizes['fingers'] ?? null];
 }
 
 /** Write one try to door_log. */

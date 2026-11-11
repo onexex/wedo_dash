@@ -200,6 +200,49 @@ final class DoorControlTest extends AppTestCase
         $this->assertSame('offline', $j['device']['state']);
     }
 
+    // ------------------------------------------------------------------ enrolled people
+
+    public function testEnrolledPeopleAreListedWithoutTheirDevicePasswords(): void
+    {
+        $this->device();
+        $this->grant(self::ADMIN);
+        [$code, $j] = $this->act($this->as(self::ADMIN), ['action' => 'enrolled']);
+        $this->assertSame(200, $code);
+        $this->assertSame(5, $j['fingers']);
+        // sorted by name; the one without a name sorts first
+        $this->assertSame([
+            ['userId' => '1003', 'name' => '', 'role' => 'User'],
+            ['userId' => '1001', 'name' => 'Ada Admin', 'role' => 'Admin'],
+            ['userId' => '1002', 'name' => 'Juan Dela Cruz', 'role' => 'User'],
+        ], $j['users']);
+        $raw = json_encode($j);
+        $this->assertStringNotContainsString('SECRET', $raw);
+        $this->assertStringNotContainsString('5550001', $raw, 'card numbers stay on the device');
+        $this->assertSame([], $this->released(), 'looking never opens the door');
+    }
+
+    public function testEnrolledPeopleFromAnOldFirmwareDevice(): void
+    {
+        $this->device(self::KEY, 'old');
+        $this->grant(self::ADMIN);
+        [$code, $j] = $this->act($this->as(self::ADMIN), ['action' => 'enrolled']);
+        $this->assertSame(200, $code);
+        $this->assertSame(['1003', '1001', '1002'], array_column($j['users'], 'userId'));
+        $this->assertSame(['', 'Ada Admi', 'Juan Del'], array_column($j['users'], 'name'), 'old devices keep 8 letters');
+        $this->assertStringNotContainsString('SECRE', json_encode($j));
+    }
+
+    public function testEnrolledPeopleNeedTheRightAndAWorkingDevice(): void
+    {
+        $this->device(1111);   // wrong Comm Key
+        $this->assertSame(403, $this->act($this->as(self::ADMIN), ['action' => 'enrolled'])[0]);
+        $this->grant(self::ADMIN);
+        [$code, $j] = $this->act($this->as(self::ADMIN), ['action' => 'enrolled']);
+        $this->assertSame(422, $code);
+        $this->assertStringContainsString('Comm Key', $j['msg']);
+        $this->assertArrayNotHasKey('users', $j);
+    }
+
     // ------------------------------------------------------------------ unlock
 
     public function testUnlockReleasesTheLockAndLogsWho(): void
