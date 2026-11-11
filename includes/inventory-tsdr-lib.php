@@ -207,10 +207,23 @@ function inv_tsdr_get(PDO $pdo, $id) {
     $t = _inv_tsdr_out($r);
     $st = $pdo->prepare("SELECT ti.ItemID, ti.ItemText, i.TagNo, i.HolderEmpID, i.AckAt FROM inv_tsdr_items ti LEFT JOIN inv_items i ON i.id = ti.ItemID WHERE ti.TsdrID = :t ORDER BY ti.id");
     $st->execute([':t' => $t['id']]);
-    $t['items'] = array_map(function ($x) use ($t) {
+    // the first time each item left the requisitioner after this TSDR's day: returned or disposed
+    $gone = $pdo->prepare("SELECT Type, CreatedAt FROM inv_movements WHERE ItemID = :i AND FromEmpID = :e AND Type IN ('returned', 'disposed')
+        AND CreatedAt >= :since ORDER BY CreatedAt, id LIMIT 1");
+    $since = substr((string) $t['createdAt'], 0, 10) . ' 00:00:00';
+    $t['items'] = array_map(function ($x) use ($t, $gone, $since) {
+        $left = null;
+        if ($x['ItemID'] !== null) {
+            $gone->execute([':i' => (int) $x['ItemID'], ':e' => (string) $t['empId'], ':since' => $since]);
+            $m = $gone->fetch(PDO::FETCH_ASSOC);
+            if ($m) { $left = ['type' => $m['Type'], 'on' => $m['CreatedAt']]; }
+        }
+        $held = $x['ItemID'] !== null && $left === null && (string) $x['HolderEmpID'] === (string) $t['empId'];
         return ['itemId' => $x['ItemID'] === null ? null : (int) $x['ItemID'], 'tag' => (string) $x['TagNo'], 'text' => $x['ItemText'],
-                // when the requisitioner confirmed receipt (while they still hold it; a later holder's confirmation is not theirs)
-                'ackAt' => (string) $x['HolderEmpID'] === (string) $t['empId'] ? $x['AckAt'] : null];
+                'held' => $held,   // still with the requisitioner on this TSDR's issue
+                'left' => $left,   // {type: returned|disposed, on} once it came back
+                // when the requisitioner confirmed receipt (a later holder's confirmation is not theirs)
+                'ackAt' => $held ? $x['AckAt'] : null];
     }, $st->fetchAll(PDO::FETCH_ASSOC));
     return $t;
 }
