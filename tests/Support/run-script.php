@@ -23,6 +23,7 @@ $_COOKIE  = $spec['cookies'] ?? [];
 $_FILES   = [];
 $_SERVER['REQUEST_METHOD'] = $spec['post'] ? 'POST' : 'GET';
 $_SERVER['HTTP_HOST']      = 'localhost';
+foreach (($spec['server'] ?? []) as $k => $v) { $_SERVER[$k] = $v; }
 
 // Session: the parent wrote sess_<id> into session_dir. Point the session
 // module at it, but do NOT start it — scripts that forget session_start()

@@ -24,10 +24,11 @@ abstract class AppTestCase extends TestCase
         'empeducationalbackground', 'fdetails', 'accessrights', 'dars', 'profile_change_requests',
         'idcard_cards', 'idcard_print_log', 'idcard_settings', 'credit', 'credit_years', 'credit_log', 'hleaves', 'messageheader', 'messages', 'msg_presence', 'msg_calls', 'msg_call_members', 'msg_call_signals', 'msg_groups', 'msg_group_members', 'msg_reactions', 'msg_mentions', 'push_devices', 'app_remember', 'msg_cleared', 'msg_deleted_archive', 'msg_review_log', 'announcements',
         'emp_lifecycle_events', 'emp_separations', 'coe_requests', 'employment_verifications', 'amsarchive',
-        'job_openings', 'applicants', 'applicant_education', 'applicant_family', 'applicant_events', 'applicant_files', 'login_attempts', 'tblsyslog',
+        'job_openings', 'applicants', 'applicant_education', 'applicant_family', 'applicant_events', 'applicant_files', 'login_attempts', 'api_auth_requests', 'tblsyslog',
         'earlyout', 'obshbd', 'hleavesbd', 'otattendancelog', 'leaves', 'payrol',
         'corner_polls', 'corner_poll_options', 'corner_poll_votes', 'annseen',
         'inv_categories', 'inv_locations', 'inv_items', 'inv_movements', 'inv_stock_moves', 'inv_repairs', 'inv_files', 'inv_counts', 'inv_count_lines', 'inv_tsdr', 'inv_tsdr_items', 'sub_items', 'sub_requirements', 'sub_renewals', 'sub_files', 'sub_watchers', 'sub_runs', 'sub_notify_log', 'sub_creds', 'sub_cred_log',
+        'door_log',
     ];
 
     protected function setUp(): void
@@ -143,10 +144,11 @@ abstract class AppTestCase extends TestCase
      * Run an app script (path relative to the repo root) in a child PHP process.
      * $session = null means "not logged in" (no session cookie).
      * $cookies are the request's cookies (e.g. a WeDoID "remember me" token); none by default.
+     * $server adds/overrides $_SERVER entries (request headers as HTTP_*, HTTPS, REMOTE_ADDR, …).
      *
      * @return array{status:int, body:string}
      */
-    protected function request(string $script, array $get = [], array $post = [], ?array $session = null, array $cookies = []): array
+    protected function request(string $script, array $get = [], array $post = [], ?array $session = null, array $cookies = [], array $server = []): array
     {
         $root = dirname(__DIR__, 2);
         $tmp  = sys_get_temp_dir() . DIRECTORY_SEPARATOR . 'wedo-tests';
@@ -163,7 +165,7 @@ abstract class AppTestCase extends TestCase
         $spec = $tmp . DIRECTORY_SEPARATOR . 'spec-' . bin2hex(random_bytes(6)) . '.json';
         file_put_contents($spec, json_encode([
             'script' => $root . DIRECTORY_SEPARATOR . str_replace('/', DIRECTORY_SEPARATOR, $script),
-            'get' => $get, 'post' => $post, 'cookies' => $cookies, 'session_dir' => $tmp, 'session_id' => $sid,
+            'get' => $get, 'post' => $post, 'cookies' => $cookies, 'server' => $server, 'session_dir' => $tmp, 'session_id' => $sid,
         ]));
 
         $c   = $GLOBALS['WEDO_TEST_DB'];

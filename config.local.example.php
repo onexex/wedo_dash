@@ -40,12 +40,31 @@
  * 'backup_keep' backups (default 10) stay in uploads/backups/ so they can be
  * downloaded again from the page. Env var WEDO_BACKUP_KEEP wins over this.
  *
+ * Sign-in API for other apps (optional, see api/auth-login.php and the guide
+ * tools/api-auth-login.md): one entry per app that may sign people in with their
+ * WeDo username + password. The key is a shared secret (at least 32 characters,
+ * make one with  php -r "echo bin2hex(random_bytes(32));"); the same key goes in
+ * that app's server config. Use different keys on staging and production. Env var
+ * WEDO_API_CLIENTS="name:key,name2:key2" adds to these. No entries = API off.
+ * Needs sql/2026-10-20-add-api-auth.sql on this server's database.
+ *
  * Subscriptions logins vault (see includes/subscriptions-lib.php): 'sub_vault_key'
  * encrypts the saved usernames, passwords and notes. 64 random hex characters,
  * make one with  php -r "echo bin2hex(random_bytes(32));". One key per server,
  * never commit it, keep a copy somewhere safe (a password manager): if it is lost
  * or changed, the saved logins cannot be read and must be entered again. Env var
  * WEDO_SUB_VAULT_KEY wins over this. No key = the vault says it is locked.
+ *
+ * Door Control (Management, see includes/door-lib.php): 'door' is the ZKTeco
+ * biometric device that drives the office door's magnetic lock.
+ *   host          the device's address (this server must be able to reach it)
+ *   port          4370 unless changed on the device
+ *   comm_key      the device's Comm Key (its menu: Comm. > PC Connection); a
+ *                 number, 0 = none. Secret: it opens the door. Never commit it.
+ *   open_seconds  how long the lock stays released (default 5, at most 15)
+ *   name          shown on the page (default "Office door")
+ * No 'door' entry = the page says no device is set up. Needs
+ * sql/2026-11-11-add-door-control.sql on this server's database.
  * -------------------------------------------------------------------------- */
 return [
     'host' => 'localhost',
@@ -60,5 +79,10 @@ return [
     // 'mail_from_name' => 'WeDo BPO Inc.',
     // 'mail_reply_to'  => 'hr@wedoinc.ph',
     // 'backup_keep' => 10,               // kept database backups (uploads/backups/)
+    // 'api_clients' => [
+    //     'timekeeper' => ['key' => '<64 random hex characters>'],   // secret — never commit it
+    //     // optional per app: 'per_minute' => 60, 'token_ttl' => 3600
+    // ],
     // 'sub_vault_key' => '<64 random hex characters>',   // secret — never commit it
+    // 'door' => ['host' => '203.0.113.10', 'port' => 4370, 'comm_key' => 0, 'open_seconds' => 5, 'name' => 'Office door'],   // comm_key is secret
 ];
