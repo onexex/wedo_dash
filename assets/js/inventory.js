@@ -800,18 +800,31 @@
     window.print();
   }
 
+  /** The property accountability form, in the same boxed layout as the printed TSDR. */
   function printAccountability(a) {
     var e = a.employee;
-    printSheet('<div class="inv-form"><h2>Property Accountability Form</h2><p class="inv-form__co">' + esc(BOOT.company) + '</p>'
-      + '<table class="inv-form__who"><tr><th>Employee</th><td>' + esc(e.name) + '</td><th>Employee ID</th><td>' + esc(e.empId) + '</td></tr>'
-      + '<tr><th>Position</th><td>' + esc(e.position) + '</td><th>Department</th><td>' + esc(e.department) + '</td></tr>'
-      + '<tr><th>Date</th><td colspan="3">' + esc(L.fmtDate(a.printedOn)) + '</td></tr></table>'
-      + '<table class="inv-form__items"><thead><tr><th>Tag</th><th>Item</th><th>Serial no.</th><th>Qty</th><th>Condition</th><th>Date issued</th></tr></thead><tbody>'
-      + a.items.map(function (i) {
-        return '<tr><td>' + esc(i.tag) + '</td><td>' + esc(i.name) + '</td><td>' + esc(i.serial) + '</td><td>' + i.qty + ' ' + esc(i.unit) + '</td><td>' + esc(i.conditionLabel) + '</td><td>' + esc(L.fmtDate(i.issuedOn)) + '</td></tr>';
-      }).join('') + '</tbody></table>'
-      + '<p class="inv-form__text">I acknowledge receipt of the items listed above in the stated condition. I will take care of them, use them for company work, and return all of them upon request or when my employment ends.</p>'
-      + '<div class="inv-form__sign"><div><span></span>Employee signature over printed name</div><div><span></span>Released by</div></div></div>');
+    function cell(label, value) { return '<div class="inv-tsdr__cell"><b>' + esc(label) + '</b><div>' + esc(value || 'N/A') + '</div></div>'; }
+    function sign(name, label, hint) {
+      return '<div class="inv-tsdr__sign"><b>' + esc(name || '') + '</b><span></span><strong>' + esc(label) + '</strong><small>' + esc(hint) + '</small></div>';
+    }
+    var logo = BOOT.logo ? '<img src="' + esc(BOOT.logo) + '" alt="' + esc(BOOT.company) + '">' : '';
+    var withTsdr = a.items.some(function (i) { return i.tsdr !== undefined; });
+    printSheet('<div class="inv-tsdr inv-acc">'
+      + '<div class="inv-tsdr__head"><div class="inv-tsdr__logo">' + logo + '</div><h2>Property Accountability Form</h2><div class="inv-tsdr__no">Date:<br>' + esc(String(a.printedOn || '').slice(0, 10)) + '</div></div>'
+      + '<div class="inv-tsdr__bar">Employee</div>'
+      + '<div class="inv-tsdr__grid">' + cell('Name:', e.name) + cell('Employee ID:', e.empId) + cell('Position:', e.position) + cell('Account / Department:', e.department) + '</div>'
+      + '<div class="inv-tsdr__bar">Items issued</div>'
+      + (a.items.length ? '<table class="inv-acc__items"><thead><tr><th>#</th><th>Tag</th><th>Item</th><th>Serial no.</th><th>Qty</th><th>Condition</th><th>Date issued</th>' + (withTsdr ? '<th>TSDR #</th>' : '') + '</tr></thead><tbody>'
+        + a.items.map(function (i, n) {
+          return '<tr><td>' + (n + 1) + '</td><td>' + esc(i.tag) + '</td><td>' + esc(i.name) + (i.brand || i.model ? '<br><small>' + esc((i.brand + ' ' + i.model).trim()) + '</small>' : '') + '</td><td>' + esc(i.serial) + '</td>'
+            + '<td>' + i.qty + ' ' + esc(i.unit) + '</td><td>' + esc(i.conditionLabel) + '</td><td>' + esc(String(i.issuedOn || '').slice(0, 10)) + '</td>'
+            + (withTsdr ? '<td>' + esc(i.tsdr ? i.tsdr.no : '') + '</td>' : '') + '</tr>';
+        }).join('') + '</tbody></table>'
+        : '<div class="inv-tsdr__box1">Nothing issued.</div>')
+      + '<div class="inv-tsdr__bar">Acknowledgement</div>'
+      + '<div class="inv-tsdr__box1 inv-acc__text">I acknowledge receipt of the items listed above in the stated condition. I will take care of them, use them for company work, and return all of them upon request or when my employment ends.</div>'
+      + '<div class="inv-tsdr__signs inv-acc__signs">' + sign(e.name, 'Employee / Date', '(Signature over printed name)') + sign('', 'Released by', '(Signature over printed name)') + '</div>'
+      + '</div>');
   }
 
   /* ------------------------------------------------------------ TSDR (Technical Services Data Report) */
@@ -903,7 +916,7 @@
     var picks = section('Items', '<p class="lcy-muted">Items issued to ' + esc(e.name) + '. The ones without a TSDR yet are ticked.</p>' + list);
     var approval = section('Approval', fieldHtml({ type: 'emp', name: 'approvedBy', label: 'Approved by', value: t ? t.approvedById : '' }));
     var receiver = section('Receiver', '<div class="wd-field"><label>Requested from</label><div class="inv-segs">' + radios('requestedFrom', kv(ctx.from), v.requestedFrom || 'it') + '</div></div>'
-      + text('receivedBy', 'Received by', t ? t.receivedBy : '', { max: 150, placeholder: 'Leave blank to write it by hand on the printout' }));
+      + text('receivedBy', 'Received by', t ? t.receivedBy : e.name, { max: 150, placeholder: 'Leave blank to write it by hand on the printout' }));
     var sysad = section('SysAd personnel', fieldHtml({ type: 'emp', name: 'sysad', label: 'SysAd personnel assigned', value: v.sysadId })
       + '<div class="wd-field"><label>Status of request</label><div class="inv-segs">' + radios('status', kv(ctx.statuses), v.status || 'done') + '</div></div>'
       + text('statusDetails', 'Status details', t ? t.statusDetails : '', { max: 300, placeholder: 'N/A' })
@@ -929,36 +942,65 @@
     formStart = $(box).serialize();
   }
 
-  /** The printed form, laid out like the old projInventory TSDR. */
+  /** The printed form, laid out like the old projInventory TSDR (equipment page > TSDR > Print). */
   function printTsdr(t, ctx) {
-    function box(onIt, label) { return '<span class="inv-tsdr__opt"><span class="inv-tsdr__box">' + (onIt ? '&#10003;' : '') + '</span>' + esc(label) + '</span>'; }
-    function sign(name, label, hint) { return '<div><b>' + esc(name || '') + '</b><span></span>' + esc(label) + '<small>' + esc(hint) + '</small></div>'; }
+    function check(onIt, label, round) {
+      return '<div class="inv-tsdr__opt"><span class="inv-tsdr__box' + (round ? ' inv-tsdr__box--round' : '') + '">' + (onIt ? (round ? '&#9679;' : '&#10003;') : '') + '</span>' + esc(label) + '</div>';
+    }
+    function sign(name, label, hint) {
+      return '<div class="inv-tsdr__sign"><b>' + esc(name || '') + '</b><span></span><strong>' + esc(label) + '</strong><small>' + esc(hint) + '</small></div>';
+    }
+    function cell(label, value) { return '<div class="inv-tsdr__cell"><b>' + esc(label) + '</b><div>' + value + '</div></div>'; }
+    function ymd(s) { return s ? String(s).slice(0, 10) : ''; }
+    function stamp(s) {   // "2024-03-12 / 01:27 PM", as the old form printed it
+      if (!s) { return ''; }
+      var m = /^(\d{4}-\d{2}-\d{2})[ T](\d{2}):(\d{2})/.exec(String(s));
+      if (!m) { return String(s); }
+      var h = +m[2], ap = h < 12 ? 'AM' : 'PM';
+      h = h % 12 || 12;
+      return m[1] + ' / ' + (h < 10 ? '0' : '') + h + ':' + m[3] + ' ' + ap;
+    }
     function na(s) { return esc(s || 'N/A'); }
     var svc = {};
     t.services.forEach(function (s) { svc[s] = true; });
-    var logo = BOOT.logo ? '<img src="' + esc(BOOT.logo) + '" alt="">' : '';
+    var keys = Object.keys(ctx.services), half = Math.ceil(keys.length / 2);
+    var col = function (list) { return '<div>' + list.map(function (k) { return check(svc[k], ctx.services[k]); }).join('') + '</div>'; };
+    var st = Object.keys(ctx.statuses);
+    var stCol = function (list) { return '<div>' + list.map(function (k) { return check(t.status === k, ctx.statuses[k], true); }).join('') + '</div>'; };
+    var logo = BOOT.logo ? '<img src="' + esc(BOOT.logo) + '" alt="' + esc(BOOT.company) + '">' : '';
+
     printSheet('<div class="inv-tsdr">'
-      + '<div class="inv-tsdr__head">' + logo + '<div><h2>Technical Services Data Report</h2><p>' + esc(BOOT.company) + '</p></div><div class="inv-tsdr__no">TSDR #<b>' + esc(t.no) + '</b></div></div>'
-      + '<h3>To be filled-out by requisitioner</h3>'
-      + '<table><tr><th>Account / Department</th><td>' + na(t.accountDept) + '</td><th>Date needed</th><td>' + esc(L.fmtDate(t.dateNeeded)) + '</td></tr></table>'
-      + '<h4>Service being requested</h4><div class="inv-tsdr__checks">' + Object.keys(ctx.services).map(function (k) { return box(svc[k], ctx.services[k]); }).join('') + '</div>'
-      + (svc.others ? '<p class="inv-tsdr__line"><b>Others:</b> ' + esc(t.otherService) + '</p>' : '')
-      + '<h4>Item</h4>' + (t.items.length ? '<ol class="inv-tsdr__items">' + t.items.map(function (x) { return '<li>' + esc(x.text) + '</li>'; }).join('') + '</ol>' : '<p class="inv-tsdr__line">N/A</p>')
-      + '<div class="inv-tsdr__sign">' + sign(t.requisitioner, 'Requisitioner', '(Signature over printed name)') + sign(t.approvedBy, 'Approved by', '(Signature over printed name)') + '</div>'
-      + '<h3>To be filled-out by receiver</h3>'
-      + '<p class="inv-tsdr__line"><b>Requested from:</b> ' + Object.keys(ctx.from).map(function (k) { return box(t.requestedFrom === k, ctx.from[k]); }).join('') + '</p>'
-      + '<div class="inv-tsdr__sign">' + sign('', 'Date & time received', '(Please write current date & time here)') + sign(t.receivedBy, 'Received by', '(Please write name and affix signature here)') + '</div>'
-      + '<h3>To be filled-out by SysAd personnel</h3>'
-      + '<table><tr><th>SysAd personnel assigned</th><td>' + na(t.sysad) + '</td><th>TSDR #</th><td>' + esc(t.no) + '</td></tr>'
-      + '<tr><th>Status request</th><td colspan="3">' + Object.keys(ctx.statuses).map(function (k) { return box(t.status === k, ctx.statuses[k]); }).join('') + '</td></tr>'
-      + '<tr><th>Status details</th><td colspan="3">' + na(t.statusDetails) + '</td></tr>'
-      + '<tr><th>Evaluation</th><td colspan="3">' + na(t.evaluation) + '</td></tr>'
-      + '<tr><th>Recommendation</th><td colspan="3">' + na(t.recommendation) + '</td></tr>'
-      + '<tr><th>Date & time accomplished</th><td colspan="3">' + esc(L.fmtDateTime(t.accomplishedAt)) + '</td></tr></table>'
-      + '<div class="inv-tsdr__sign inv-tsdr__sign--one">' + sign(t.sysad, 'Signature of SysAd personnel', '') + '</div>'
-      + '<h3>Acknowledgement</h3>'
-      + '<p class="inv-tsdr__ack">Requisitioner or representative from the requesting account or department will have to sign this portion upon completion of the request.</p>'
-      + '<div class="inv-tsdr__sign inv-tsdr__sign--one">' + sign('', 'Requisitioner / Date', '(Signature over printed name)') + '</div>'
+      + '<div class="inv-tsdr__head"><div class="inv-tsdr__logo">' + logo + '</div><h2>Technical Services Data Report</h2><div class="inv-tsdr__no">TSDR #:<br>' + esc(t.no) + '</div></div>'
+
+      + '<div class="inv-tsdr__bar">To be filled-out by requisitioner</div>'
+      + '<div class="inv-tsdr__box1">' + cell('Account / Department', na(t.accountDept)) + '</div>'
+      + '<div class="inv-tsdr__row inv-tsdr__row--svc">'
+      +   '<div class="inv-tsdr__svc"><b>Service being requested</b><div class="inv-tsdr__two">' + col(keys.slice(0, half)) + col(keys.slice(half)) + '</div>'
+      +     (svc.others ? '<p class="inv-tsdr__others"><b>Others:</b> ' + esc(t.otherService) + '</p>' : '') + '</div>'
+      +   '<div class="inv-tsdr__item"><div><b>Item</b>' + (t.items.length ? '<ul>' + t.items.map(function (x) { return '<li>' + esc(x.text) + '</li>'; }).join('') + '</ul>' : '<p>N/A</p>') + '</div></div>'
+      + '</div>'
+      + '<div class="inv-tsdr__box1"><p class="inv-tsdr__needed"><b>Date needed:</b> ' + esc(ymd(t.dateNeeded)) + '</p>'
+      +   '<div class="inv-tsdr__signs">' + sign(t.requisitioner, 'Requisitioner', '(Signature over printed name)') + sign(t.approvedBy, 'Approved by', '(Signature over printed name)') + '</div></div>'
+
+      + '<div class="inv-tsdr__bar">To be filled-out by receiver</div>'
+      + '<div class="inv-tsdr__row">'
+      +   '<div class="inv-tsdr__from"><b>Requested from</b> <span>(please make selection for group)</span>' + Object.keys(ctx.from).map(function (k) { return check(t.requestedFrom === k, ctx.from[k], true); }).join('') + '</div>'
+      +   '<div class="inv-tsdr__signs inv-tsdr__signs--wide">' + sign('', 'Date & time received', '(Please write current date & time here)') + sign(t.receivedBy, 'Received by', '(Please write name and affix signature here)') + '</div>'
+      + '</div>'
+
+      + '<div class="inv-tsdr__bar">To be filled-out by SysAd personnel</div>'
+      + '<div class="inv-tsdr__grid">'
+      +   cell('SysAd personnel assigned:', na(t.sysad)) + cell('TSDR #:', esc(t.no))
+      +   cell('Status request', '<div class="inv-tsdr__two">' + stCol(st.slice(0, 2)) + stCol(st.slice(2)) + '</div>') + cell('Status details', na(t.statusDetails))
+      +   cell('Evaluation:', na(t.evaluation)) + cell('Recommendation:', na(t.recommendation))
+      +   cell('Date & time accomplished', esc(stamp(t.accomplishedAt))) + cell('Signature of SysAd personnel', '')
+      + '</div>'
+
+      + '<div class="inv-tsdr__bar">Acknowledgement</div>'
+      + '<div class="inv-tsdr__row inv-tsdr__ack">'
+      +   '<p>Requisitioner or representative from the requesting account or department will have to sign this portion upon completion of the request.</p>'
+      +   sign(t.requisitioner + (t.dateNeeded ? ' / ' + ymd(t.dateNeeded) : ''), 'Requisitioner / Date', '(signature over printed name)')
+      + '</div>'
       + '</div>');
   }
 

@@ -312,45 +312,58 @@
   .inv-label__text span { font-size: 8pt; line-height: 1.2; max-height: 3.7em; overflow: hidden; }
   .inv-label__text small { font-size: 6.5pt; margin-top: 1mm; color: #333; }
 
-  .inv-form { font-family: Tahoma, Geneva, sans-serif; color: #000; font-size: 10.5pt; }
-  .inv-form h2 { text-align: center; font-size: 15pt; margin: 0; }
-  .inv-form__co { text-align: center; margin: 2mm 0 6mm; }
-  .inv-form table { width: 100%; border-collapse: collapse; margin-bottom: 6mm; }
-  .inv-form th, .inv-form td { border: 1px solid #000; padding: 1.6mm 2mm; text-align: left; vertical-align: top; }
-  .inv-form__who th { width: 18%; background: #eee; print-color-adjust: exact; -webkit-print-color-adjust: exact; }
-  .inv-form__items thead { display: table-header-group; }
-  .inv-form__items tr { break-inside: avoid; page-break-inside: avoid; }
-  .inv-form__text { text-align: justify; margin: 6mm 0 16mm; }
-  .inv-form__sign { display: flex; gap: 14mm; break-inside: avoid; page-break-inside: avoid; }
-  .inv-form__sign div { flex: 1; text-align: center; font-size: 9.5pt; }
-  .inv-form__sign span { display: block; border-top: 1px solid #000; margin-bottom: 1.5mm; }
+  /* the accountability form borrows the TSDR's boxed layout (.inv-tsdr__*) */
+  .inv-acc__items { width: 100%; border-collapse: collapse; font-size: 8.5pt; }
+  .inv-acc__items thead { display: table-header-group; }
+  .inv-acc__items th { background: #eee; text-transform: uppercase; font-size: 8pt; print-color-adjust: exact; -webkit-print-color-adjust: exact; }
+  .inv-acc__items th, .inv-acc__items td { border-bottom: 1px solid #000; border-right: 1px solid #6c757d; padding: 1.2mm 1.8mm; text-align: left; vertical-align: top; }
+  .inv-acc__items th:last-child, .inv-acc__items td:last-child { border-right: 0; }
+  .inv-acc__items tr { break-inside: avoid; page-break-inside: avoid; }
+  .inv-acc__items small { font-size: 7.5pt; }
+  .inv-acc .inv-acc__text { font-weight: 700; text-align: justify; border-bottom: 0; padding-top: 2.5mm; }
+  .inv-acc .inv-acc__signs { padding: 12mm 6mm 3mm; break-inside: avoid; page-break-inside: avoid; }
 
   /* TSDR: one A4 page, same sections as the old projInventory form */
-  .inv-tsdr { font-family: Tahoma, Geneva, sans-serif; color: #000; font-size: 9pt; line-height: 1.3; }
-  .inv-tsdr__head { display: flex; align-items: center; gap: 4mm; border-bottom: 2px solid #000; padding-bottom: 2mm; margin-bottom: 2mm; }
-  .inv-tsdr__head img { height: 14mm; width: auto; }
-  .inv-tsdr__head > div:first-of-type { flex: 1; }
-  .inv-tsdr__head h2 { font-size: 13pt; margin: 0; text-transform: uppercase; letter-spacing: .3px; }
-  .inv-tsdr__head p { margin: .5mm 0 0; font-size: 8.5pt; }
-  .inv-tsdr__no { text-align: right; font-size: 8.5pt; }
-  .inv-tsdr__no b { display: block; font-size: 12pt; }
-  .inv-tsdr h3 { font-size: 9pt; margin: 3mm 0 1.5mm; padding: 1mm 2mm; background: #e6e6e6; text-transform: uppercase; print-color-adjust: exact; -webkit-print-color-adjust: exact; }
-  .inv-tsdr h4 { font-size: 8.5pt; margin: 2mm 0 1mm; text-transform: uppercase; }
-  .inv-tsdr table { width: 100%; border-collapse: collapse; margin-bottom: 1.5mm; break-inside: avoid; page-break-inside: avoid; }   /* a long item list pushes a whole table to the next page, not half of it */
-  .inv-tsdr h3, .inv-tsdr h4 { break-after: avoid; page-break-after: avoid; }
-  .inv-tsdr th, .inv-tsdr td { border: 1px solid #000; padding: 1mm 1.6mm; text-align: left; vertical-align: top; }
-  .inv-tsdr th { width: 24%; font-weight: 600; }
-  .inv-tsdr__checks { display: grid; grid-template-columns: repeat(4, 1fr); gap: 1mm 3mm; }
-  .inv-tsdr__opt { display: inline-flex; align-items: center; gap: 1.5mm; margin-right: 4mm; }
-  .inv-tsdr__box { display: inline-block; width: 3.2mm; height: 3.2mm; border: 1px solid #000; text-align: center; line-height: 3mm; font-size: 8pt; font-weight: 700; }
-  .inv-tsdr__line { margin: 1mm 0; }
-  .inv-tsdr__items { margin: 0 0 1mm; padding-left: 5mm; }
-  .inv-tsdr__items li { break-inside: avoid; page-break-inside: avoid; }
-  .inv-tsdr__sign { display: flex; gap: 12mm; margin-top: 8mm; break-inside: avoid; page-break-inside: avoid; }
-  .inv-tsdr__sign div { flex: 1; text-align: center; font-size: 8.5pt; }
-  .inv-tsdr__sign b { display: block; min-height: 1.3em; font-size: 9pt; }
-  .inv-tsdr__sign span { display: block; border-top: 1px solid #000; margin: .5mm 0 .8mm; }
-  .inv-tsdr__sign small { display: block; font-size: 7pt; }
-  .inv-tsdr__sign--one div { flex: 0 0 50%; margin-left: auto; }
-  .inv-tsdr__ack { margin: 1mm 0 0; font-style: italic; }
+  /* TSDR: a boxed form like projInventory's — header cells, gray bars, two-column SysAd grid */
+  .inv-tsdr { font-family: "Segoe UI", Tahoma, Geneva, sans-serif; color: #000; font-size: 9pt; line-height: 1.3; border: 1px solid #000; }
+  .inv-tsdr b, .inv-tsdr strong { font-weight: 700; }
+  .inv-tsdr__head { display: grid; grid-template-columns: 17% 1fr 25%; align-items: stretch; border-bottom: 1px solid #000; }
+  .inv-tsdr__head > * { display: flex; align-items: center; padding: 2mm 3mm; }
+  .inv-tsdr__logo { justify-content: center; border-right: 1px solid #000; }
+  .inv-tsdr__logo img { max-height: 15mm; max-width: 100%; }
+  .inv-tsdr__head h2 { justify-content: center; text-align: center; margin: 0; font-size: 15pt; font-weight: 700; text-transform: uppercase; border-right: 1px solid #000; }
+  .inv-tsdr__no { font-size: 11pt; font-weight: 700; }
+  .inv-tsdr__bar { background: #d3d3d3; text-align: center; font-weight: 700; font-size: 10.5pt; text-transform: uppercase; padding: 1mm; border-bottom: 1px solid #000; print-color-adjust: exact; -webkit-print-color-adjust: exact; break-after: avoid; page-break-after: avoid; }
+  .inv-tsdr__box1 { padding: 1.5mm 2.5mm; border-bottom: 1px solid #000; }
+  .inv-tsdr__cell > b { display: block; text-transform: uppercase; margin-bottom: .8mm; }
+  .inv-tsdr__row { display: grid; grid-template-columns: 42% 1fr; gap: 3mm; padding: 1.5mm 2.5mm; border-bottom: 1px solid #000; break-inside: avoid; page-break-inside: avoid; }
+  .inv-tsdr__svc > b { display: block; text-transform: uppercase; font-size: 10pt; margin-bottom: 1mm; }
+  .inv-tsdr__two { display: grid; grid-template-columns: 1fr 1.25fr; gap: 0 3mm; }
+  .inv-tsdr__opt { display: flex; align-items: center; gap: 1.6mm; margin: .7mm 0; font-weight: 700; text-transform: uppercase; font-size: 8.5pt; }
+  .inv-tsdr__box { flex: 0 0 auto; width: 3.4mm; height: 3.4mm; border: 1px solid #000; border-radius: .6mm; display: inline-flex; align-items: center; justify-content: center; font-size: 8pt; line-height: 1; }
+  .inv-tsdr__box--round { border-radius: 50%; font-size: 7pt; }
+  .inv-tsdr__others { margin: 1mm 0 0; }
+  .inv-tsdr__others b { text-transform: uppercase; }
+  .inv-tsdr__item > div { border: 1px solid #6c757d; padding: 1.5mm 2.5mm; min-height: 100%; box-sizing: border-box; }
+  .inv-tsdr__item b { display: block; text-transform: uppercase; margin-bottom: 1mm; }
+  .inv-tsdr__item ul { margin: 0; padding-left: 4mm; }
+  .inv-tsdr__item li { font-weight: 700; break-inside: avoid; page-break-inside: avoid; }
+  .inv-tsdr__needed { margin: 0 0 1mm; text-transform: uppercase; }
+  .inv-tsdr__needed b { font-weight: 600; }
+  .inv-tsdr__signs { display: grid; grid-template-columns: 1fr 1fr; gap: 10mm; padding: 0 4mm; }
+  .inv-tsdr__signs--wide { padding: 0; gap: 5mm; align-self: end; }
+  .inv-tsdr__sign { text-align: center; break-inside: avoid; page-break-inside: avoid; }
+  .inv-tsdr__sign > b { display: block; min-height: 1.35em; font-weight: 600; font-size: 9.5pt; }
+  .inv-tsdr__sign > span { display: block; border-top: 1px solid #000; margin: .3mm 0 .6mm; }
+  .inv-tsdr__sign > strong { display: block; text-transform: uppercase; font-size: 9.5pt; }
+  .inv-tsdr__sign > small { display: block; font-size: 7pt; }
+  .inv-tsdr__from > b { text-transform: uppercase; }
+  .inv-tsdr__from > span { font-weight: 700; font-size: 8pt; }
+  .inv-tsdr__from .inv-tsdr__opt { margin-left: 2mm; }
+  .inv-tsdr__grid { display: grid; grid-template-columns: 1fr 1fr; break-inside: avoid; page-break-inside: avoid; }
+  .inv-tsdr__grid > .inv-tsdr__cell { padding: 1.5mm 2.5mm; border-bottom: 1px solid #000; min-height: 11mm; }
+  .inv-tsdr__grid > .inv-tsdr__cell:nth-child(odd) { border-right: 1px solid #6c757d; }
+  .inv-tsdr__grid > .inv-tsdr__cell > div { font-weight: 600; }
+  .inv-tsdr__ack { grid-template-columns: 58% 1fr; align-items: end; border-bottom: 0; padding-top: 3mm; }
+  .inv-tsdr__ack p { margin: 0; font-weight: 700; }
 }
