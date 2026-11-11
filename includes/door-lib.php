@@ -15,11 +15,12 @@
  * git or the database. Env WEDO_DOOR_HOST / WEDO_DOOR_PORT / WEDO_DOOR_KEY /
  * WEDO_DOOR_SECONDS win over the file (tests point them at a fake device).
  *
- * Four things are asked of the device: "who are you" (serial, name, clock),
+ * Five things are asked of the device: "who are you" (serial, name, clock),
  * "who is enrolled" (ID number, name, role — never their device passwords,
- * cards or fingerprints), "release the lock for N seconds" and "correct this
- * person's name". The name is the only thing ever written to the device; its
- * attendance logs are not read.
+ * cards or fingerprints), "release the lock for N seconds", "correct this
+ * person's name" and "add this person" (ID + name; the fingerprint is scanned
+ * at the device). Nothing else is written to the device, nobody is removed
+ * from it, and its attendance logs are not read.
  *
  * Used by: door.php (the page), query/door-action.php (status + unlock)
  * ========================================================================== */
@@ -277,6 +278,38 @@ final class DoorDevice
         return $found['name'];
     }
 
+    /**
+     * Put a new person on the device: ID number + name, an ordinary user with no
+     * device password, card or fingerprint yet (the finger is scanned at the
+     * device afterwards). Nobody already there is touched: the ID must be free
+     * and the record takes the next unused slot. Returns that slot (uid).
+     */
+    public function add(string $userId, string $name): int
+    {
+        $all = $this->userRecords();
+        if (!$all) { throw new DoorException('refused', 'The device has nobody enrolled yet, so WeDo cannot tell how it stores people. Add the first person at the device.'); }
+        $cap = $this->sizes()['userCap'] ?? 0;
+        if ($cap > 0 && count($all) >= $cap) { throw new DoorException('refused', 'The device is full (' . $cap . ' people).'); }
+        $uid = 0; $like = null;
+        foreach ($all as $u) {
+            if ($u['userId'] === $userId) { throw new DoorException('refused', 'ID ' . $userId . ' is already on the device' . ($u['name'] !== '' ? ' (' . $u['name'] . ')' : '') . '.'); }
+            $uid = max($uid, $u['uid']);
+            if ($like === null && $u['role'] === 'User') { $like = $u['raw']; }   // an ordinary user to take the group from
+        }
+        $uid++;
+        if ($uid > 65534) { throw new DoorException('refused', 'The device has no free slot left.'); }
+        $like = $like ?? $all[0]['raw'];
+        $old  = strlen($like) === 28;
+        if (strlen($name) > door_name_max($old)) { throw new DoorException('refused', 'That name is too long for this device.'); }
+        $rec = $old
+            ? pack('vC', $uid, 0) . str_repeat("\0", 5) . str_pad($name, 8, "\0") . pack('V', 0) . "\0" . $like[21] . pack('v', 0) . pack('V', (int) $userId)
+            : pack('vC', $uid, 0) . str_repeat("\0", 8) . str_pad($name, 24, "\0") . pack('V', 0) . "\0" . substr($like, 40, 7) . "\0" . str_pad($userId, 24, "\0");
+        $r = $this->send(ZK_CMD_USER_WRQ, $rec);
+        if ($r['code'] !== ZK_ACK_OK) { throw new DoorException('refused', 'The device refused the new person (code ' . $r['code'] . ').'); }
+        $this->send(ZK_CMD_REFRESHDATA);
+        return $uid;
+    }
+
     /** users() plus each person's record exactly as the device holds it ('raw'). */
     private function userRecords(): array
     {
@@ -436,19 +469,68 @@ function door_enrolled(): array
 /** Longest name the device keeps: 8 letters on old firmware, 23 on the rest. */
 function door_name_max(bool $oldFirmware = false): int { return $oldFirmware ? 8 : 23; }
 
+/** A name as the device can hold it, or the reason it can't: [name, null] | [null, message]. */
+function door_name_clean(string $name): array
+{
+    $name = trim(preg_replace('/\s+/', ' ', $name));
+    if ($name === '') { return [null, 'Type the name first.']; }
+    // the device's screen only draws plain letters: no ñ, accents or emoji
+    if (!preg_match('/^[A-Za-z0-9 .,\'-]+$/', $name)) {
+        return [null, 'Use plain letters, numbers, spaces and . , \' - only (N instead of Ñ): the device cannot show other characters.'];
+    }
+    if (strlen($name) > door_name_max()) { return [null, 'Keep the name to ' . door_name_max() . ' characters: that is all the device stores.']; }
+    return [$name, null];
+}
+
+/** Names of the people employed now, for the "Add person" picker (the device has no link to WeDo). */
+function door_employee_names(PDO $pdo): array
+{
+    try {
+        $st = $pdo->query("SELECT TRIM(CONCAT(COALESCE(EmpFN, ''), ' ', COALESCE(EmpLN, ''))) AS n
+                             FROM employees WHERE EmpStatusID = 1 ORDER BY EmpFN, EmpLN LIMIT 3000");
+        return array_values(array_unique(array_filter($st->fetchAll(PDO::FETCH_COLUMN), 'strlen')));
+    } catch (Throwable $e) {
+        return [];
+    }
+}
+
+/**
+ * Put a new person on the device (ID number + name; their fingerprint is
+ * scanned at the device afterwards) and log it. ['ok' => bool, 'msg', 'user']
+ */
+function door_add(PDO $pdo, string $actor, string $userId, string $name): array
+{
+    $userId = trim($userId);
+    if (!preg_match('/^[1-9][0-9]{0,8}$/', $userId)) { return ['ok' => false, 'msg' => 'The ID is a number from 1 to 999999999, with no letters or spaces.']; }
+    [$name, $bad] = door_name_clean($name);
+    if ($bad) { return ['ok' => false, 'msg' => $bad]; }
+    $c = door_config();
+    if (!$c) { return ['ok' => false, 'msg' => 'No door device is set up on this server yet.']; }
+
+    $what = 'ID ' . $userId . ': ';
+    try {
+        $dev = new DoorDevice($c['host'], $c['port'], $c['key']);
+        $dev->connect();
+        $uid = $dev->add($userId, $name);
+        $dev->close();
+    } catch (DoorException $e) {
+        $why = $e->kind === 'auth' ? 'The device rejected the Comm Key.' : $e->getMessage();
+        door_log_add($pdo, $actor, 'failed', $what . $why, '', 0, 'add');
+        return ['ok' => false, 'msg' => 'Nobody was added. ' . $why];
+    }
+    door_log_add($pdo, $actor, 'ok', $what . $name, '', 0, 'add');
+    return ['ok' => true, 'msg' => $name . ' is on the device as ID ' . $userId . '. Their fingerprint still has to be enrolled at the device.',
+            'user' => ['uid' => $uid, 'userId' => $userId, 'name' => $name, 'role' => 'User']];
+}
+
 /**
  * Correct one enrolled person's name on the device (nothing else about them
  * changes) and log it. ['ok' => bool, 'msg', 'name']
  */
 function door_rename(PDO $pdo, string $actor, int $uid, string $userId, string $name): array
 {
-    $name = trim(preg_replace('/\s+/', ' ', $name));
-    if ($name === '') { return ['ok' => false, 'msg' => 'Type the name first.']; }
-    // the device's screen only draws plain letters: no ñ, accents or emoji
-    if (!preg_match('/^[A-Za-z0-9 .,\'-]+$/', $name)) {
-        return ['ok' => false, 'msg' => 'Use plain letters, numbers, spaces and . , \' - only (N instead of Ñ): the device cannot show other characters.'];
-    }
-    if (strlen($name) > door_name_max()) { return ['ok' => false, 'msg' => 'Keep the name to ' . door_name_max() . ' characters: that is all the device stores.']; }
+    [$name, $bad] = door_name_clean($name);
+    if ($bad) { return ['ok' => false, 'msg' => $bad]; }
     $c = door_config();
     if (!$c) { return ['ok' => false, 'msg' => 'No door device is set up on this server yet.']; }
 
@@ -467,7 +549,7 @@ function door_rename(PDO $pdo, string $actor, int $uid, string $userId, string $
     return ['ok' => true, 'msg' => 'Name changed on the device.', 'name' => $name];
 }
 
-/** Write one try to door_log ($action: unlock | rename). */
+/** Write one try to door_log ($action: unlock | rename | add). */
 function door_log_add(PDO $pdo, string $actor, string $result, string $detail, string $note, int $seconds, string $action = 'unlock'): void
 {
     $now = (new DateTimeImmutable('now', new DateTimeZone('Asia/Manila')))->format('Y-m-d H:i:s');
@@ -520,7 +602,7 @@ function door_log_rows(PDO $pdo, int $limit = 30): array
     $out = [];
     foreach ($st->fetchAll(PDO::FETCH_ASSOC) as $r) {
         $out[] = ['id' => (int) $r['id'], 'who' => $r['name'] !== '' ? $r['name'] : $r['EmpID'], 'ok' => $r['Result'] === 'ok',
-                  'action' => $r['Action'] === 'rename' ? 'rename' : 'unlock', 'detail' => (string) $r['Detail'], 'note' => (string) $r['Note'], 'seconds' => (int) $r['Seconds'],
+                  'action' => in_array($r['Action'], ['rename', 'add'], true) ? $r['Action'] : 'unlock', 'detail' => (string) $r['Detail'], 'note' => (string) $r['Note'], 'seconds' => (int) $r['Seconds'],
                   'at' => date('M j, Y g:i:s A', strtotime($r['CreatedAt']))];
     }
     return $out;

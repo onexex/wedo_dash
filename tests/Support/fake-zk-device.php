@@ -77,7 +77,7 @@ while (time() < $until) {
             $out = pack('V', ((26 * 12 * 31 + 10 * 31 + 10) * 24 + 8) * 3600 + 30 * 60 + 15);
         } elseif ($h['cmd'] === ZK_CMD_GET_FREE_SIZES) {
             $f = array_fill(0, 20, 0);
-            $f[4] = count($people); $f[6] = 5; $f[15] = 1000;
+            $f[4] = intdiv(strlen($list) - 4, $old ? 28 : 72); $f[6] = 5; $f[15] = 1000;
             $out = pack('V20', ...$f);
         } elseif ($h['cmd'] === ZK_CMD_PREPARE_BUFFER) {
             if ($old) { $code = ZK_CMD_DATA; $out = $list; }                   // small list: handed over at once
@@ -95,7 +95,7 @@ while (time() < $until) {
             }
             continue;
         } elseif ($h['cmd'] === ZK_CMD_USER_WRQ) {
-            // replace the stored record that has the same uid; note exactly what was written
+            // replace the stored record that has the same uid, or add it as a new person; note exactly what was written
             $size = $old ? 28 : 72;
             $code = 2001;
             for ($at = 4; strlen($data) === $size && $at + $size <= strlen($list); $at += $size) {
@@ -105,6 +105,12 @@ while (time() < $until) {
                     $code = ZK_ACK_OK;
                     break;
                 }
+            }
+            if ($code !== ZK_ACK_OK && strlen($data) === $size) {
+                $list = pack('V', strlen($list) - 4 + $size) . substr($list, 4) . $data;
+                file_put_contents($log, 'write ' . bin2hex($data) . "
+", FILE_APPEND);
+                $code = ZK_ACK_OK;
             }
         } elseif ($h['cmd'] === ZK_CMD_UNLOCK) {
             if ($refuse) { $code = 2001; }

@@ -243,6 +243,83 @@ final class DoorControlTest extends AppTestCase
         $this->assertArrayNotHasKey('users', $j);
     }
 
+    // ------------------------------------------------------------------ adding a person
+
+    public function testAddPutsANewPersonOnTheDeviceWithoutTouchingAnyoneElse(): void
+    {
+        $this->device();
+        $this->grant(self::ADMIN);
+        [$code, $j] = $this->act($this->as(self::ADMIN), ['action' => 'add', 'userId' => ' 1004 ', 'name' => ' Maria   Santos ']);
+        $this->assertSame(200, $code);
+        $this->assertSame(['uid' => 4, 'userId' => '1004', 'name' => 'Maria Santos', 'role' => 'User'], $j['user']);
+        $this->assertStringContainsString('fingerprint still has to be enrolled', $j['msg']);
+
+        // one record written: the next free slot, an ordinary user with no device password or card
+        $written = $this->released();
+        $this->assertCount(1, $written);
+        $rec = hex2bin(substr($written[0], strlen('write ')));
+        $this->assertSame(72, strlen($rec));
+        $this->assertSame(['uid' => 4, 'priv' => 0], unpack('vuid/Cpriv', $rec));
+        $this->assertSame(str_repeat("\0", 8), substr($rec, 3, 8), 'no device password');
+        $this->assertSame(str_pad('Maria Santos', 24, "\0"), substr($rec, 11, 24));
+        $this->assertSame(0, unpack('V', substr($rec, 35, 4))[1], 'no card');
+        $this->assertSame(str_pad('1', 7, "\0"), substr($rec, 40, 7), 'same group as the other ordinary users');
+        $this->assertSame('1004', rtrim(substr($rec, 48, 24), "\0"));
+
+        // everyone who was there is still there, unchanged, plus the new person
+        [, $list] = $this->act($this->as(self::ADMIN), ['action' => 'enrolled']);
+        $this->assertSame(['1003' => '', '1001' => 'Ada Admin', '1002' => 'Juan Dela Cruz', '1004' => 'Maria Santos'],
+                          array_column($list['users'], 'name', 'userId'));
+        $this->assertSame([['EmpID' => self::ADMIN, 'Action' => 'add', 'Result' => 'ok', 'Detail' => 'ID 1004: Maria Santos']],
+                          $this->rows("SELECT EmpID, Action, Result, Detail FROM door_log"));
+        $this->assertSame('add', $j['log'][0]['action']);
+    }
+
+    public function testAddRefusesATakenIdBadInputAndPeopleWithoutTheRight(): void
+    {
+        $this->device();
+        $this->assertSame(403, $this->act($this->as(self::EMP), ['action' => 'add', 'userId' => '1004', 'name' => 'Maria Santos'])[0]);
+
+        $this->grant(self::EMP);
+        foreach ([['1002', 'Maria Santos', 'already on the device (Juan Dela Cruz)'], ['0', 'Maria Santos', 'ID is a number'],
+                  ['12a', 'Maria Santos', 'ID is a number'], ['1234567890', 'Maria Santos', 'ID is a number'], ['', 'Maria Santos', 'ID is a number'],
+                  ['1004', '', 'Type the name'], ['1004', 'Niño', 'plain letters'], ['1004', str_repeat('A', 24), '23 characters']] as [$id, $name, $why]) {
+            [$code, $j] = $this->act($this->as(self::EMP), ['action' => 'add', 'userId' => $id, 'name' => $name]);
+            $this->assertSame(422, $code, "$id / $name");
+            $this->assertStringContainsString($why, $j['msg'], "$id / $name");
+        }
+        $this->assertSame([], $this->released(), 'nothing was written');
+        // only the try that reached the device is on record
+        $this->assertSame(['failed'], array_column($this->rows("SELECT Result FROM door_log WHERE Action = 'add'"), 'Result'));
+    }
+
+    public function testAddOnAnOldFirmwareDevice(): void
+    {
+        $this->device(self::KEY, 'old');
+        $this->grant(self::ADMIN);
+        $this->assertSame(422, $this->act($this->as(self::ADMIN), ['action' => 'add', 'userId' => '1004', 'name' => 'Maria Santos'])[0]);
+        $this->assertSame(200, $this->act($this->as(self::ADMIN), ['action' => 'add', 'userId' => '1004', 'name' => 'Maria S'])[0]);
+        $rec = hex2bin(substr($this->released()[0], strlen('write ')));
+        $this->assertSame(28, strlen($rec));
+        $this->assertSame(['uid' => 4, 'priv' => 0], unpack('vuid/Cpriv', $rec));
+        $this->assertSame("Maria S\0", substr($rec, 8, 8));
+        $this->assertSame(1004, unpack('V', substr($rec, 24, 4))[1]);
+        [, $list] = $this->act($this->as(self::ADMIN), ['action' => 'enrolled']);
+        $this->assertCount(4, $list['users']);
+    }
+
+    public function testThePageOffersEmployedPeoplesNamesForAdding(): void
+    {
+        $this->grant(self::ADMIN);
+        $body = $this->request('door.php', [], [], $this->as(self::ADMIN))['body'];
+        $this->assertNoPhpErrors($body);
+        $this->assertStringContainsString('Juan Dela Cruz', $body);
+        $x = $this->dom($body);
+        $this->assertNotNull($x->query("//form[@id='doorAdd' and @hidden]//input[@id='doorAddId']")->item(0));
+        $this->assertNotNull($x->query("//button[@id='doorAddOpen' and @disabled]")->item(0), 'Add waits for the device');
+        $this->assertSame(2, $x->query("//div[contains(@class,'door-tabs')]//*[@role='tab']")->length);
+    }
+
     // ------------------------------------------------------------------ correcting a name
 
     public function testRenameChangesOnlyTheNameOnTheDevice(): void
