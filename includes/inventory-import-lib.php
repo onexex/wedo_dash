@@ -8,6 +8,7 @@
      tb_brand      -> inv_items.Brand (text)
      tb_specsdsc   -> inv_items.Description ("RAM: 8GB; SSD: 256GB")
      tb_eqpdeploy  -> holder of the item + issued / returned history
+     tbl_tsdr*     -> inv_tsdr + inv_tsdr_items (invimp_tsdr_run, same number, e.g. 261110_228)
 
    Rules:
      Stock / Deployed / Defective -> Status active (Defective = condition damaged)
@@ -22,8 +23,19 @@
    CLI: tools/import-projinventory.php. Tables: sql/2026-11-05-add-inventory.sql.
    ========================================================================== */
 require_once __DIR__ . '/inventory-lib.php';
+require_once __DIR__ . '/inventory-tsdr-lib.php';
 
 const INVIMP_SOURCE = 'projInventory';
+
+/** tbl_tsdrsbr column -> INV_TSDR_SERVICES code. */
+const INVIMP_TSDR_SERVICES = [
+    'sbr_install' => 'install', 'sbr_update' => 'update', 'sbr_troubleshoot' => 'troubleshoot', 'sbr_transfer' => 'transfer',
+    'sbr_format' => 'format', 'sbr_load' => 'load', 'sbr_create' => 'create', 'sbr_pullout' => 'pullout',
+    'sbr_convert' => 'convert', 'sbr_replace' => 'replace', 'sbr_configure' => 'configure', 'sbr_patch' => 'patch',
+    'sbr_newsoftware' => 'newsoftware', 'sbr_software' => 'software', 'sbr_actDec' => 'actdeact', 'sbr_others' => 'others',
+];
+const INVIMP_TSDR_FROM   = [1 => 'it', 2 => 'dev'];
+const INVIMP_TSDR_STATUS = [1 => 'done', 2 => 'pending', 3 => 'cannot', 4 => 'others'];
 
 /** tb_eqpname.name (upper case) -> inv_categories.Code. Anything else is EQP. */
 const INVIMP_CATEGORY = [
@@ -54,7 +66,7 @@ function invimp_text($v, $max) {
 function invimp_datetime($v) {
     $v = trim((string) $v);
     if ($v === '') { return null; }
-    foreach (['Y-m-d h:i A', 'Y-m-d H:i:s.u', 'Y-m-d H:i:s', 'Y-m-d H:i', 'Y-m-d'] as $f) {
+    foreach (['Y-m-d / h:i A', 'Y-m-d h:i A', 'Y-m-d H:i:s.u', 'Y-m-d H:i:s', 'Y-m-d H:i', 'Y-m-d'] as $f) {
         $d = DateTime::createFromFormat('!' . $f, $v);
         if ($d && $d->format('Y') > 1990) { return $d->format('Y-m-d H:i:s'); }
     }
@@ -238,6 +250,98 @@ function invimp_run(PDO $src, PDO $dst, array $opt = []) {
             $dst->commit();
             $out['applied'] = true;
             inv_audit($dst, 'imported ' . $out['items'] . ' items from ' . INVIMP_SOURCE . ' (' . invimp_tag_summary($out['tags']) . ')');
+        } else {
+            $dst->rollBack();
+        }
+    } catch (Throwable $ex) {
+        if ($dst->inTransaction()) { $dst->rollBack(); }
+        throw $ex;
+    }
+    return $out;
+}
+
+/**
+ * Bring the old app's TSDRs into inv_tsdr, keeping their numbers. Items are
+ * matched to Inventory by serial number, so run invimp_run first. Safe to run
+ * again: a number that is already there is skipped. Same options as invimp_run.
+ * @return array{ok:bool, msg?:string, applied:bool, tsdrs:int, items:int, unmatched:int, skipped:int, warnings:array}
+ */
+function invimp_tsdr_run(PDO $src, PDO $dst, array $opt = []) {
+    $apply = !empty($opt['apply']);
+    $out = ['ok' => true, 'applied' => false, 'tsdrs' => 0, 'items' => 0, 'unmatched' => 0, 'skipped' => 0, 'warnings' => []];
+    if (!inv_tsdr_ready($dst)) { return ['ok' => false, 'msg' => 'TSDR is not set up here: run sql/2026-11-11-add-inventory-tsdr.sql first.'] + $out; }
+
+    $sysads = [];
+    foreach ($src->query("SELECT empName, ESID FROM tb_user")->fetchAll(PDO::FETCH_ASSOC) as $u) { $sysads[trim((string) $u['empName'])] = trim((string) $u['ESID']); }
+    $sbr = [];
+    foreach ($src->query("SELECT * FROM tbl_tsdrsbr ORDER BY id_tsdrSbr")->fetchAll(PDO::FETCH_ASSOC) as $s) { $sbr[$s['id_tsdr']] = $s; }   // the last row wins
+    $lines = [];
+    foreach ($src->query("SELECT ti.id_tsdr, e.eqpn_nm, e.sn FROM tbl_tsdritem ti
+            LEFT JOIN tb_eqpdeploy d ON d.id = ti.id_eqp LEFT JOIN tb_equipment e ON e.id = d.eqp_id ORDER BY ti.id_tsdritem")->fetchAll(PDO::FETCH_ASSOC) as $l) {
+        $lines[$l['id_tsdr']][] = $l;
+    }
+    $tsdrs = $src->query("SELECT * FROM tbl_tsdr ORDER BY id")->fetchAll(PDO::FETCH_ASSOC);
+
+    $names = [];
+    $name = function ($empId) use ($dst, &$names) {
+        $empId = trim((string) $empId);
+        if ($empId === '') { return null; }
+        if (!array_key_exists($empId, $names)) { $e = lcy_employee($dst, $empId); $names[$empId] = $e ? $e['name'] : null; }
+        return $names[$empId];
+    };
+    $bySerial = $dst->prepare("SELECT id FROM inv_items WHERE SerialNo = :s LIMIT 1");
+    $exists   = $dst->prepare("SELECT 1 FROM inv_tsdr WHERE TsdrNo = :n");
+    $insT = $dst->prepare("INSERT INTO inv_tsdr (TsdrNo, Seq, EmpID, Requisitioner, AccountDept, DateNeeded, Services, OtherService,
+            ApprovedByEmpID, ApprovedBy, RequestedFrom, ReceivedBy, SysadEmpID, Sysad, Status, StatusDetails, Evaluation, Recommendation,
+            AccomplishedAt, Source, CreatedBy, CreatedAt, UpdatedAt)
+        VALUES (:no, :seq, :emp, :req, :acc, :need, :svc, :oth, :apid, :ap, :from, :rec, :sid, :sys, :st, :sd, :ev, :rc, :done,
+            'projinventory', :by, :c, :u)");
+    $insI = $dst->prepare("INSERT INTO inv_tsdr_items (TsdrID, ItemID, ItemText) VALUES (:t, :i, :x)");
+
+    $dst->beginTransaction();
+    try {
+        foreach ($tsdrs as $t) {
+            $no = trim((string) $t['id_tsdr']);
+            if (!preg_match('/^\d{6}_(\d+)$/', $no, $m)) { $out['warnings'][] = "TSDR \"$no\" has an unexpected number — left out."; continue; }
+            $exists->execute([':n' => $no]);
+            if ($exists->fetchColumn()) { $out['skipped']++; continue; }
+
+            $s = $sbr[$no] ?? [];
+            $services = [];
+            foreach (INVIMP_TSDR_SERVICES as $col => $code) { if ((int) ($s[$col] ?? 0) === 1) { $services[] = $code; } }
+            $sysad   = invimp_text($t['tsdr_SPA'], 150);
+            $sysadId = $sysad !== null ? ($sysads[$sysad] ?? null) : null;
+            $created = invimp_datetime($t['created_at']) ?: inv_now();
+            $insT->execute([
+                ':no' => $no, ':seq' => (int) $m[1], ':emp' => trim((string) $t['id_Emp']),
+                ':req' => $name($t['id_Emp']) ?: (invimp_text($t['tsdr_Requis'], 150) ?: trim((string) $t['id_Emp'])),
+                ':acc' => invimp_text($t['tsdr_AccDep'], 120), ':need' => lcy_date($t['tsdr_DateNeeded']) ?: null,
+                ':svc' => implode(',', $services), ':oth' => invimp_text($t['tsdr_otherspecify'], 200),
+                ':apid' => invimp_text($t['tsdr_ApprovedBy'], 50), ':ap' => $name($t['tsdr_ApprovedBy']) ?: invimp_text($t['tsdr_ApprovedBy'], 150),
+                ':from' => INVIMP_TSDR_FROM[(int) $t['tsdr_RequestFrm']] ?? 'it', ':rec' => invimp_text($t['tsdr_RecievedBy'], 150),
+                ':sid' => $sysadId, ':sys' => ($sysadId ? $name($sysadId) : null) ?: $sysad,
+                ':st' => INVIMP_TSDR_STATUS[(int) $t['tsdr_StatusReq']] ?? 'others',
+                ':sd' => invimp_text($t['tsdr_StatusComment'], 300), ':ev' => invimp_text($t['tsdr_Eva'], 500), ':rc' => invimp_text($t['tsdr_Recom'], 500),
+                ':done' => invimp_datetime($t['tsdr_DTAccom']), ':by' => $sysadId,
+                ':c' => $created, ':u' => invimp_datetime($t['updated_at']) ?: $created,
+            ]);
+            $tid = (int) $dst->lastInsertId();
+            foreach ($lines[$no] ?? [] as $l) {
+                $itemId = null;
+                $serial = invimp_text($l['sn'], 80);
+                if ($serial !== null) { $bySerial->execute([':s' => $serial]); $itemId = (int) $bySerial->fetchColumn() ?: null; }
+                $item = $itemId ? inv_item($dst, $itemId) : null;
+                $text = $item ? inv_tsdr_item_text($item) : mb_substr(invimp_name($l['eqpn_nm'] ?: 'Item') . ($serial !== null ? ' · SN ' . $serial : ''), 0, 250);
+                $insI->execute([':t' => $tid, ':i' => $itemId, ':x' => $text]);
+                $out['items']++;
+                if (!$itemId) { $out['unmatched']++; }
+            }
+            $out['tsdrs']++;
+        }
+        if ($apply) {
+            $dst->commit();
+            $out['applied'] = true;
+            if ($out['tsdrs']) { inv_audit($dst, 'imported ' . $out['tsdrs'] . ' TSDRs from ' . INVIMP_SOURCE); }
         } else {
             $dst->rollBack();
         }

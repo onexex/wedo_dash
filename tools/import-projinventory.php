@@ -65,10 +65,22 @@ echo "  issued:     {$r['issued']} (currently with an employee)\n";
 echo "  disposed:   {$r['disposed']}\n";
 echo "  history:    {$r['movements']} movements\n";
 echo '  skipped:    ' . count($r['skipped']) . " (serial number already in Inventory)\n";
-foreach ($r['skipped'] as $s) { echo "    - $s\n"; }
+foreach (array_slice($r['skipped'], 0, 10) as $s) { echo "    - $s\n"; }
+if (count($r['skipped']) > 10) { echo '    … and ' . (count($r['skipped']) - 10) . " more\n"; }
 if ($r['warnings']) {
     echo '  warnings:   ' . count($r['warnings']) . "\n";
     foreach ($r['warnings'] as $w) { echo "    - $w\n"; }
 }
-if (!$r['applied']) { echo "Run again with --apply to save.\n"; }
+
+// the old TSDR forms, once the TSDR tables exist (they match items by serial number, so after the items)
+if (!inv_tsdr_ready($dst)) {
+    echo "TSDRs: skipped — run sql/2026-11-11-add-inventory-tsdr.sql to bring them over too.\n";
+} else {
+    $t = invimp_tsdr_run($src, $dst, ['apply' => !empty($opt['apply'])]);
+    echo ($t['applied'] ? 'Imported' : 'Dry run — nothing saved. Would import') . " {$t['tsdrs']} TSDRs\n";
+    echo "  items:      {$t['items']} lines" . ($t['unmatched'] ? ", {$t['unmatched']} not matched to an Inventory item (kept as text)" : '') . "\n";
+    echo "  skipped:    {$t['skipped']} (number already in Inventory)\n";
+    foreach ($t['warnings'] as $w) { echo "    - $w\n"; }
+}
+if (empty($opt['apply'])) { echo "Run again with --apply to save.\n"; }
 exit(0);

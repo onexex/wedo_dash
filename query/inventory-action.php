@@ -6,6 +6,7 @@
 
      my_items, my_ack, my_report              any signed-in employee, own items only
      everything else                          the `inventory` right
+     tsdr_*                                   also needs sql/2026-11-11-add-inventory-tsdr.sql
    ========================================================================== */
 if (session_status() === PHP_SESSION_NONE) { session_start(); }
 date_default_timezone_set("Asia/Manila");
@@ -27,6 +28,7 @@ if (!$_POST && !$_FILES && (int) ($_SERVER['CONTENT_LENGTH'] ?? 0) > 0) {
 
 include 'w_conn.php';
 require_once __DIR__ . '/../includes/inventory-lib.php';
+require_once __DIR__ . '/../includes/inventory-tsdr-lib.php';
 
 try {
     $pdo = new PDO("mysql:host=$servername;dbname=$db;charset=utf8mb4", $username, $password);
@@ -68,7 +70,29 @@ try {
         inv_out(403, ['status' => 'error', 'msg' => 'You do not have access to Inventory.']);
     }
 
+    if (strpos($action, 'tsdr') === 0 && !inv_tsdr_ready($pdo)) {
+        inv_out(503, ['status' => 'error', 'msg' => 'TSDR is not set up on this server yet — run sql/2026-11-11-add-inventory-tsdr.sql.']);
+    }
+
     switch ($action) {
+    /* ---------- TSDR */
+    case 'tsdr_draft':
+        $dr = inv_tsdr_draft($pdo, $p('emp'), $actor);
+        if (!$dr) { inv_out(404, ['status' => 'error', 'msg' => 'That employee no longer exists.']); }
+        inv_out(200, ['status' => 'ok'] + $dr + inv_tsdr_lookups());
+
+    case 'tsdr':
+        $t = inv_tsdr_get($pdo, (int) $p('id'));
+        if (!$t) { inv_out(404, ['status' => 'error', 'msg' => 'That TSDR no longer exists.']); }
+        $dr = inv_tsdr_draft($pdo, $t['empId'], $actor);
+        inv_out(200, ['status' => 'ok', 'tsdr' => $t, 'items' => $dr ? $dr['items'] : [], 'employee' => $dr ? $dr['employee'] : null] + inv_tsdr_lookups());
+
+    case 'tsdr_list':
+        inv_out(200, ['status' => 'ok', 'tsdrs' => inv_tsdr_list($pdo, ['q' => $p('q'), 'emp' => $p('emp')]), 'limit' => INV_TSDR_LIMIT]);
+
+    case 'tsdr_save':
+        $result(inv_tsdr_save($pdo, $_POST, $actor));
+
     /* ---------- reading */
     case 'lookups':
         inv_out(200, ['status' => 'ok'] + inv_lookups($pdo));
