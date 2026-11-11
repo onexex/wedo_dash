@@ -205,10 +205,12 @@ function inv_tsdr_get(PDO $pdo, $id) {
     $r = $st->fetch(PDO::FETCH_ASSOC);
     if (!$r) { return null; }
     $t = _inv_tsdr_out($r);
-    $st = $pdo->prepare("SELECT ti.ItemID, ti.ItemText, i.TagNo FROM inv_tsdr_items ti LEFT JOIN inv_items i ON i.id = ti.ItemID WHERE ti.TsdrID = :t ORDER BY ti.id");
+    $st = $pdo->prepare("SELECT ti.ItemID, ti.ItemText, i.TagNo, i.HolderEmpID, i.AckAt FROM inv_tsdr_items ti LEFT JOIN inv_items i ON i.id = ti.ItemID WHERE ti.TsdrID = :t ORDER BY ti.id");
     $st->execute([':t' => $t['id']]);
-    $t['items'] = array_map(function ($x) {
-        return ['itemId' => $x['ItemID'] === null ? null : (int) $x['ItemID'], 'tag' => (string) $x['TagNo'], 'text' => $x['ItemText']];
+    $t['items'] = array_map(function ($x) use ($t) {
+        return ['itemId' => $x['ItemID'] === null ? null : (int) $x['ItemID'], 'tag' => (string) $x['TagNo'], 'text' => $x['ItemText'],
+                // when the requisitioner confirmed receipt (while they still hold it; a later holder's confirmation is not theirs)
+                'ackAt' => (string) $x['HolderEmpID'] === (string) $t['empId'] ? $x['AckAt'] : null];
     }, $st->fetchAll(PDO::FETCH_ASSOC));
     return $t;
 }
