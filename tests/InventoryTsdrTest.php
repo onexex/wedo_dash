@@ -81,6 +81,7 @@ final class InventoryTsdrTest extends AppTestCase
         $this->assertSame(date('ymd') . '_1', $r['json']['nextNo']);
         $this->assertArrayHasKey('install', $r['json']['services']);
         $this->assertSame(self::ADMIN, $r['json']['defaults']['sysadId']);
+        $this->assertSame('Choose the employee.', $this->act('tsdr_draft', ['emp' => ''])['json']['msg'], 'the TSDR tab asks for one first');
 
         $this->assertSame(200, $this->save(['items' => [$a]])['status']);
         $r = $this->act('tsdr_draft', ['emp' => self::EMP]);
@@ -162,6 +163,55 @@ final class InventoryTsdrTest extends AppTestCase
         $this->assertSame([date('ymd') . '_8'], array_column($this->act('tsdr_list', ['q' => 'juan accounting'])['json']['tsdrs'], 'no'));
         $this->assertSame(['230105_7'], array_column($this->act('tsdr_list', ['emp' => self::ADMIN])['json']['tsdrs'], 'no'));
         $this->assertSame([], $this->act('tsdr_list', ['q' => '100%'])['json']['tsdrs']);
+    }
+
+    private function added(string $serial, string $name = 'Laptop'): int
+    {
+        $r = $this->act('item_save', ['name' => $name, 'categoryId' => $this->eqp, 'locationId' => $this->hq, 'qty' => 1, 'condition' => 'good', 'serial' => $serial]);
+        $this->assertSame(200, $r['status'], $r['body']);
+        return (int) $r['json']['id'];
+    }
+
+    public function testIssueManyThenOneTsdr(): void
+    {
+        $a = $this->added('SN-A');
+        $b = $this->added('SN-B', 'Monitor');
+        $r = $this->act('issue_many', ['ids' => [$a, $b], 'emp' => self::EMP, 'date' => '2026-11-10', 'notes' => 'New hire kit']);
+        $this->assertSame(200, $r['status'], $r['body']);
+        $this->assertSame([$a, $b], $r['json']['ids']);
+        $this->assertSame(self::EMP, $r['json']['empId']);
+        foreach ([$a, $b] as $id) {
+            $this->assertSame([self::EMP, '2026-11-10'], array_values($this->row('SELECT HolderEmpID, IssuedOn FROM inv_items WHERE id = ?', [$id])));
+        }
+        $this->assertSame('2', (string) $this->row("SELECT COUNT(*) AS n FROM inv_movements WHERE Type = 'issued' AND Notes = 'New hire kit'")['n']);
+
+        // one TSDR for both, then each item and the person's list show it
+        $no = $this->save(['items' => [$a, $b]])['json']['no'];
+        $person = $this->act('person', ['emp' => self::EMP])['json']['items'];
+        $this->assertSame([$no, $no], array_map(function ($i) { return $i['tsdr']['no']; }, $person));
+        $listed = array_column($this->act('items', ['kind' => 'property'])['json']['items'], 'tsdr', 'id');
+        $this->assertSame($no, $listed[$a]['no']);
+        $detail = $this->act('item', ['id' => $a])['json'];
+        $this->assertSame([$no], array_column($detail['tsdrs'], 'no'));
+    }
+
+    public function testIssueManyIsAllOrNothing(): void
+    {
+        $a = $this->added('SN-A');
+        $b = $this->issued('SN-B', 'Monitor');   // already with Juan
+        $r = $this->act('issue_many', ['ids' => [$a, $b], 'emp' => self::ADMIN]);
+        $this->assertSame(422, $r['status']);
+        $this->assertMatchesRegularExpression('/^EQP-\d+: This item is already issued/', $r['json']['msg']);
+        $this->assertNull($this->row('SELECT HolderEmpID FROM inv_items WHERE id = ?', [$a])['HolderEmpID'], 'the first one is not issued either');
+        $this->assertSame(422, $this->act('issue_many', ['ids' => [], 'emp' => self::EMP])['status']);
+        $this->assertSame(422, $this->act('issue_many', ['ids' => [$a], 'emp' => 'NOBODY'])['status']);
+    }
+
+    public function testItemsWithoutATsdrSayNull(): void
+    {
+        $a = $this->issued('SN-A');
+        $this->assertNull($this->act('person', ['emp' => self::EMP])['json']['items'][0]['tsdr']);
+        $this->assertSame([], $this->act('item', ['id' => $a])['json']['tsdrs']);
     }
 
     public function testStaffCannotUseIt(): void
