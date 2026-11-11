@@ -78,7 +78,7 @@ final class InventoryTsdrTest extends AppTestCase
         $this->assertSame(self::EMP, $r['json']['employee']['empId']);
         $this->assertSame([$a => true, $b => true], array_column($r['json']['items'], 'pending', 'id'));
         $this->assertStringContainsString('Laptop · LENOVO T14 · SN SN-A (EQP-', $r['json']['items'][0]['text']);
-        $this->assertSame(date('ymd') . '_1', $r['json']['nextNo']);
+        $this->assertSame(date('ymd') . '_01', $r['json']['nextNo'], 'at least two digits');
         $this->assertArrayHasKey('install', $r['json']['services']);
         $this->assertSame(self::ADMIN, $r['json']['defaults']['sysadId']);
         $this->assertSame('Choose the employee.', $this->act('tsdr_draft', ['emp' => ''])['json']['msg'], 'the TSDR tab asks for one first');
@@ -156,11 +156,11 @@ final class InventoryTsdrTest extends AppTestCase
         $this->save(['items' => [$a], 'accountDept' => 'Accounting']);
 
         $all = $this->act('tsdr_list')['json']['tsdrs'];
-        $this->assertSame([date('ymd') . '_8', '230105_7'], array_column($all, 'no'), 'newest number first');
+        $this->assertSame([date('ymd') . '_08', '230105_7'], array_column($all, 'no'), 'newest number first');
         $this->assertSame(1, $all[0]['itemCount']);
         $this->assertSame(['230105_7'], array_column($this->act('tsdr_list', ['q' => 'sales'])['json']['tsdrs'], 'no'));
-        $this->assertSame([date('ymd') . '_8'], array_column($this->act('tsdr_list', ['q' => 'PF37'])['json']['tsdrs'], 'no'), 'item words match');
-        $this->assertSame([date('ymd') . '_8'], array_column($this->act('tsdr_list', ['q' => 'juan accounting'])['json']['tsdrs'], 'no'));
+        $this->assertSame([date('ymd') . '_08'], array_column($this->act('tsdr_list', ['q' => 'PF37'])['json']['tsdrs'], 'no'), 'item words match');
+        $this->assertSame([date('ymd') . '_08'], array_column($this->act('tsdr_list', ['q' => 'juan accounting'])['json']['tsdrs'], 'no'));
         $this->assertSame(['230105_7'], array_column($this->act('tsdr_list', ['emp' => self::ADMIN])['json']['tsdrs'], 'no'));
         $this->assertSame([], $this->act('tsdr_list', ['q' => '100%'])['json']['tsdrs']);
     }
@@ -285,7 +285,7 @@ final class InventoryTsdrTest extends AppTestCase
         $this->assertSame(['others', 'Set up VPN', 'others', 'dev', 'Unknown Person', null], [$b['Services'], $b['OtherService'], $b['Status'], $b['RequestedFrom'], $b['Sysad'], $b['SysadEmpID']]);
 
         // the next TSDR made here continues after the imported numbers; an old TSDR dated before the issue does not cover it
-        $this->assertSame(date('ymd') . '_7', $this->save()['json']['no']);
+        $this->assertSame(date('ymd') . '_07', $this->save()['json']['no']);
         $this->assertSame([$item => true], array_column($this->act('tsdr_draft', ['emp' => self::EMP])['json']['items'], 'pending', 'id'));
 
         $again = invimp_tsdr_run($db, $db, ['apply' => true]);

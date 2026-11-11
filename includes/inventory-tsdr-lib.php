@@ -75,16 +75,20 @@ function inv_tsdr_draft(PDO $pdo, $empId, $actor) {
     ];
 }
 
+/** "261111_01": the date and the running number, at least two digits. */
+function inv_tsdr_no($seq) {
+    return date('ymd') . '_' . str_pad((string) (int) $seq, 2, '0', STR_PAD_LEFT);
+}
+
 /** The number the next TSDR would get (display only; the real one is taken when it is saved). */
 function inv_tsdr_peek_no(PDO $pdo) {
-    $seq = (int) $pdo->query("SELECT COALESCE(MAX(Seq), 0) + 1 FROM inv_tsdr")->fetchColumn();
-    return date('ymd') . '_' . $seq;
+    return inv_tsdr_no((int) $pdo->query("SELECT COALESCE(MAX(Seq), 0) + 1 FROM inv_tsdr")->fetchColumn());
 }
 
 /** Take the next number inside the caller's transaction (locks the top of the Seq index). */
 function _inv_tsdr_next_tx(PDO $pdo) {
     $seq = (int) $pdo->query("SELECT COALESCE(MAX(Seq), 0) + 1 FROM inv_tsdr FOR UPDATE")->fetchColumn();
-    return [date('ymd') . '_' . $seq, $seq];
+    return [inv_tsdr_no($seq), $seq];
 }
 
 /** "2026-11-11T14:05" / "2026-11-11 14:05" -> "2026-11-11 14:05:00", or null. */
