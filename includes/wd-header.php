@@ -174,12 +174,6 @@ if (isset($ar['subscriptions']) && $ar['subscriptions'] == 2 && sub_ready($wdpdo
     // the bell counts today's reminder until Notifications is opened today
     if ($wdSubMine && (empty($wdSeen) || $wdSeen < date('Y-m-d 00:00:00'))) { $nrow += count($wdSubMine); }
 }
-/* SIM Inbox: loads expired or expiring soon, and a collector that stopped (SIM Inbox readers only) */
-$wdGsmCount = 0;
-if (isset($ar['gsminbox']) && $ar['gsminbox'] == 2) {
-    require_once __DIR__ . '/gsm-lib.php';
-    $wdGsmCount = gsm_menu_count($wdpdo);
-}
 /* The day's renewal reminders, if the 8:00 AM cron has not sent them: the first
    page load after 8 AM (anyone's) sends them after the page is delivered. Once
    per session a day; sub_run_daily() itself makes sure it happens once a day. */
@@ -253,7 +247,7 @@ function wd_can($ar, $k) { return isset($ar[$k]) && $ar[$k] == 2; }
       ['access_13',             'generalreport',  'generalreport',  'calendar-range',  'YTD 13<sup>th</sup> Month'],
     ]],
     ['key' => 'management', 'label' => 'Management', 'icon' => 'briefcase-business', 'tone' => 'mgt',
-     'badge' => $wdAplCount + $wdInvCount + $wdSubCount + $wdGsmCount, 'badgeTitle' => 'New job applications, inventory alerts, renewals due and SIM loads expiring', 'items' => [
+     'badge' => $wdAplCount + $wdInvCount + $wdSubCount, 'badgeTitle' => 'New job applications, inventory alerts and renewals due', 'items' => [
       ['arights',    'accessrights',    'accessrights.php', 'shield-check',   'Access Rights'],
       ['applicants', 'applicants',      'applicants',       'clipboard-list', 'Applicant Pool', $wdAplCount],
       ['ams',        'ams',             'ams',              'archive',        'Archived Management System'],
@@ -269,7 +263,6 @@ function wd_can($ar, $k) { return isset($ar[$k]) && $ar[$k] == 2; }
       ['payeereg',   'payeereg',        'payeereg',         'book-user',      'Payee Management System'],
       ['schedv',     'schedviewer',     'schedviewer',      'calendar-clock', 'Schedule Viewer'],
       ['separation', 'separation',      'separation',       'user-minus',     'Separation & Lifecycle'],
-      ['gsminbox',   'gsm',             'gsm',              'message-square-text', 'SIM Inbox', $wdGsmCount],
       ['subscriptions', 'subscriptions', 'subscriptions',   'globe',          'Subscriptions & Logins', $wdSubCount],
     ]],
     ['key' => 'maintenance', 'label' => 'Maintenance', 'icon' => 'wrench', 'tone' => 'mnt', 'items' => [

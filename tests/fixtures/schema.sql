@@ -68,7 +68,6 @@ CREATE TABLE `accessrights` (
   `aftersep` int(11) NOT NULL DEFAULT 1,
   `dbbackup` int(11) NOT NULL DEFAULT 1,
   `doorctl` int(11) NOT NULL DEFAULT 1,
-  `gsminbox` int(11) NOT NULL DEFAULT 1,
   `cpoll` int(11) NOT NULL DEFAULT 1,
   `fdetls` int(11) NOT NULL DEFAULT 1,
   `nwblogs` int(11) NOT NULL DEFAULT 1,
@@ -2143,47 +2142,4 @@ CREATE TABLE IF NOT EXISTS `door_log` (
   `CreatedAt` DATETIME     NOT NULL,
   PRIMARY KEY (`id`),
   KEY `ix_door_log_emp` (`EmpID`, `id`)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
-
--- SIM inbox (sql/2026-11-19-add-gsm-inbox.sql)
-CREATE TABLE IF NOT EXISTS `gsm_sms` (
-  `id`         INT(11)      NOT NULL AUTO_INCREMENT,
-  `Line`       TINYINT(4)   NOT NULL,
-  `Sender`     VARCHAR(40)  NOT NULL,
-  `Body`       TEXT         NOT NULL,
-  `DeviceTime` VARCHAR(30)  NULL,
-  `ReceivedAt` DATETIME     NOT NULL,
-  `IsCarrier`  TINYINT(1)   NOT NULL DEFAULT 0,
-  `Hash`       CHAR(40)     NOT NULL,
-  `Collector`  VARCHAR(40)  NOT NULL DEFAULT '',
-  `CreatedAt`  DATETIME     NOT NULL,
-  PRIMARY KEY (`id`),
-  UNIQUE KEY `ux_gsm_sms_hash` (`Hash`),
-  KEY `ix_gsm_sms_line` (`Line`, `id`),
-  KEY `ix_gsm_sms_carrier` (`IsCarrier`, `id`)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
-
-CREATE TABLE IF NOT EXISTS `gsm_lines` (
-  `Line`         TINYINT(4)    NOT NULL,
-  `Label`        VARCHAR(60)   NULL,
-  `Number`       VARCHAR(20)   NULL,
-  `Balance`      DECIMAL(10,2) NULL,
-  `BalanceAt`    DATETIME      NULL,
-  `ExpiresOn`    DATE          NULL,
-  `ExpiryAt`     DATETIME      NULL,
-  `ExpirySource` VARCHAR(10)   NULL,
-  `SourceSmsID`  INT(11)       NULL,
-  `UpdatedBy`    VARCHAR(50)   NULL,
-  `UpdatedAt`    DATETIME      NULL,
-  PRIMARY KEY (`Line`)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
-
-CREATE TABLE IF NOT EXISTS `gsm_collectors` (
-  `Name`       VARCHAR(40)  NOT NULL,
-  `LastSeenAt` DATETIME     NOT NULL,
-  `LastOkAt`   DATETIME     NULL,
-  `LastError`  VARCHAR(255) NULL,
-  `IP`         VARCHAR(45)  NOT NULL DEFAULT '',
-  `Version`    VARCHAR(20)  NULL,
-  PRIMARY KEY (`Name`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;

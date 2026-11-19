@@ -20,8 +20,3 @@ assets/images/id-signatures/
 # Dev-only test tooling (composer install; never deployed)
 vendor/
 .phpunit.cache/
-
-# SIM Inbox collector (tools/gsm-collector.php): its settings hold the gateway password and WeDo key
-tools/gsm-collector.config.php
-tools/gsm-collector.state.json*
-tools/gsm-collector.log
