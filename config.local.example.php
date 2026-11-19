@@ -65,6 +65,16 @@
  *   name          shown on the page (default "Office door")
  * No 'door' entry = the page says no device is set up. Needs
  * sql/2026-11-11-add-door-control.sql on this server's database.
+ *
+ * SIM Inbox (Management, see includes/gsm-lib.php): 'gsm' is for the collector
+ * on an office PC that sends the GSM gateway's texts here (tools/gsm-collector.md).
+ *   ingest_key     shared secret, at least 32 characters, make one with
+ *                  php -r "echo bin2hex(random_bytes(32));"  The same key goes in
+ *                  the collector's config. One key per server; never commit it.
+ *                  Env var WEDO_GSM_KEY wins over this. No key = the collector is refused.
+ *   warn_days      warn this many days before a SIM's load expires (default 3)
+ *   stale_minutes  collector silent this long = shown as stopped (default 10)
+ * Needs sql/2026-11-19-add-gsm-inbox.sql on this server's database.
  * -------------------------------------------------------------------------- */
 return [
     'host' => 'localhost',
@@ -85,4 +95,5 @@ return [
     // ],
     // 'sub_vault_key' => '<64 random hex characters>',   // secret — never commit it
     // 'door' => ['host' => '203.0.113.10', 'port' => 4370, 'comm_key' => 0, 'open_seconds' => 5, 'name' => 'Office door'],   // comm_key is secret
+    // 'gsm' => ['ingest_key' => '<64 random hex characters>', 'warn_days' => 3],   // ingest_key is secret
 ];

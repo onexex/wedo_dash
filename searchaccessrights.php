@@ -40,7 +40,7 @@ function ar_h($s) { return htmlspecialchars((string) $s, ENT_QUOTES, 'UTF-8'); }
 
 /* rights that can do real damage when handed out: never bulk-switched, and
    accessrights.php asks before changing them one at a time */
-$sensitive = ['arights', 'dbbackup', 'msgaudit', 'aftersep', 'doorctl'];
+$sensitive = ['arights', 'dbbackup', 'msgaudit', 'aftersep', 'doorctl', 'gsminbox'];
 
 /* [icon, label, column, hint] per group; columns added by later migrations are
    only listed once they exist (a missing column would read as ON) */
@@ -97,6 +97,7 @@ if (array_key_exists('inventory', $row))  { $mgmt[] = ['fa-boxes-stacked',  'Inv
 if (array_key_exists('subscriptions', $row)) { $mgmt[] = ['fa-globe',      'Subscriptions',           'subscriptions', 'Domains, hosting, security and PhilGEPS renewals; gets the daily renewal reminders']; }
 if (array_key_exists('subcreds', $row)) { $mgmt[] = ['fa-key',        'Subscription logins',     'subcreds', 'See and copy the saved passwords of subscriptions (every view is logged); needs Subscriptions too']; }
 if (array_key_exists('doorctl', $row)) { $mgmt[] = ['fa-door-open',  'Door Control',            'doorctl', 'Unlock the office door from WeDo (every unlock is logged)']; }
+if (array_key_exists('gsminbox', $row)) { $mgmt[] = ['fa-sim-card',  'SIM Inbox',               'gsminbox', 'Read every text the office SIMs receive (including one-time codes) and their load']; }
 $groups['Management'] = ['fa-user-gear', $mgmt];
 
 $maint = [

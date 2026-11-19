@@ -110,6 +110,9 @@ FROM (
   UNION ALL SELECT '2026-11-11-add-door-control', CONCAT_WS(' ',
          IF((SELECT COUNT(*) FROM information_schema.COLUMNS WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'accessrights' AND COLUMN_NAME = 'doorctl') = 0, 'accessrights.doorctl', NULL),
          IF((SELECT COUNT(*) FROM information_schema.TABLES WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'door_log') = 0, 'table door_log', NULL))
+  UNION ALL SELECT '2026-11-19-add-gsm-inbox', CONCAT_WS(' ',
+         IF((SELECT COUNT(*) FROM information_schema.COLUMNS WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'accessrights' AND COLUMN_NAME = 'gsminbox') = 0, 'accessrights.gsminbox', NULL),
+         IF((SELECT COUNT(*) FROM information_schema.TABLES WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME IN ('gsm_sms','gsm_lines','gsm_collectors')) < 3, 'gsm_sms / gsm_lines / gsm_collectors tables', NULL))
   UNION ALL SELECT 'security fix (remember-me hash, see wedo-security-fixes)',
          IF((SELECT COUNT(*) FROM information_schema.COLUMNS WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'empdetails' AND COLUMN_NAME = 'remember_hash') = 0, 'empdetails.remember_hash', '')
 ) AS m;
